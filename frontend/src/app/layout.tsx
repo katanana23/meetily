@@ -4,7 +4,7 @@
 import '@/dev/mock-tauri/bootstrap'
 
 // Переключение CSS через импорт в head
-import { Source_Sans_3 } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
@@ -38,10 +38,11 @@ if (ui === 'aid') {
   require('./globals.css')
 }
 
-const sourceSans3 = Source_Sans_3({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-source-sans-3',
+const inter = Inter({
+  subsets: ['latin', 'cyrillic'],
+  weight: ['400', '500', '600'],
+  variable: '--font-inter',
+  display: 'swap',
 })
 
 // Module-level component — stable reference across RootLayout re-renders.
@@ -221,7 +222,7 @@ export default function RootLayout({
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body
-        className={sourceSans3.variable}
+        className={inter.variable}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

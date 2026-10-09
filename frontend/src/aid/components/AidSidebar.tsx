@@ -1,34 +1,32 @@
-// Сайдбар Aid: минимальный, только переключатель темы, список встреч и кнопка настроек.
-// Стекло, без развёрнутого/свёрнутого режима.
+// Сайдбар Aid: 240px, навигация, переключатель темы, PrivacyChip внизу
 
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { Settings, Moon, Sun, Monitor } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Settings, Moon, Sun, Monitor, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
-import { t } from '@/aid/strings';
-import { formatDate } from '@/aid/lib/format';
 import { useState, useEffect } from 'react';
 import { getStoredTheme, setStoredTheme, applyTheme, type ThemeMode } from '@/aid/lib/theme';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { PrivacyChip } from './PrivacyChip';
+import { useConfig } from '@/contexts/ConfigContext';
+import { getCombinedPrivacy } from '@/aid/lib/privacy';
 
 export function AidSidebar() {
   const router = useRouter();
-  const { meetings } = useSidebar();
+  const pathname = usePathname();
   const [theme, setTheme] = useState<ThemeMode>('system');
+  const { modelConfig: summaryModelConfig, transcriptModelConfig } = useConfig();
+
+  const privacyLevel = getCombinedPrivacy(
+    transcriptModelConfig?.provider,
+    summaryModelConfig?.provider
+  );
 
   useEffect(() => {
     const stored = getStoredTheme();
     setTheme(stored);
     applyTheme(stored);
 
-    // Слушать системную тему
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
       if (theme === 'system') {
@@ -45,70 +43,71 @@ export function AidSidebar() {
     applyTheme(mode);
   };
 
-  const themeIcon = theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />;
+  const navItems = [
+    { label: 'Встречи', path: '/' },
+    { label: 'Поиск', path: '/search' },
+    { label: 'Настройки', path: '/settings' },
+  ];
 
   return (
-    <aside className="w-64 glass flex flex-col h-screen shrink-0">
+    <aside className="w-60 bg-card border-r border-border flex flex-col h-screen shrink-0">
       {/* Шапка */}
-      <div className="p-4 border-b border-border/50">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">{t('appName')}</h2>
-          <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  {themeIcon}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleThemeChange('light')}>
-                  <Sun className="h-4 w-4 mr-2" />
-                  Светлая
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleThemeChange('dark')}>
-                  <Moon className="h-4 w-4 mr-2" />
-                  Тёмная
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleThemeChange('system')}>
-                  <Monitor className="h-4 w-4 mr-2" />
-                  Системная
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => router.push('/settings')}
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+      <div className="p-4 border-b border-border">
+        <h2 className="text-[15px] font-semibold">Aid Meetings</h2>
       </div>
 
-      {/* Список встреч */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+      {/* Навигация */}
+      <nav className="flex-1 p-2">
         <div className="space-y-1">
-          {meetings.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              {t('noMeetings')}
-            </div>
-          ) : (
-            meetings.map((meeting) => (
-              <button
-                key={meeting.id}
-                onClick={() => router.push(`/meeting-details?id=${meeting.id}`)}
-                className="w-full text-left p-3 rounded-lg hover:bg-muted/50 transition-colors space-y-1"
-              >
-                <p className="font-medium text-sm line-clamp-2 leading-snug">{meeting.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate((meeting as any).created_at || '')}
-                </p>
-              </button>
-            ))
-          )}
+          {navItems.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => router.push(item.path)}
+              className={`w-full text-left px-3 py-2 rounded-2xl text-[15px] transition-colors ${
+                pathname === item.path
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'hover:bg-muted text-foreground'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
+      </nav>
+
+      {/* Переключатель темы + PrivacyChip */}
+      <div className="p-4 border-t border-border space-y-3">
+        <div className="flex items-center gap-1 bg-muted rounded-2xl p-1">
+          <button
+            onClick={() => handleThemeChange('light')}
+            className={`flex-1 p-2 rounded-xl transition-colors ${
+              theme === 'light' ? 'bg-card shadow-sm' : ''
+            }`}
+            title="Светлая"
+          >
+            <Sun className="h-4 w-4 mx-auto" />
+          </button>
+          <button
+            onClick={() => handleThemeChange('system')}
+            className={`flex-1 p-2 rounded-xl transition-colors ${
+              theme === 'system' ? 'bg-card shadow-sm' : ''
+            }`}
+            title="Системная"
+          >
+            <Monitor className="h-4 w-4 mx-auto" />
+          </button>
+          <button
+            onClick={() => handleThemeChange('dark')}
+            className={`flex-1 p-2 rounded-xl transition-colors ${
+              theme === 'dark' ? 'bg-card shadow-sm' : ''
+            }`}
+            title="Тёмная"
+          >
+            <Moon className="h-4 w-4 mx-auto" />
+          </button>
+        </div>
+
+        <PrivacyChip level={privacyLevel} />
       </div>
     </aside>
   );

@@ -108,28 +108,34 @@
     height: 100%;
   }
 
-  /* Типографическая шкала */
+  /* Типографическая шкала: Gravity UI inspired */
   .text-page-title {
-    font-size: 28px;
-    line-height: 32px;
-    font-weight: 600;
-  }
-
-  .text-card-title {
-    font-size: 22px;
+    font-size: 24px;
     line-height: 28px;
     font-weight: 600;
   }
 
-  .text-body {
-    font-size: 15px;
-    line-height: 22px;
+  .text-section-title {
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 600;
   }
 
-  .text-meta {
+  .text-body {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .text-secondary {
     font-size: 13px;
     line-height: 18px;
     color: hsl(var(--muted-foreground));
+  }
+
+  .text-label {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
   }
 
   /* Табулярные цифры для времени и чисел */

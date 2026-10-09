@@ -1,10 +1,9 @@
-// Сайдбар Aid: 240px, навигация, переключатель темы, PrivacyChip внизу
+// Сайдбар Aid: компактный, системный, 220px
 
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { Settings, Moon, Sun, Monitor, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Settings, Moon, Sun, Monitor } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getStoredTheme, setStoredTheme, applyTheme, type ThemeMode } from '@/aid/lib/theme';
 import { PrivacyChip } from './PrivacyChip';
@@ -45,25 +44,24 @@ export function AidSidebar() {
 
   const navItems = [
     { label: 'Встречи', path: '/' },
-    { label: 'Поиск', path: '/search' },
     { label: 'Настройки', path: '/settings' },
   ];
 
   return (
-    <aside className="w-60 bg-card border-r border-border flex flex-col h-screen shrink-0">
+    <aside className="w-[220px] bg-card border-r border-border flex flex-col h-screen shrink-0">
       {/* Шапка */}
-      <div className="p-4 border-b border-border">
-        <h2 className="text-[15px] font-semibold">Aid Meetings</h2>
+      <div className="px-4 py-4 border-b border-border">
+        <h2 className="text-sm font-semibold">Aid Meetings</h2>
       </div>
 
       {/* Навигация */}
       <nav className="flex-1 p-2">
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {navItems.map((item) => (
             <button
               key={item.path}
               onClick={() => router.push(item.path)}
-              className={`w-full text-left px-3 py-2 rounded-2xl text-[15px] transition-colors ${
+              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                 pathname === item.path
                   ? 'bg-accent text-accent-foreground font-medium'
                   : 'hover:bg-muted text-foreground'
@@ -75,12 +73,12 @@ export function AidSidebar() {
         </div>
       </nav>
 
-      {/* Переключатель темы + PrivacyChip */}
-      <div className="p-4 border-t border-border space-y-3">
-        <div className="flex items-center gap-1 bg-muted rounded-2xl p-1">
+      {/* Переключатель темы + статус */}
+      <div className="p-3 border-t border-border space-y-2">
+        <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
           <button
             onClick={() => handleThemeChange('light')}
-            className={`flex-1 p-2 rounded-xl transition-colors ${
+            className={`flex-1 p-1.5 rounded transition-colors ${
               theme === 'light' ? 'bg-card shadow-sm' : ''
             }`}
             title="Светлая"
@@ -89,7 +87,7 @@ export function AidSidebar() {
           </button>
           <button
             onClick={() => handleThemeChange('system')}
-            className={`flex-1 p-2 rounded-xl transition-colors ${
+            className={`flex-1 p-1.5 rounded transition-colors ${
               theme === 'system' ? 'bg-card shadow-sm' : ''
             }`}
             title="Системная"
@@ -98,7 +96,7 @@ export function AidSidebar() {
           </button>
           <button
             onClick={() => handleThemeChange('dark')}
-            className={`flex-1 p-2 rounded-xl transition-colors ${
+            className={`flex-1 p-1.5 rounded transition-colors ${
               theme === 'dark' ? 'bg-card shadow-sm' : ''
             }`}
             title="Тёмная"

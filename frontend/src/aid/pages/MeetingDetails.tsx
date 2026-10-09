@@ -1,18 +1,18 @@
-// Страница встречи: шапка с действиями, бенто с итогами и транскриптом.
+// Детали встречи: компактный header, tabs для content areas.
+// Gravity UI inspired: системный, читаемый, функциональный.
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Clock, Calendar, FileText, MessageSquare, Info, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BentoCard } from '@/aid/components/BentoCard';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PrivacyChip } from '@/aid/components/PrivacyChip';
 import { CopyButton } from '@/aid/components/CopyButton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { t } from '@/aid/strings';
-import { formatDuration, formatDateTime } from '@/aid/lib/format';
+import { formatDateTime } from '@/aid/lib/format';
 import { getCombinedPrivacy } from '@/aid/lib/privacy';
 import { useConfig } from '@/contexts/ConfigContext';
 import { invoke } from '@tauri-apps/api/core';
@@ -58,18 +58,15 @@ export default function AidMeetingDetails() {
       setLoading(true);
       setError(null);
 
-      // Загрузить метаданные
       const meta = await invoke<MeetingMetadata>('api_get_meeting_metadata', { meetingId });
       setMetadata(meta);
 
-      // Загрузить транскрипты
       const transcriptsData = await invoke<{ transcripts: Transcript[] }>(
         'api_get_meeting_transcripts',
         { meetingId, offset: 0, limit: 1000 }
       );
       setTranscripts(transcriptsData.transcripts || []);
 
-      // Загрузить резюме
       const summaryData = await invoke<any>('api_get_summary', { meetingId });
 
       if (summaryData?.status === 'completed' && summaryData?.data?.markdown) {
@@ -80,15 +77,16 @@ export default function AidMeetingDetails() {
       } else if (summaryData?.status === 'failed') {
         setSummary({
           status: 'failed',
-          error: summaryData.error || 'Unknown error',
+          error: summaryData.error || 'Не удалось создать итоги',
         });
       } else {
         setSummary({ status: 'idle' });
       }
-    } catch (err) {
+
+      setLoading(false);
+    } catch (err: any) {
       console.error('Failed to load meeting:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load meeting');
-    } finally {
+      setError(err?.message || 'Не удалось загрузить встречу');
       setLoading(false);
     }
   };
@@ -99,220 +97,129 @@ export default function AidMeetingDetails() {
     try {
       setSummary({ status: 'processing' });
       await invoke('api_process_transcript', { meetingId });
-
-      // Опросить статус
-      setTimeout(() => loadMeeting(), 2000);
-    } catch (err) {
-      console.error('Failed to generate summary:', err);
+      await loadMeeting();
+    } catch (err: any) {
       setSummary({
         status: 'failed',
-        error: err instanceof Error ? err.message : 'Failed to generate summary',
+        error: err?.message || 'Ошибка генерации итогов',
       });
     }
   };
 
-  const transcriptText = transcripts.map((t) => t.text).join('\n');
-  const transcriptMarkdown = transcripts
-    .map((t) => `**${t.timestamp || ''}** ${t.text}`)
-    .join('\n\n');
+  const transcriptText = transcripts.map((t: Transcript) => t.text).join('\n');
+  const summaryMarkdown = summary.markdown || '';
 
-  if (loading) {
-    return (
-      <main className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-            <Skeleton className="h-12 w-1/2" />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Skeleton className="h-96" />
-              <Skeleton className="h-96" />
-            </div>
-          </div>
-      </main>
-    );
-  }
-
-  if (error || !metadata) {
-    return (
-      <div className="flex h-screen items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>
-            <p className="font-medium">{t('error')}</p>
-            <p className="text-sm mt-1">{error || 'Meeting not found'}</p>
-            <Button onClick={() => router.push('/')} className="mt-4" variant="outline">
-              Вернуться
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  const duration = transcripts.length > 0
-    ? transcripts[transcripts.length - 1].audio_end_time || 0
-    : 0;
+  if (!meetingId) return null;
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Шапка */}
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight">{metadata.title}</h1>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    {formatDateTime(metadata.created_at)}
-                  </div>
-                  {duration > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-4 w-4" />
-                      {formatDuration(duration)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <PrivacyChip level={privacyLevel} />
-              </div>
-            </div>
-
-            {/* Действия */}
-            <div className="flex items-center gap-2">
-              {summary.status === 'completed' && summary.markdown && (
-                <CopyButton
-                  text={summary.markdown}
-                  label={t('copySummary')}
-                  variant="outline"
-                />
+    <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <header className="border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              {loading ? (
+                <Skeleton className="h-7 w-64" />
+              ) : (
+                <h1 className="text-2xl font-semibold">{metadata?.title || 'Встреча'}</h1>
               )}
-              <CopyButton
-                text={transcriptText}
-                markdown={transcriptMarkdown}
-                label={t('copyTranscript')}
-                variant="outline"
-              />
+              <div className="flex items-center gap-3 mt-1">
+                {loading ? (
+                  <Skeleton className="h-4 w-32" />
+                ) : metadata?.created_at ? (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3" />
+                    {formatDateTime(metadata.created_at)}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {/* Бенто: итоги, транскрипт, обработка */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Итоги */}
-            <BentoCard
-              title={t('summary')}
-              className="lg:row-span-2"
-              action={
-                summary.status === 'completed' && (
-                  <Button variant="ghost" size="icon" onClick={handleGenerateSummary}>
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                )
-              }
-            >
-              {summary.status === 'idle' && (
-                <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                  <FileText className="h-12 w-12 text-muted-foreground" />
-                  <div className="text-center space-y-2">
-                    <p className="text-muted-foreground">{t('noSummary')}</p>
-                    {!summaryModelConfig?.provider ? (
-                      <p className="text-sm text-muted-foreground">{t('selectModel')}</p>
-                    ) : (
-                      <Button onClick={handleGenerateSummary} size="lg">
-                        <Sparkles className="h-5 w-5 mr-2" />
-                        {t('generateSummary')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {summary.status === 'processing' && (
-                <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-muted border-t-accent" />
-                  <p className="text-muted-foreground">Генерация итогов…</p>
-                </div>
-              )}
-
-              {summary.status === 'failed' && (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    <p className="font-medium">Не удалось создать итоги</p>
-                    <p className="text-sm mt-1">{summary.error}</p>
-                    <Button onClick={handleGenerateSummary} variant="outline" size="sm" className="mt-3">
-                      {t('retry')}
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {summary.status === 'completed' && summary.markdown && (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                  <div dangerouslySetInnerHTML={{ __html: summary.markdown }} />
-                </div>
-              )}
-            </BentoCard>
-
-            {/* Транскрипт */}
-            <BentoCard title={t('transcript')}>
-              <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                {transcripts.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">Нет транскрипта</p>
-                ) : (
-                  transcripts.map((segment, idx) => (
-                    <div
-                      key={segment.id || idx}
-                      className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors space-y-1"
-                    >
-                      {segment.timestamp && (
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {segment.timestamp}
-                        </div>
-                      )}
-                      <p className="text-sm leading-relaxed">{segment.text}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </BentoCard>
-
-            {/* Как это обработано */}
-            <BentoCard title={t('processing')}>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <MessageSquare className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-medium">Транскрипция</p>
-                    <p className="text-muted-foreground">
-                      {transcriptModelConfig?.provider
-                        ? `Провайдер: ${transcriptModelConfig.provider}`
-                        : 'Не настроено'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-medium">Итоги</p>
-                    <p className="text-muted-foreground">
-                      {summaryModelConfig?.provider
-                        ? `Провайдер: ${summaryModelConfig.provider}`
-                        : 'Не настроено'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-medium">Приватность</p>
-                    <PrivacyChip level={privacyLevel} className="mt-1" />
-                  </div>
-                </div>
-              </div>
-            </BentoCard>
+          <div className="flex items-center gap-3">
+            <PrivacyChip level={privacyLevel} />
+            {summary.status === 'completed' && (
+              <CopyButton text={summaryMarkdown} markdown={summaryMarkdown} variant="outline" size="sm" label="Копировать итоги" />
+            )}
           </div>
         </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto">
+        {error ? (
+          <div className="p-6">
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </div>
+        ) : loading ? (
+          <div className="p-6 space-y-4">
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        ) : (
+          <Tabs defaultValue="summary" className="h-full flex flex-col">
+            <div className="border-b border-border px-6">
+              <TabsList className="bg-transparent h-auto p-0">
+                <TabsTrigger value="summary" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none px-4 py-3">
+                  Итоги
+                </TabsTrigger>
+                <TabsTrigger value="transcript" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none px-4 py-3">
+                  Транскрипт
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <TabsContent value="summary" className="p-6 mt-0">
+                {summary.status === 'processing' ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ) : summary.status === 'failed' ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{summary.error}</AlertDescription>
+                  </Alert>
+                ) : summary.status === 'completed' ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: summaryMarkdown }} />
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-sm text-muted-foreground mb-4">Итоги ещё не созданы</p>
+                    <Button onClick={handleGenerateSummary}>Создать итоги</Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="transcript" className="p-6 mt-0">
+                {transcripts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Транскрипт отсутствует</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Транскрипт</h3>
+                      <CopyButton text={transcriptText} size="sm" variant="outline" label="Копировать" />
+                    </div>
+                    <div className="space-y-3">
+                      {transcripts.map((segment: Transcript, idx: number) => (
+                        <div key={idx} className="group flex gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
+                          <span className="text-xs text-muted-foreground shrink-0 tabular w-16">
+                            {segment.timestamp || '00:00'}
+                          </span>
+                          <p className="text-sm flex-1">{segment.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            </div>
+          </Tabs>
+        )}
+      </div>
     </main>
   );
 }

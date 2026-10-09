@@ -1,177 +1,130 @@
-// Страница записи: плавающая панель (стекло) внизу, живой транскрипт, состояния ошибки.
+// Страница записи: компактная панель управления внизу, живой транскрипт.
+// Gravity UI inspired: минимальный шум, чёткие индикаторы.
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Square, Pause, Play, Copy, Check } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Pause, Square, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BentoCard } from '@/aid/components/BentoCard';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CopyButton } from '@/aid/components/CopyButton';
-import { t } from '@/aid/strings';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
-import { formatDuration } from '@/aid/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import type { Transcript } from '@/types';
 
 export default function AidRecording() {
-  const { status, isRecording, isPaused, recordingDuration } = useRecordingState();
+  const router = useRouter();
+  const { status, recordingDuration } = useRecordingState();
   const { transcripts } = useTranscripts();
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-  // Автопрокрутка при новом транскрипте
+  const isRecording = status === RecordingStatus.RECORDING;
+  const isStopping = status === RecordingStatus.STOPPING;
+
   useEffect(() => {
-    if (autoScroll && transcripts.length > 0) {
-      const container = document.getElementById('transcript-container');
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
+    if (!isRecording && status !== RecordingStatus.STOPPING) {
+      router.push('/');
     }
-  }, [transcripts, autoScroll]);
+  }, [isRecording, status, router]);
 
-  const handleStop = () => {
-    // TODO: вызвать остановку через контекст
-    console.log('Stop recording');
-  };
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [transcripts]);
 
   const handlePause = () => {
-    // TODO: вызвать паузу через контекст
-    console.log('Pause recording');
+    setIsPaused(!isPaused);
+    console.log('Pause/Resume');
   };
 
-  const handleResume = () => {
-    // TODO: возобновить через контекст
-    console.log('Resume recording');
+  const handleStop = () => {
+    console.log('Stop recording');
+    router.push('/');
   };
 
-  const handleCopySegment = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const allText = transcripts.map((t) => t.text).join('\n');
+  const transcriptText = transcripts.map((t: Transcript) => t.text).join('\n');
 
-  // Состояние ошибки
-  if (status === RecordingStatus.ERROR) {
+  if (error) {
     return (
-      <div className="flex h-screen items-center justify-center p-8">
-        <div className="max-w-md w-full space-y-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-5 w-5" />
-            <AlertDescription className="ml-2">
-              <p className="font-medium">{t('recordingError')}</p>
-              <p className="text-sm mt-1">{t('recordingErrorHint')}</p>
-            </AlertDescription>
-          </Alert>
-          <Button onClick={() => window.location.reload()} className="w-full" size="lg">
-            {t('retry')}
-          </Button>
-        </div>
-      </div>
+      <main className="flex-1 flex items-center justify-center p-6">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertDescription>
+            <p className="font-medium">Ошибка записи</p>
+            <p className="text-sm mt-1">{error}</p>
+            <Button onClick={() => router.push('/')} variant="outline" size="sm" className="mt-4">
+              Вернуться
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </main>
     );
   }
 
   return (
-    <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Транскрипт */}
-        <div className="flex-1 overflow-y-auto p-8" id="transcript-container">
-          <div className="max-w-4xl mx-auto">
-            <BentoCard
-              title={t('liveTranscript')}
-              action={
-                transcripts.length > 0 && (
-                  <CopyButton text={allText} label={t('copyAll')} size="sm" />
-                )
-              }
-            >
-              {transcripts.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>Ожидание речи…</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {transcripts.map((segment, idx) => (
-                    <div
-                      key={segment.id || idx}
-                      className="group relative p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-1">
-                          {segment.timestamp && (
-                            <div className="text-xs text-muted-foreground font-mono">
-                              {segment.timestamp}
-                            </div>
-                          )}
-                          <p className="leading-relaxed">{segment.text}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          onClick={() => handleCopySegment(segment.text)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </BentoCard>
+    <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-3xl mx-auto space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Транскрипт</h2>
+            {transcripts.length > 0 && (
+              <CopyButton text={transcriptText} size="sm" variant="ghost" label="Копировать" />
+            )}
           </div>
-        </div>
 
-        {/* Плавающая панель записи (стекло) */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-          <div className="glass rounded-[2rem] shadow-2xl px-8 py-6 flex items-center gap-6">
-            {/* Таймер */}
+          {transcripts.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">
+              Ожидание речи...
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {transcripts.map((segment: Transcript, idx: number) => (
+                <div key={idx} className="p-4 rounded-lg bg-card border border-border hover:bg-muted/30 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0 tabular w-16">
+                      {segment.timestamp}
+                    </span>
+                    <p className="text-sm flex-1">{segment.text}</p>
+                  </div>
+                </div>
+              ))}
+              <div ref={transcriptEndRef} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-border bg-card">
+        <div className="max-w-3xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-              <span className="font-mono text-2xl font-semibold min-w-[5rem]">
-                {formatDuration(recordingDuration || 0)}
+              <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+              <span className="text-2xl font-semibold tabular">
+                {formatTime(recordingDuration)}
               </span>
             </div>
 
-            {/* Визуализация (заглушка — можно подключить реальные уровни) */}
-            <div className="flex items-center gap-1 h-10">
-              {[...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1 bg-accent rounded-full animate-pulse"
-                  style={{
-                    height: `${20 + Math.random() * 40}px`,
-                    animationDelay: `${i * 100}ms`,
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Кнопки */}
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={isPaused ? handleResume : handlePause}
-                className="h-14"
-              >
-                {isPaused ? <Play className="h-6 w-6" /> : <Pause className="h-6 w-6" />}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="lg" onClick={handlePause} disabled={isStopping} className="gap-2">
+                {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+                {isPaused ? 'Продолжить' : 'Пауза'}
               </Button>
-
-              <Button
-                variant="destructive"
-                size="lg"
-                onClick={handleStop}
-                className="h-14 px-8 text-base"
-              >
-                <Square className="h-6 w-6 mr-2" />
-                {t('stopRecording')}
+              <Button variant="destructive" size="lg" onClick={handleStop} disabled={isStopping} className="gap-2">
+                <Square className="h-5 w-5" />
+                {isStopping ? 'Остановка...' : 'Остановить'}
               </Button>
             </div>
           </div>
         </div>
+      </div>
     </main>
   );
 }

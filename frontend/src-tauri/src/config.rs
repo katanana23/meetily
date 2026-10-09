@@ -34,3 +34,28 @@ pub const WHISPER_MODEL_CATALOG: &[(&str, &str, u32, &str, &str, &str)] = &[
     ("large-v3-turbo-q5_0", "ggml-large-v3-turbo-q5_0.bin", 547, "High", "Medium", "Quantized large model, best balance"),
     ("large-v3-q5_0", "ggml-large-v3-q5_0.bin", 1031, "High", "Slow", "Quantized large model, high accuracy"),
 ];
+
+// ---------------------------------------------------------------------------
+// Fork identity (Aid Meetings). Single place for the fork's name in the Rust
+// core: change the literal in `fork_app_name!` to rename tray tooltip,
+// notification titles and the hardcoded data folders below.
+// Must stay in sync with `productName` in tauri.conf.json.
+// ---------------------------------------------------------------------------
+#[macro_export]
+macro_rules! fork_app_name {
+    () => {
+        "Aid Meetings"
+    };
+}
+
+/// Visible app name (tray tooltip, notification titles).
+pub const APP_DISPLAY_NAME: &str = fork_app_name!();
+
+/// Title for error notifications.
+pub const APP_ERROR_TITLE: &str = concat!(fork_app_name!(), " Error");
+
+/// Folder name under the OS data/config dir (custom templates, notification settings).
+pub const APP_DATA_DIR_NAME: &str = fork_app_name!();
+
+/// Default recordings folder name (inside ~/Movies, ~/Music or ~/Documents).
+pub const RECORDINGS_DIR_NAME: &str = "aid-meetings-recordings";

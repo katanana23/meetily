@@ -1,5 +1,7 @@
 'use client'
 
+// Dev-only: заглушки Tauri для запуска в обычном браузере (docs/case/mock.md)
+import '@/dev/mock-tauri/bootstrap'
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'

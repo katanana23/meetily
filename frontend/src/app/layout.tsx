@@ -236,12 +236,12 @@ export default function RootLayout({
                     <RecordingStateProvider>
                       <TranscriptProvider>
                         <OllamaDownloadProvider>
-                          <RecordingPostProcessingProvider>
-                            <ImportDialogProvider onOpen={(filePath) => {
-                              setImportFilePath(filePath || null);
-                              setShowImportDialog(true);
-                            }}>
-                              <SidebarProvider>
+                          <SidebarProvider>
+                            <RecordingPostProcessingProvider>
+                              <ImportDialogProvider onOpen={(filePath) => {
+                                setImportFilePath(filePath || null);
+                                setShowImportDialog(true);
+                              }}>
                                 {showOnboarding && !onboardingCompleted ? (
                                   <OnboardingFlow
                                     onComplete={() => {
@@ -284,9 +284,9 @@ export default function RootLayout({
                                     },
                                   }}
                                 />
-                              </SidebarProvider>
-                            </ImportDialogProvider>
-                          </RecordingPostProcessingProvider>
+                              </ImportDialogProvider>
+                            </RecordingPostProcessingProvider>
+                          </SidebarProvider>
                         </OllamaDownloadProvider>
                       </TranscriptProvider>
                     </RecordingStateProvider>

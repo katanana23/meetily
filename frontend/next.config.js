@@ -14,6 +14,13 @@ const nextConfig = {
   basePath: '',
   assetPrefix: '/',
 
+  // Флаг веб-демо всегда подставляется строкой при сборке, чтобы без него
+  // ветка с заглушками в src/dev/mock-tauri/bootstrap.ts была мёртвой
+  // и не попадала в бандл десктопного приложения.
+  env: {
+    NEXT_PUBLIC_DEMO: process.env.NEXT_PUBLIC_DEMO === '1' ? '1' : '0',
+  },
+
   // Add webpack configuration for Tauri
   webpack: (config, { isServer }) => {
     if (!isServer) {

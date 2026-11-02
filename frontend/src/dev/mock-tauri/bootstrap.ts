@@ -4,9 +4,13 @@
 // подставляется строкой "production", ветка становится мёртвой и webpack
 // не включает ./install (и фикстуры) в бандл. В браузере внутри Tauri
 // window.__TAURI_INTERNALS__ уже есть, и заглушки не ставятся.
+//
+// Исключение: веб-демо на Vercel собирается с NEXT_PUBLIC_DEMO=1, тогда
+// заглушки и вымышленные фикстуры попадают в бандл намеренно. Сборка
+// десктопного приложения этот флаг не задаёт.
 
 if (
-  process.env.NODE_ENV === 'development' &&
+  (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEMO === '1') &&
   typeof window !== 'undefined' &&
   !(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
 ) {

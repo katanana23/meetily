@@ -1,128 +1,187 @@
-// Страница записи: компактная панель управления внизу, живой транскрипт.
-// Gravity UI inspired: минимальный шум, чёткие индикаторы.
+// Экран записи Aid Meetings — shadcn/ui + Solar Icons (fill).
+// Панель управления + живой транскрипт.
 
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Pause, Square, Play } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CopyButton } from '@/aid/components/CopyButton';
-import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
-import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRouter } from 'next/navigation';
-import type { Transcript } from '@/types';
+import { Button } from '@/components/ui/button';
+import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import { toast } from 'sonner';
 
-export default function AidRecording() {
+// Solar Icons (Bold/Fill variant)
+import {
+  RecordBold,
+  PauseBold,
+  PlayBold,
+  CopyBold
+} from 'solar-icon-set';
+
+interface TranscriptSegment {
+  id: string;
+  text: string;
+  timestamp: number;
+  speaker?: string;
+}
+
+export default function Recording() {
   const router = useRouter();
-  const { status, recordingDuration } = useRecordingState();
-  const { transcripts } = useTranscripts();
-  const [isPaused, setIsPaused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { isRecording, isPaused, recordingDuration } = useRecordingState();
+  const { currentMeeting } = useSidebar();
+
+  const [transcripts, setTranscripts] = useState<TranscriptSegment[]>([]);
+  const [isStopping, setIsStopping] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-  const isRecording = status === RecordingStatus.RECORDING;
-  const isStopping = status === RecordingStatus.STOPPING;
-
-  useEffect(() => {
-    if (!isRecording && status !== RecordingStatus.STOPPING) {
-      router.push('/');
-    }
-  }, [isRecording, status, router]);
-
+  // Автопрокрутка к последнему сегменту
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
+  // Если запись остановлена — редирект
+  useEffect(() => {
+    if (!isRecording && !isStopping) {
+      router.push('/');
+    }
+  }, [isRecording, isStopping, router]);
+
+  const handleStop = async () => {
+    setIsStopping(true);
+    try {
+      const recordingService = await import('@/services/recordingService').then(
+        (m) => m.recordingService
+      );
+      await recordingService.stopRecording();
+      toast.success('Запись остановлена', {
+        description: 'Идёт обработка и создание итогов',
+      });
+      setTimeout(() => {
+        if (currentMeeting?.id) {
+          router.push(`/meeting-details?id=${currentMeeting.id}`);
+        } else {
+          router.push('/');
+        }
+      }, 500);
+    } catch (error: any) {
+      console.error('Stop error:', error);
+      toast.error('Ошибка остановки записи');
+      setIsStopping(false);
+    }
+  };
+
   const handlePause = () => {
-    setIsPaused(!isPaused);
+    // Pause/Resume functionality
     console.log('Pause/Resume');
   };
 
-  const handleStop = () => {
-    console.log('Stop recording');
-    router.push('/');
+  const handleCopyAll = () => {
+    const text = transcripts.map((t) => t.text).join('\n\n');
+    navigator.clipboard.writeText(text);
+    toast.success('Транскрипт скопирован');
   };
 
   const formatTime = (seconds: number | null) => {
     if (seconds === null) return '00:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const transcriptText = transcripts.map((t: Transcript) => t.text).join('\n');
-
-  if (error) {
-    return (
-      <main className="flex-1 flex items-center justify-center p-6">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>
-            <p className="font-medium">Ошибка записи</p>
-            <p className="text-sm mt-1">{error}</p>
-            <Button onClick={() => router.push('/')} variant="outline" size="sm" className="mt-4">
-              Вернуться
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </main>
-    );
-  }
-
   return (
-    <main className="flex-1 flex flex-col h-screen overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Транскрипт</h2>
+    <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+      {/* Header */}
+      <header className="border-b px-8 py-5 shrink-0">
+        <div className="flex items-center justify-between max-w-[1600px]">
+          <div>
+            <h1 className="text-3xl font-semibold">Идёт запись</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+              <span className="text-base font-medium tabular-nums">
+                {formatTime(recordingDuration)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handlePause}
+              disabled={isStopping}
+              className="gap-2"
+            >
+              {isPaused ? (
+                <>
+                  <PlayBold size={18} />
+                  Продолжить
+                </>
+              ) : (
+                <>
+                  <PauseBold size={18} />
+                  Пауза
+                </>
+              )}
+            </Button>
+            <Button
+              size="lg"
+              onClick={handleStop}
+              disabled={isStopping}
+              variant="destructive"
+              className="gap-2"
+            >
+              {isStopping ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Остановка...
+                </>
+              ) : (
+                <>
+                  <RecordBold size={18} />
+                  Остановить
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Transcript */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="max-w-[1000px] mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Транскрипт</h2>
             {transcripts.length > 0 && (
-              <CopyButton text={transcriptText} size="sm" variant="ghost" label="Копировать" />
+              <Button variant="ghost" size="sm" onClick={handleCopyAll} className="gap-2">
+                <CopyBold size={16} />
+                Скопировать всё
+              </Button>
             )}
           </div>
 
           {transcripts.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-12">
-              Ожидание речи...
-            </p>
+            <div className="rounded-2xl p-12 text-center bg-muted/30 border">
+              <p className="text-sm text-muted-foreground">Ожидание речи...</p>
+              <p className="text-xs text-muted-foreground/70 mt-2">
+                Транскрипт появится автоматически
+              </p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {transcripts.map((segment: Transcript, idx: number) => (
-                <div key={idx} className="p-4 rounded-lg bg-card border border-border hover:bg-muted/30 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0 tabular w-16">
-                      {segment.timestamp}
-                    </span>
-                    <p className="text-sm flex-1">{segment.text}</p>
-                  </div>
+            <div className="space-y-4">
+              {transcripts.map((segment) => (
+                <div
+                  key={segment.id}
+                  className="p-5 rounded-xl bg-card border"
+                >
+                  <p className="text-[15px] leading-relaxed">{segment.text}</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {new Date(segment.timestamp).toLocaleTimeString('ru-RU')}
+                  </p>
                 </div>
               ))}
               <div ref={transcriptEndRef} />
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="border-t border-border bg-card">
-        <div className="max-w-3xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-              <span className="text-2xl font-semibold tabular">
-                {formatTime(recordingDuration)}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={handlePause} disabled={isStopping} className="gap-2">
-                {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
-                {isPaused ? 'Продолжить' : 'Пауза'}
-              </Button>
-              <Button variant="destructive" size="lg" onClick={handleStop} disabled={isStopping} className="gap-2">
-                <Square className="h-5 w-5" />
-                {isStopping ? 'Остановка...' : 'Остановить'}
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
     </main>

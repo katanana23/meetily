@@ -3,7 +3,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { Settings, Moon, Sun, Monitor } from 'lucide-react';
+import { Settings, Moon, Sun, Monitor, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getStoredTheme, setStoredTheme, applyTheme, type ThemeMode } from '@/aid/lib/theme';
 import { PrivacyChip } from './PrivacyChip';
@@ -43,8 +43,8 @@ export function AidSidebar() {
   };
 
   const navItems = [
-    { label: 'Встречи', path: '/' },
-    { label: 'Настройки', path: '/settings' },
+    { label: 'Встречи', path: '/', icon: FileText },
+    { label: 'Настройки', path: '/settings', icon: Settings },
   ];
 
   return (
@@ -57,19 +57,23 @@ export function AidSidebar() {
       {/* Навигация */}
       <nav className="flex-1 p-2">
         <div className="space-y-0.5">
-          {navItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => router.push(item.path)}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                pathname === item.path
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'hover:bg-muted text-foreground'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                  pathname === item.path
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'hover:bg-muted text-foreground'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </nav>
 

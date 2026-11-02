@@ -1,15 +1,13 @@
 'use client';
 
-// Переключатель интерфейса: original или aid.
-// Управляется переменной окружения NEXT_PUBLIC_UI (по умолчанию aid).
-
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import OriginalHome from './page-original';
 import AidHome from '@/aid/pages/Home';
 import AidRecording from '@/aid/pages/Recording';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams();
   const { isRecording } = useRecordingState();
 
@@ -27,4 +25,12 @@ export default function Home() {
   }
 
   return <AidHome />;
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
+  );
 }

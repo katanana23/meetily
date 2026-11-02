@@ -76,4 +76,6 @@ experiments/
 .cursor/
 target/
 
-frontend/src-tauri/binaries/
+frontend/src-tauri/binaries/*.sql
+/meetily-dump.sql
+*.dump.sql

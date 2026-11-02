@@ -29,10 +29,13 @@ import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { themeScript } from '@/aid/lib/theme'
 import { AidSidebar } from '@/aid/components/AidSidebar'
+import { AidGravityThemeProvider } from '@/aid/lib/gravity-theme'
 
 // Импорт CSS в зависимости от UI
 const ui = process.env.NEXT_PUBLIC_UI || 'aid'
 if (ui === 'aid') {
+  require('@gravity-ui/uikit/styles/fonts.css')
+  require('@gravity-ui/uikit/styles/styles.css')
   require('@/aid/styles/globals.css')
 } else {
   require('./globals.css')
@@ -253,10 +256,12 @@ export default function RootLayout({
                                 ) : (
                                   <>
                                     {isAidUI ? (
-                                      <div className="flex h-screen overflow-hidden">
-                                        <AidSidebar />
-                                        {children}
-                                      </div>
+                                      <AidGravityThemeProvider>
+                                        <div className="flex h-screen overflow-hidden">
+                                          <AidSidebar />
+                                          {children}
+                                        </div>
+                                      </AidGravityThemeProvider>
                                     ) : (
                                       <>
                                         <Sidebar />

@@ -28,6 +28,9 @@ export class MockBackend {
   private pausedAt = 0;
   private seq = 0;
   private lineIdx = 0;
+  private tickIdx = 0;
+  private vadChunks = 0;
+  private jumped = false;
   private liveTimer: ReturnType<typeof setInterval> | null = null;
   private lastActivity = Date.now();
 
@@ -133,17 +136,66 @@ export class MockBackend {
     this.pausedTotalMs = 0;
     this.seq = 0;
     this.lineIdx = 0;
+    this.tickIdx = 0;
+    this.vadChunks = 0;
+    this.jumped = false;
     this.recordingTitle = this.recordingTitle || LIVE_TITLE;
     this.liveTimer = setInterval(() => this.tick(), 1800);
   }
 
+  /** Речевой сегмент после VAD: в ядре на каждый обработанный чанк приходит transcription-progress. */
+  private vadSegment() {
+    this.vadChunks++;
+    this.emit('transcription-progress', {
+      worker_id: 0,
+      chunks_completed: this.vadChunks,
+      chunks_queued: this.vadChunks,
+      progress_percentage: 100,
+      message: `Worker 0 processing... (${this.vadChunks}/${this.vadChunks})`,
+    });
+  }
+
   private tick() {
     if (!this.recording || this.paused) return;
-    // Сценарии пустых записей: речь не распознана совсем или только три реплики
     const live = this.scenario.live ?? 'normal';
-    if (live === 'none' || (live === 'few' && this.lineIdx >= 3)) return;
-    const [speaker, text] = LIVE_LINES[this.lineIdx % LIVE_LINES.length];
+    const n = this.tickIdx++;
+    let line: [string, string, number?];
+    switch (live) {
+      case 'none':
+        return;
+      case 'few':
+        if (this.lineIdx >= 3) return;
+        line = LIVE_LINES[this.lineIdx];
+        break;
+      case 'hallucination':
+        // тишина, один шумовой сегмент, на который модель «придумала» текст
+        if (n !== 1) return;
+        line = ['', 'Продолжение следует...'];
+        break;
+      case 'one-phrase':
+        if (n !== 0) return;
+        line = ['', 'Созвон переносим на пятницу'];
+        break;
+      case 'vad-only':
+        // VAD слышит речь, текста нет
+        this.vadSegment();
+        return;
+      case 'then-silence':
+        if (this.lineIdx >= 5) {
+          if (!this.jumped) {
+            this.jumped = true;
+            this.recStartedAt -= (this.scenario.silenceJumpSec ?? 130) * 1000;
+          }
+          return;
+        }
+        line = LIVE_LINES[this.lineIdx % LIVE_LINES.length];
+        break;
+      default:
+        line = LIVE_LINES[this.lineIdx % LIVE_LINES.length];
+    }
+    const [speaker, text] = line;
     this.lineIdx++;
+    this.vadSegment();
     const end = this.elapsedSec();
     const duration = Math.min(4, Math.max(1.5, text.length / 18));
     const start = Math.max(0, end - duration);
@@ -151,7 +203,7 @@ export class MockBackend {
     this.lastActivity = Date.now();
     this.emit('speech-detected', {});
     this.emit('transcript-update', {
-      text: `${speaker}: ${text}`,
+      text: speaker ? `${speaker}: ${text}` : text,
       timestamp: `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
       source: 'mixed',
       sequence_id: ++this.seq,
@@ -191,9 +243,22 @@ export class MockBackend {
     this.paused = false;
     this.recordingTitle = null;
     this.lastActivity = Date.now() - 10_000;
+    const folder = `${MOCK_ROOT}/recordings/${id}`;
+    // Порядок как в recording_commands.rs: очередь распознавания закрыта
+    // (worker.rs), звук сохранён (recording_saver.rs), затем recording-stopped.
+    await this.emit('transcription-queue-complete', {
+      total_chunks: this.vadChunks,
+      message: `${this.vadChunks} chunks queued for processing - waiting for completion`,
+    });
+    await this.emit('recording-saved', {
+      audio_file: `${folder}/audio.mp4`,
+      transcript_file: `${folder}/transcripts.json`,
+      meeting_name: title,
+      meeting_folder: folder,
+    });
     await this.emit('recording-stopped', {
       message: 'Recording stopped',
-      folder_path: `${MOCK_ROOT}/recordings/${id}`,
+      folder_path: folder,
       meeting_name: title,
     });
     // recording-stop-complete ядро шлёт только при остановке из трея (tray.rs);

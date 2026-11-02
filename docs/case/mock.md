@@ -46,8 +46,12 @@ pnpm dev            # http://localhost:3118
 | `recording` | Идёт запись. На главной запись стартует сама через событие трея `request-recording-toggle`, то есть по настоящему пути приложения. Реплики приходят событием `transcript-update` раз в 1,8 с вместе с `speech-detected`. Пауза, возобновление и стоп работают; после стопа встреча сохраняется и открываются её детали. На других страницах ядро «уже пишет» с момента загрузки |
 | `error` | Команды ядра падают с текстами, похожими на настоящие (`database is locked`, `Parakeet model not loaded…`). Старт записи сначала шлёт `transcription-error`, потом отклоняется, как в `recording_commands.rs`. Список команд, которые падают: `FAILING_COMMANDS` в `handlers.ts` |
 | `onboarding` | Первый запуск: `get_onboarding_status` возвращает `null`, модели не скачаны. Мастер проходится целиком: загрузки идут с прогрессом около 6 секунд, разрешения выдаются по кнопке Enable. После Finish Setup открывается приложение |
-| `short-empty` | Запись стартует сама, реплик нет совсем. Остановите через 3 секунды: проверка правила «короче 5 с и без реплик не сохраняем» |
-| `long-empty` | То же, но запись «идёт» уже 5 минут (`startOffsetSec: 300`), реплик нет. В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
+| `silence-5s` | Запись стартует сама, VAD молчит, реплик нет. Остановите через 5 секунд: встреча не сохраняется, тост «Речи не было, запись не сохранена» с «Вернуть» |
+| `silence-hallucination` | Три минуты тишины (`startOffsetSec: 180`); на один шумовой сегмент модель выдаёт «Продолжение следует...». После стопа: как тишина, встреча не сохраняется |
+| `one-phrase` | 20 секунд и одна фраза «Созвон переносим на пятницу» без подписи спикера. После стопа встреча сохраняется, хотя запись короткая |
+| `heard-no-text` | VAD слышит речь (`transcription-progress` идут), но `transcript-update` нет: так выглядит сбой распознавания. После стопа встреча сохраняется с блоком «Речь не распознана» |
+| `mid-silence` | Пять реплик, потом время «перематывается» на 130 секунд (`silenceJumpSec`): на экране записи «Похоже, встреча закончилась. Остановить?» |
+| `long-empty` | Запись «идёт» уже 5 минут (`startOffsetSec: 300`), VAD молчит: на экране записи «Не слышу речи». В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
 | `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
 | `no-model` | Мастер пройден, но модель распознавания не скачана: «Начать запись» ведёт к загрузке модели. Уведомления как в ядре по умолчанию: согласие есть, показ выключен |
 | `no-permission` | Нет доступа к микрофону: в `get_audio_devices` нет входов, `trigger_*_permission` возвращают `false` |
@@ -64,7 +68,7 @@ pnpm dev            # http://localhost:3118
 
 **События.** Интерфейс подписан на 38 событий. Одно из них, `model-config-updated`, отправляет сам интерфейс; оно проходит через ту же шину заглушек. Из 37 событий ядра:
 
-- 22 заглушка шлёт сама в ответ на действия: `recording-starting/started/paused/resumed/stopped`, `transcript-update`, `speech-detected`, `transcription-complete`, `transcription-error` (error-сценарий), `request-recording-toggle` (автостарт в сценарии recording), прогресс и завершение загрузок `parakeet-*`, `model-download-*`, `builtin-ai-download-progress`, `ollama-model-download-*`, `import-progress/complete`, `retranscription-progress/complete`, `audio-levels`;
+- 25 заглушка шлёт сама в ответ на действия: `recording-starting/started/paused/resumed/stopped`, `transcript-update`, `speech-detected`, `transcription-progress` (речевой сегмент после VAD), `transcription-queue-complete` и `recording-saved` (при стопе, в том же порядке, что ядро), `transcription-complete`, `transcription-error` (error-сценарий), `request-recording-toggle` (автостарт в сценарии recording), прогресс и завершение загрузок `parakeet-*`, `model-download-*`, `builtin-ai-download-progress`, `ollama-model-download-*`, `import-progress/complete`, `retranscription-progress/complete`, `audio-levels`;
 - 15 можно вызвать вручную из консоли (см. ниже): `recording-stop-complete` (стоп «из трея»), `mic-unavailable`, `mic-device-switched`, `mic-swap-failed`, `mic-recovery-exhausted`, `chunk-drop-warning`, `transcript-error`, `parakeet-model-download-error`, `model-download-error`, `ollama-model-download-error`, `import-error`, `retranscription-error`, `tauri://drag-enter/drop/leave`.
 
 ### Консоль
@@ -116,7 +120,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
    },
    ```
 
-2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing`, `live`, `startOffsetSec`, `micPermission`, `notificationsCoreDefault` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
+2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing`, `live`, `startOffsetSec`, `silenceJumpSec`, `micPermission`, `notificationsCoreDefault` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
 3. Кнопка в плавающей панели появится сама, адрес — `?mock=slow`.
 
 ## Как добавить фикстуру

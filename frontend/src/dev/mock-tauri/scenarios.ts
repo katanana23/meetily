@@ -9,10 +9,21 @@ import type { MockMeeting } from './fixtures/types';
 
 export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
-  | 'short-empty' | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
+  | 'silence-5s' | 'silence-hallucination' | 'one-phrase' | 'heard-no-text' | 'mid-silence'
+  | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
 
-/** Сколько реплик «ядро» присылает во время записи. */
-export type LiveMode = 'normal' | 'none' | 'few';
+/**
+ * Что «ядро» присылает во время записи. Речевой сегмент после VAD приходит
+ * событием transcription-progress, распознанный текст событием transcript-update.
+ * - normal: речь и текст по кругу;
+ * - none: тишина, VAD молчит;
+ * - few: три реплики, потом тишина;
+ * - hallucination: тишина, на один шумовой сегмент модель выдаёт «Продолжение следует...»;
+ * - one-phrase: одна фраза «Созвон переносим на пятницу», потом тишина;
+ * - vad-only: VAD слышит речь, но текста нет (модель не распознаёт);
+ * - then-silence: пять реплик, потом тишина и скачок времени на silenceJumpSec.
+ */
+export type LiveMode = 'normal' | 'none' | 'few' | 'hallucination' | 'one-phrase' | 'vad-only' | 'then-silence';
 
 export interface Scenario {
   id: ScenarioId;
@@ -32,6 +43,8 @@ export interface Scenario {
   live?: LiveMode;
   /** Запись «началась» столько секунд назад: длинная запись без ожидания. */
   startOffsetSec?: number;
+  /** then-silence: на сколько секунд «перематывается» время после последней реплики. */
+  silenceJumpSec?: number;
   /** false: нет доступа к микрофону (в списке устройств нет входов). */
   micPermission?: boolean;
   /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
@@ -63,13 +76,33 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     id: 'onboarding', label: 'onboarding', description: 'Первый запуск: мастер настройки, модели не скачаны',
     meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
   },
-  'short-empty': {
-    id: 'short-empty', label: 'short-empty', description: 'Запись на 3 секунды без единой реплики',
+  'silence-5s': {
+    id: 'silence-5s', label: 'silence-5s', description: 'Тишина: VAD ничего не слышит, реплик нет. Остановите через 5 секунд',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'none',
   },
+  'silence-hallucination': {
+    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'hallucination', startOffsetSec: 180,
+  },
+  'one-phrase': {
+    id: 'one-phrase', label: 'one-phrase', description: '20 секунд и одна фраза «Созвон переносим на пятницу»: встреча должна сохраниться',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'one-phrase', startOffsetSec: 15,
+  },
+  'heard-no-text': {
+    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, но распознавание не даёт текста: встреча сохраняется как «Речь не распознана»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'vad-only', startOffsetSec: 30,
+  },
+  'mid-silence': {
+    id: 'mid-silence', label: 'mid-silence', description: 'Пять реплик, потом две с лишним минуты тишины: подсказка «Остановить?»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'then-silence', silenceJumpSec: 130,
+  },
   'long-empty': {
-    id: 'long-empty', label: 'long-empty', description: 'Запись на 5 минут без единой реплики и такая же встреча в списке',
+    id: 'long-empty', label: 'long-empty', description: 'Запись на 5 минут без единой реплики (подсказка «Не слышу речи») и такая же сохранённая встреча',
     meetings: () => [...createEdgeMeetings(), ...createFullMeetings().slice(0, 2)], onboardingCompleted: true, modelsReady: true,
     recordingOnLoad: true, failing: false, live: 'none', startOffsetSec: 300,
   },

@@ -30,6 +30,8 @@ import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioF
 import { themeScript } from '@/aid/lib/theme'
 import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
+import { AidToaster } from '@/aid/components/AidToaster'
+import { LegacyBridge } from '@/aid/components/LegacyBridge'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -38,6 +40,8 @@ if (process.env.NEXT_PUBLIC_UI === 'original') {
   require('./globals.css')
 } else {
   require('@/aid/styles/globals.css')
+  // мост: зашитые цвета оригинальных компонентов → токены Aid
+  require('@/aid/styles/legacy.css')
 }
 const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
 
@@ -255,6 +259,7 @@ export default function RootLayout({
   return (
     <html lang={isAidUI ? 'ru' : 'en'} suppressHydrationWarning>
       <head>
+        {isAidUI && <title>Aid Meetings</title>}
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body className={`${isAidUI ? inter.variable : sourceSans3.variable} font-sans antialiased`}>
@@ -274,7 +279,14 @@ export default function RootLayout({
 
                               {/* Show onboarding or main app */}
                               {showOnboarding ? (
-                                <OnboardingFlow onComplete={handleOnboardingComplete} />
+                                isAidUI ? (
+                                  // мастер оригинала в токенах Aid и на русском (LegacyBridge)
+                                  <div className="aid-legacy aid-onboarding">
+                                    <OnboardingFlow onComplete={handleOnboardingComplete} />
+                                  </div>
+                                ) : (
+                                  <OnboardingFlow onComplete={handleOnboardingComplete} />
+                                )
                               ) : isAidUI ? (
                                 <AidTooltipProvider delayDuration={300}>
                                   <div className="flex h-screen overflow-hidden">
@@ -308,7 +320,14 @@ export default function RootLayout({
           </RecordingStateProvider>
         </AnalyticsProvider>
 
-        <Toaster position="bottom-center" richColors closeButton />
+        {isAidUI ? (
+          <>
+            <AidToaster />
+            <LegacyBridge />
+          </>
+        ) : (
+          <Toaster position="bottom-center" richColors closeButton />
+        )}
       </body>
     </html>
   )

@@ -120,3 +120,89 @@
 .bn-editor {
   padding: 0 !important;
 }
+
+/* Уведомления (sonner) в токенах Aid: фон поповера, рамка, радиус 16 px,
+   крестик внутри справа, цвет иконки по смыслу, без «богатых» заливок. */
+/* :root поднимает специфичность над [data-sonner-theme='dark'] из стилей sonner */
+:root [data-sonner-toaster].aid-toaster {
+  --normal-bg: hsl(var(--popover));
+  --normal-border: hsl(var(--border));
+  --normal-text: hsl(var(--popover-foreground));
+  --border-radius: 16px;
+  --width: 380px;
+  font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+:root .aid-toaster [data-sonner-toast][data-styled='true'] {
+  padding: 16px 44px 16px 16px;
+  align-items: flex-start;
+  font-size: 14px;
+  box-shadow: 0 8px 24px hsl(240 10% 4% / 0.12);
+}
+
+.aid-toaster [data-sonner-toast] [data-title] {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.aid-toaster [data-sonner-toast] [data-description] {
+  color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+}
+
+:root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
+  left: auto;
+  right: 10px;
+  top: 12px;
+  transform: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+
+.aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible {
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+.aid-toaster [data-sonner-toast] [data-icon] {
+  margin-top: 1px;
+}
+
+.aid-toaster [data-sonner-toast][data-type='success'] [data-icon] {
+  color: hsl(var(--primary));
+}
+
+.aid-toaster [data-sonner-toast][data-type='error'] [data-icon] {
+  color: hsl(var(--destructive));
+}
+
+.aid-toaster [data-sonner-toast][data-type='warning'] [data-icon] {
+  color: hsl(32 95% 44%);
+}
+
+.aid-toaster [data-sonner-toast] [data-button] {
+  height: 32px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-weight: 500;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* Пока открыт мастер первого запуска, прогресс загрузки моделей виден
+   на самом экране; тосты загрузки (toast.custom оригинала) его дублируют. */
+body:has(.aid-onboarding) .aid-toaster [data-sonner-toast][data-styled='false'] {
+  display: none;
+}
+
+/* Фон мастера первого запуска: фон страницы, а не приглушённая поверхность */
+.aid-legacy.aid-onboarding .fixed.inset-0.bg-gray-50 {
+  background-color: hsl(var(--background));
+}

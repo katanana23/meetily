@@ -70,3 +70,29 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
   return many;
 }
+
+// Автоматическое название из useRecordingStart: «Meeting ДД_ММ_ГГ_ЧЧ_ММ_СС».
+const AUTO_TITLE = /^Meeting (\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})$/;
+
+/**
+ * Название для показа: автоматическое «Meeting 02_11_26_21_34_11» становится
+ * «Встреча 2 ноября, 21:34». В базе название не меняется.
+ */
+export function displayTitle(title: string | null | undefined, now = new Date()): string {
+  const raw = (title ?? '').trim();
+  const m = raw.match(AUTO_TITLE);
+  if (!m) return raw || 'Встреча без названия';
+  const [, dd, mm, yy, hh, mi] = m;
+  const d = new Date(2000 + Number(yy), Number(mm) - 1, Number(dd), Number(hh), Number(mi));
+  if (Number.isNaN(d.getTime())) return raw;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const date = d
+    .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) })
+    .replace(' г.', '');
+  return `Встреча ${date}, ${hh}:${mi}`;
+}
+
+/** Название придумано приложением, а не человеком. */
+export function isAutoTitle(title: string | null | undefined): boolean {
+  return AUTO_TITLE.test((title ?? '').trim());
+}

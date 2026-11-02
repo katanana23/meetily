@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
 import { AlertCircle, ChevronRight, FileAudio, Loader2, Mic, RotateCw, Search } from 'lucide-react';
@@ -14,9 +14,9 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { RecordingView } from '@/aid/pages/Recording';
-import { useAidRecording } from '@/aid/lib/recording';
+import { useAidRecording, type StartBlocker } from '@/aid/lib/recording';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { formatShortDate } from '@/aid/lib/format';
+import { displayTitle, formatShortDate, isAutoTitle } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -62,7 +62,76 @@ function useMeetingsList(refreshKey: unknown) {
   return { state, reload: load };
 }
 
-function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: boolean }) {
+const BLOCKER: Record<Exclude<StartBlocker['kind'], 'check-failed'>, { title: string; hint: string; action: string; href: string }> = {
+  'no-model': { title: t('blockNoModel'), hint: t('blockNoModelHint'), action: t('downloadModel'), href: '/settings?tab=transcription' },
+  'model-downloading': { title: t('blockDownloading'), hint: t('blockDownloadingHint'), action: t('showDownload'), href: '/settings?tab=transcription' },
+  'no-microphone': { title: t('blockNoMic'), hint: t('blockNoMicHint'), action: t('grantAccess'), href: '' },
+};
+
+/** Почему запись не началась и как это исправить. Фокус переходит на кнопку исправления. */
+function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocker; onRetry: () => void; onClose: () => void }) {
+  const actionRef = useRef<HTMLAnchorElement & HTMLButtonElement>(null);
+  useEffect(() => actionRef.current?.focus(), [blocker]);
+  if (blocker.kind === 'check-failed') return null;
+  const copy = BLOCKER[blocker.kind];
+
+  const grantMic = async () => {
+    try {
+      const granted = await invoke<boolean>('trigger_microphone_permission');
+      if (granted) {
+        onRetry();
+        return;
+      }
+    } catch {
+      /* откроем системные настройки */
+    }
+    await invoke('open_system_settings').catch(() => undefined);
+  };
+
+  return (
+    <Alert className="mt-8" aria-live="polite">
+      <AlertCircle />
+      <div>
+        <AlertTitle>{copy.title}</AlertTitle>
+        <AlertDescription>
+          <p>{copy.hint}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {copy.href ? (
+              <Button asChild>
+                <Link ref={actionRef} href={copy.href}>
+                  {copy.action}
+                </Link>
+              </Button>
+            ) : (
+              <Button ref={actionRef} onClick={() => void grantMic()}>
+                {copy.action}
+              </Button>
+            )}
+            {blocker.kind !== 'no-model' && (
+              <Button variant="outline" onClick={onRetry}>
+                <RotateCw />
+                {t('checkAgain')}
+              </Button>
+            )}
+            <Button variant="ghost" onClick={onClose}>
+              {t('later')}
+            </Button>
+          </div>
+        </AlertDescription>
+      </div>
+    </Alert>
+  );
+}
+
+interface HomeViewProps {
+  onStart: () => void;
+  isStarting: boolean;
+  blocker: StartBlocker | null;
+  onDismissBlocker: () => void;
+  startError: string | null;
+}
+
+function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }: HomeViewProps) {
   const { meetings: sidebarMeetings } = useSidebar();
   const { state, reload } = useMeetingsList(sidebarMeetings);
   const { openImportDialog } = useImportDialog();
@@ -72,16 +141,16 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
   const filtered = useMemo(() => {
     if (state.kind !== 'ready') return [];
     const q = query.trim().toLowerCase();
-    return q ? state.meetings.filter((m) => m.title.toLowerCase().includes(q)) : state.meetings;
+    // ищем и по названию в базе, и по тому, что видно в списке
+    return q
+      ? state.meetings.filter((m) => m.title.toLowerCase().includes(q) || displayTitle(m.title).toLowerCase().includes(q))
+      : state.meetings;
   }, [state, query]);
 
   return (
     <div className="mx-auto w-full max-w-[880px] px-8 py-10">
       <header className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
-          <p className="mt-2 text-[15px] text-muted-foreground">{t('homeSubtitle')}</p>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
         <div className="flex flex-wrap gap-3">
           {betaFeatures.importAndRetranscribe && (
             <Button variant="outline" size="xl" onClick={() => openImportDialog()}>
@@ -95,6 +164,20 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
           </Button>
         </div>
       </header>
+
+      {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
+      {!blocker && startError && (
+        <Alert variant="destructive" className="mt-8">
+          <AlertCircle />
+          <div>
+            <AlertTitle>{t('startFailed')}</AlertTitle>
+            <AlertDescription>
+              <p>{friendlyError(startError, t('startFailedHint')).message}</p>
+              <ErrorDetails raw={startError} />
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
 
       {state.kind === 'error' ? (
         <Alert variant="destructive" className="mt-8">
@@ -132,7 +215,7 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
 
           <div className={state.kind === 'ready' && state.meetings.length === 0 ? 'mt-8' : 'mt-4'}>
             {state.kind === 'loading' && (
-              <Card className="divide-y divide-border overflow-hidden" aria-busy="true" aria-label={t('loading')}>
+              <Card className="divide-y divide-border overflow-hidden" role="status" aria-busy="true" aria-label={t('loading')}>
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-4 px-6 py-5">
                     <div className="flex-1 space-y-2">
@@ -146,10 +229,7 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
 
             {state.kind === 'ready' && state.meetings.length === 0 && (
               <Card className="flex flex-col items-center px-8 py-16 text-center">
-                <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Mic className="size-6" />
-                </div>
-                <h2 className="mt-5 text-xl font-semibold">{t('noMeetings')}</h2>
+                <h2 className="text-xl font-semibold">{t('noMeetings')}</h2>
                 <p className="mt-2 max-w-sm text-[15px] text-muted-foreground">{t('noMeetingsHint')}</p>
               </Card>
             )}
@@ -171,8 +251,9 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
                         className="group flex min-h-[72px] items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-medium">{m.title}</p>
-                          {m.created_at && (
+                          <p className="truncate text-[15px] font-medium">{displayTitle(m.title)}</p>
+                          {/* у автоматического названия дата уже в заголовке */}
+                          {m.created_at && !isAutoTitle(m.title) && (
                             <p className="mt-0.5 text-sm text-muted-foreground">{formatShortDate(m.created_at)}</p>
                           )}
                         </div>
@@ -192,21 +273,27 @@ function HomeView({ onStart, isStarting }: { onStart: () => void; isStarting: bo
 
 export default function Home() {
   const rec = useAidRecording();
-  const showRecording = rec.isRecording || rec.isFinishing;
+  const showRecording = rec.isRecording || rec.phase !== null;
 
   return (
     <main className="h-screen flex-1 overflow-y-auto bg-background">
       {showRecording ? (
         <RecordingView
           isPaused={rec.isPaused}
-          isFinishing={rec.isFinishing}
+          phase={rec.phase}
           duration={rec.duration}
           busy={rec.busy}
           onStop={rec.stop}
           onTogglePause={rec.togglePause}
         />
       ) : (
-        <HomeView onStart={() => void rec.start()} isStarting={rec.isStarting} />
+        <HomeView
+          onStart={() => void rec.start()}
+          isStarting={rec.isStarting}
+          blocker={rec.blocker}
+          onDismissBlocker={rec.dismissBlocker}
+          startError={rec.startError}
+        />
       )}
     </main>
   );

@@ -422,9 +422,33 @@ export function useMeeting(meetingId: string | null) {
     }
   }, [meetingId, loadAll, fetchSummary]);
 
+  /** Переименование: та же команда, что у сайдбара оригинала. */
+  const rename = useCallback(
+    async (title: string) => {
+      if (!meetingId) return;
+      await invoke('api_save_meeting_title', { meetingId, title });
+      setMeeting((prev) => (prev.kind === 'ready' ? { kind: 'ready', meta: { ...prev.meta, title } } : prev));
+    },
+    [meetingId],
+  );
+
+  /** Удаляет встречу из базы. Файл записи ядро не трогает. */
+  const remove = useCallback(async () => {
+    if (!meetingId) return;
+    await invoke('api_delete_meeting', { meetingId });
+  }, [meetingId]);
+
+  const openFolder = useCallback(async () => {
+    if (!meetingId) return;
+    await invoke('open_meeting_folder', { meetingId });
+  }, [meetingId]);
+
   return {
     meeting,
     segments,
+    rename,
+    remove,
+    openFolder,
     total,
     hasMore,
     loadingMore,

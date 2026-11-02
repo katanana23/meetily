@@ -1,27 +1,13 @@
 'use client';
 
-// Переключатель для страницы деталей встречи.
+// Переходник страницы встречи: aid-интерфейс или оригинальный Meetily.
+// Оригинал (с BlockNote) грузится лениво, чтобы не утяжелять бандл aid.
 
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import OriginalMeetingDetails from './page-original';
+import dynamic from 'next/dynamic';
 import AidMeetingDetails from '@/aid/pages/MeetingDetails';
 
-function MeetingDetailsContent() {
-  const searchParams = useSearchParams();
-  const ui = process.env.NEXT_PUBLIC_UI || 'aid';
-
-  if (ui === 'original') {
-    return <OriginalMeetingDetails />;
-  }
-
-  return <AidMeetingDetails />;
-}
+const OriginalMeetingDetails = dynamic(() => import('./page-original'), { ssr: false });
 
 export default function MeetingDetails() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <MeetingDetailsContent />
-    </Suspense>
-  );
+  return process.env.NEXT_PUBLIC_UI === 'original' ? <OriginalMeetingDetails /> : <AidMeetingDetails />;
 }

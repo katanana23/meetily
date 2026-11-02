@@ -1,45 +1,136 @@
-// Определение уровня приватности по провайдерам транскрипции и резюме.
+// Где обрабатываются данные встречи: по провайдерам транскрипции и итогов.
+// Источник: команды ядра api_get_transcript_config и api_get_model_config.
+
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 export type PrivacyLevel = 'local' | 'cloud' | 'unknown';
 
-const LOCAL_PROVIDERS = ['ollama', 'builtin-ai', 'builtin_ai', 'whisper', 'parakeet'];
-const CLOUD_PROVIDERS = ['claude', 'anthropic', 'groq', 'openrouter', 'openai', 'custom-openai'];
+export interface ProviderPrivacy {
+  /** id провайдера из конфигурации ядра, null если конфиг не прочитался */
+  provider: string | null;
+  label: string;
+  level: PrivacyLevel;
+}
 
-export function getPrivacyLevel(provider: string | null | undefined): PrivacyLevel {
-  if (!provider) return 'unknown';
+export interface PrivacyInfo {
+  level: PrivacyLevel;
+  transcript: ProviderPrivacy;
+  summary: ProviderPrivacy;
+}
 
-  const normalized = provider.toLowerCase().trim();
+const LABELS: Record<string, string> = {
+  localWhisper: 'Whisper',
+  whisper: 'Whisper',
+  parakeet: 'Parakeet',
+  deepgram: 'Deepgram',
+  elevenLabs: 'ElevenLabs',
+  groq: 'Groq',
+  openai: 'OpenAI',
+  'builtin-ai': 'встроенная модель',
+  ollama: 'Ollama',
+  claude: 'Claude',
+  openrouter: 'OpenRouter',
+  'custom-openai': 'свой сервер',
+};
 
-  if (LOCAL_PROVIDERS.includes(normalized)) return 'local';
-  if (CLOUD_PROVIDERS.includes(normalized)) return 'cloud';
+const LOCAL_TRANSCRIPT = ['localWhisper', 'whisper', 'parakeet'];
+const CLOUD_TRANSCRIPT = ['deepgram', 'elevenLabs', 'groq', 'openai'];
+const LOCAL_SUMMARY = ['builtin-ai'];
+const CLOUD_SUMMARY = ['claude', 'groq', 'openai', 'openrouter'];
 
-  // Если начинается с http:// или https:// — скорее всего облачный адрес
-  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-    // Localhost и локальные адреса — локальные
-    if (
-      normalized.includes('localhost') ||
-      normalized.includes('127.0.0.1') ||
-      normalized.includes('0.0.0.0') ||
-      normalized.match(/192\.168\.\d+\.\d+/)
-    ) {
-      return 'local';
-    }
-    return 'cloud';
+function isLocalHost(endpoint: string): boolean {
+  try {
+    const host = new URL(endpoint).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  } catch {
+    return false;
   }
+}
 
+export function transcriptPrivacy(provider: string | null | undefined): ProviderPrivacy {
+  if (!provider) return { provider: null, label: 'не настроено', level: 'unknown' };
+  const label = LABELS[provider] ?? provider;
+  if (LOCAL_TRANSCRIPT.includes(provider)) return { provider, label, level: 'local' };
+  if (CLOUD_TRANSCRIPT.includes(provider)) return { provider, label, level: 'cloud' };
+  return { provider, label, level: 'unknown' };
+}
+
+export function summaryPrivacy(provider: string | null | undefined, ollamaEndpoint?: string | null): ProviderPrivacy {
+  if (!provider) return { provider: null, label: 'не настроено', level: 'unknown' };
+  const label = LABELS[provider] ?? provider;
+  if (LOCAL_SUMMARY.includes(provider)) return { provider, label, level: 'local' };
+  if (CLOUD_SUMMARY.includes(provider)) return { provider, label, level: 'cloud' };
+  if (provider === 'ollama') {
+    // Ollama по умолчанию работает на этом компьютере; удалённый адрес уже не локально
+    if (!ollamaEndpoint || isLocalHost(ollamaEndpoint)) return { provider, label, level: 'local' };
+    return { provider, label, level: 'cloud' };
+  }
+  // custom-openai и незнакомые провайдеры: адрес сервера не проверяем, честно «неизвестно»
+  return { provider, label, level: 'unknown' };
+}
+
+export function combinePrivacy(a: PrivacyLevel, b: PrivacyLevel): PrivacyLevel {
+  if (a === 'cloud' || b === 'cloud') return 'cloud';
+  if (a === 'local' && b === 'local') return 'local';
   return 'unknown';
 }
 
-export function getCombinedPrivacy(transcriptProvider: string | null | undefined, summaryProvider: string | null | undefined): PrivacyLevel {
-  const t = getPrivacyLevel(transcriptProvider);
-  const s = getPrivacyLevel(summaryProvider);
+interface ModelConfigResponse {
+  provider?: string | null;
+  ollamaEndpoint?: string | null;
+}
 
-  // Если хотя бы один облачный — весь поток облачный
-  if (t === 'cloud' || s === 'cloud') return 'cloud';
+interface TranscriptConfigResponse {
+  provider?: string | null;
+}
 
-  // Если оба локальные — локально
-  if (t === 'local' && s === 'local') return 'local';
+const UNKNOWN: PrivacyInfo = {
+  level: 'unknown',
+  transcript: transcriptPrivacy(null),
+  summary: summaryPrivacy(null),
+};
 
-  // Если хотя бы один неизвестен — неизвестно
-  return 'unknown';
+export function usePrivacy(): { privacy: PrivacyInfo; loading: boolean } {
+  const [privacy, setPrivacy] = useState<PrivacyInfo>(UNKNOWN);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const [summaryRes, transcriptRes] = await Promise.allSettled([
+      invoke<ModelConfigResponse | null>('api_get_model_config'),
+      invoke<TranscriptConfigResponse | null>('api_get_transcript_config'),
+    ]);
+    const summaryCfg = summaryRes.status === 'fulfilled' ? summaryRes.value : null;
+    const transcriptCfg = transcriptRes.status === 'fulfilled' ? transcriptRes.value : null;
+    const transcript = transcriptPrivacy(transcriptCfg?.provider);
+    const summary = summaryPrivacy(summaryCfg?.provider, summaryCfg?.ollamaEndpoint);
+    setPrivacy({ level: combinePrivacy(transcript.level, summary.level), transcript, summary });
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    listen('model-config-updated', () => void load())
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* без событий обновимся при возврате фокуса */
+      });
+    const onFocus = () => void load();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [load]);
+
+  return { privacy, loading };
 }

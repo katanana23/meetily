@@ -3,10 +3,10 @@
 // Dev-only: заглушки Tauri для запуска в обычном браузере (docs/case/mock.md)
 import '@/dev/mock-tauri/bootstrap'
 
-// Переключение CSS через импорт в head
-import { Inter } from 'next/font/google'
+import { Inter, Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
+import MainContent from '@/components/MainContent'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
 import "sonner/dist/styles.css"
@@ -29,23 +29,30 @@ import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { themeScript } from '@/aid/lib/theme'
 import { AidSidebar } from '@/aid/components/AidSidebar'
-import { AidGravityThemeProvider } from '@/aid/lib/gravity-theme'
+import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 
-// Импорт CSS в зависимости от UI
-const ui = process.env.NEXT_PUBLIC_UI || 'aid'
-if (ui === 'aid') {
-  require('@gravity-ui/uikit/styles/fonts.css')
-  require('@gravity-ui/uikit/styles/styles.css')
-  require('@/aid/styles/globals.css')
-} else {
+// Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
+// Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
+// в бандл стили второго интерфейса.
+if (process.env.NEXT_PUBLIC_UI === 'original') {
   require('./globals.css')
+} else {
+  require('@/aid/styles/globals.css')
 }
+const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
 
+// Оба шрифта пишут в одну переменную --font-ui, на body ставится класс только одного
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
   weight: ['400', '500', '600'],
-  variable: '--font-inter',
+  variable: '--font-ui',
   display: 'swap',
+})
+
+const sourceSans3 = Source_Sans_3({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-ui',
 })
 
 // Module-level component — stable reference across RootLayout re-renders.
@@ -113,194 +120,195 @@ export default function RootLayout({
       })
   }, [])
 
-  // Toggle request-recording-toggle event handler (tray -> start or stop recording)
+  // Disable context menu in production
   useEffect(() => {
-    let unlistenFn: UnlistenFn | null = null;
+    if (process.env.NODE_ENV === 'production') {
+      const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+      document.addEventListener('contextmenu', handleContextMenu);
+      return () => document.removeEventListener('contextmenu', handleContextMenu);
+    }
+  }, []);
+  useEffect(() => {
+    // Listen for tray recording toggle request
+    const unlisten = listen('request-recording-toggle', () => {
+      console.log('[Layout] Received request-recording-toggle from tray');
 
-    const setupListener = async () => {
-      unlistenFn = await listen<void>(
-        'request-recording-toggle',
-        () => {
-          window.dispatchEvent(new CustomEvent('tray-recording-toggle'))
-        }
-      );
-    };
-
-    setupListener();
+      if (showOnboarding) {
+        toast.error("Please complete setup first", {
+          description: "You need to finish onboarding before you can start recording."
+        });
+      } else {
+        // If in main app, forward to useRecordingStart via window event
+        console.log('[Layout] Forwarding to start-recording-from-sidebar');
+        window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+      }
+    });
 
     return () => {
-      if (unlistenFn) unlistenFn();
+      unlisten.then(fn => fn());
     };
+  }, [showOnboarding]);
+
+  // Handle file drop for audio import
+  const handleFileDrop = useCallback((paths: string[]) => {
+    // Check if beta features are enabled (read from localStorage directly since we're outside ConfigProvider)
+    const betaFeatures = loadBetaFeatures();
+
+    if (!betaFeatures.importAndRetranscribe) {
+      toast.error('Beta feature disabled', {
+        description: 'Enable "Import Audio & Retranscribe" in Settings > Beta to use this feature.'
+      });
+      return;
+    }
+
+    // Find the first audio file
+    const audioFile = paths.find(p => {
+      const ext = p.split('.').pop()?.toLowerCase();
+      return !!ext && isAudioExtension(ext);
+    });
+
+    if (audioFile) {
+      console.log('[Layout] Audio file dropped:', audioFile);
+      setImportFilePath(audioFile);
+      setShowImportDialog(true);
+    } else if (paths.length > 0) {
+      toast.error('Please drop an audio file', {
+        description: `Supported formats: ${getAudioFormatsDisplayList()}`
+      });
+    }
   }, []);
 
-  // === Import audio drag-and-drop handlers ===
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  // Listen for drag-drop events
+  useEffect(() => {
+    if (showOnboarding) return; // Don't handle drops during onboarding
 
-    const features = loadBetaFeatures()
-    if (!features.importAndRetranscribe) return
+    const unlisteners: UnlistenFn[] = [];
+    const cleanedUpRef = { current: false };
 
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      const item = e.dataTransfer.items[0]
-      if (item.kind === 'file') {
-        const file = item.getAsFile()
-        if (file) {
-          const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`
-          if (isAudioExtension(extension)) {
-            setShowDropOverlay(true)
-          }
+    const setupListeners = async () => {
+      // Drag enter/over - show overlay only if beta feature is enabled
+      const unlistenDragEnter = await listen('tauri://drag-enter', () => {
+        if (loadBetaFeatures().importAndRetranscribe) {
+          setShowDropOverlay(true);
         }
+      });
+      if (cleanedUpRef.current) {
+        unlistenDragEnter();
+        return;
       }
-    }
-  }, [])
+      unlisteners.push(unlistenDragEnter);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (e.currentTarget === e.target) {
-      setShowDropOverlay(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setShowDropOverlay(false)
-
-    const features = loadBetaFeatures()
-    if (!features.importAndRetranscribe) {
-      toast.error('Import audio feature is not enabled', {
-        description: 'Enable it in Settings > Beta Features'
-      })
-      return
-    }
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0]
-      const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`
-
-      if (!isAudioExtension(extension)) {
-        toast.error('Unsupported audio format', {
-          description: `Supported formats: ${getAudioFormatsDisplayList()}`
-        })
-        return
+      // Drag leave - hide overlay
+      const unlistenDragLeave = await listen('tauri://drag-leave', () => {
+        setShowDropOverlay(false);
+      });
+      if (cleanedUpRef.current) {
+        unlistenDragLeave();
+        unlisteners.forEach(u => u());
+        return;
       }
+      unlisteners.push(unlistenDragLeave);
 
-      try {
-        const filePath = await invoke<string>('select_and_validate_audio_command', {
-          filePath: (file as any).path
-        })
-
-        setImportFilePath(filePath)
-        setShowImportDialog(true)
-      } catch (error) {
-        console.error('Error handling dropped audio:', error)
-        toast.error('Failed to process audio file', {
-          description: error instanceof Error ? error.message : 'Unknown error'
-        })
+      // Drop - process files
+      const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
+        setShowDropOverlay(false);
+        handleFileDrop(event.payload.paths);
+      });
+      if (cleanedUpRef.current) {
+        unlistenDrop();
+        unlisteners.forEach(u => u());
+        return;
       }
-    }
-  }, [])
+      unlisteners.push(unlistenDrop);
+    };
 
+    setupListeners();
+
+    return () => {
+      cleanedUpRef.current = true;
+      unlisteners.forEach((unlisten) => unlisten());
+    };
+  }, [showOnboarding, handleFileDrop]);
+
+  // Handle import dialog close
   const handleImportDialogClose = useCallback((open: boolean) => {
-    setShowImportDialog(open)
+    setShowImportDialog(open);
     if (!open) {
-      setImportFilePath(null)
+      setImportFilePath(null);
     }
-  }, [])
+  }, []);
 
-  // Aid UI: скрипт темы и переключатель сайдбара
-  const isAidUI = ui === 'aid'
+  // Handler for ImportDialogProvider - opens import dialog from any child component
+  const handleOpenImportDialog = useCallback((filePath?: string | null) => {
+    setImportFilePath(filePath ?? null);
+    setShowImportDialog(true);
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    console.log('[Layout] Onboarding completed, reloading app')
+    setShowOnboarding(false)
+    setOnboardingCompleted(true)
+    // Optionally reload the window to ensure all state is fresh
+    window.location.reload()
+  }
 
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang={isAidUI ? 'ru' : 'en'} suppressHydrationWarning>
       <head>
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
-      <body
-        className={inter.variable}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <body className={`${isAidUI ? inter.variable : sourceSans3.variable} font-sans antialiased`}>
         <AnalyticsProvider>
-          <UpdateCheckProvider>
-            <DownloadProgressToastProvider />
-            <OnboardingProvider>
-                <TooltipProvider>
-                  <ConfigProvider>
-                    <RecordingStateProvider>
-                      <TranscriptProvider>
-                        <OllamaDownloadProvider>
-                          <SidebarProvider>
-                            <RecordingPostProcessingProvider>
-                              <ImportDialogProvider onOpen={(filePath) => {
-                                setImportFilePath(filePath || null);
-                                setShowImportDialog(true);
-                              }}>
-                                {showOnboarding && !onboardingCompleted ? (
-                                  <OnboardingFlow
-                                    onComplete={() => {
-                                      setShowOnboarding(false)
-                                      setOnboardingCompleted(true)
-                                    }}
-                                  />
-                                ) : (
-                                  <>
-                                    {isAidUI ? (
-                                      <AidGravityThemeProvider>
-                                        <div className="flex h-screen overflow-hidden">
-                                          <AidSidebar />
-                                          {children}
-                                        </div>
-                                      </AidGravityThemeProvider>
-                                    ) : (
-                                      <>
-                                        <Sidebar />
-                                        {children}
-                                      </>
-                                    )}
-                                  </>
-                                )}
+          <RecordingStateProvider>
+            <TranscriptProvider>
+              <ConfigProvider>
+                <OllamaDownloadProvider>
+                  <OnboardingProvider>
+                    <UpdateCheckProvider>
+                      <SidebarProvider>
+                        <TooltipProvider>
+                          <RecordingPostProcessingProvider>
+                            <ImportDialogProvider onOpen={handleOpenImportDialog}>
+                              {/* Download progress toast provider - listens for background downloads */}
+                              <DownloadProgressToastProvider />
 
-                                <ConditionalImportDialog
-                                  showImportDialog={showImportDialog}
-                                  handleImportDialogClose={handleImportDialogClose}
-                                  importFilePath={importFilePath}
-                                />
+                              {/* Show onboarding or main app */}
+                              {showOnboarding ? (
+                                <OnboardingFlow onComplete={handleOnboardingComplete} />
+                              ) : isAidUI ? (
+                                <AidTooltipProvider delayDuration={300}>
+                                  <div className="flex h-screen overflow-hidden">
+                                    <AidSidebar />
+                                    {children}
+                                  </div>
+                                </AidTooltipProvider>
+                              ) : (
+                                <div className="flex">
+                                  <Sidebar />
+                                  <MainContent>{children}</MainContent>
+                                </div>
+                              )}
+                              {/* Import audio overlay and dialog */}
+                              <ImportDropOverlay visible={showDropOverlay} />
+                              <ConditionalImportDialog
+                                showImportDialog={showImportDialog}
+                                handleImportDialogClose={handleImportDialogClose}
+                                importFilePath={importFilePath}
+                              />
+                            </ImportDialogProvider>
+                          </RecordingPostProcessingProvider>
+                        </TooltipProvider>
+                      </SidebarProvider>
+                    </UpdateCheckProvider>
+                  </OnboardingProvider>
 
-                                <ImportDropOverlay visible={showDropOverlay} />
-
-                                <Toaster
-                                  richColors
-                                  position="bottom-center"
-                                  toastOptions={{
-                                    style: {
-                                      background: 'hsl(var(--background))',
-                                      color: 'hsl(var(--foreground))',
-                                      border: '1px solid hsl(var(--border))',
-                                    },
-                                  }}
-                                />
-                              </ImportDialogProvider>
-                            </RecordingPostProcessingProvider>
-                          </SidebarProvider>
-                        </OllamaDownloadProvider>
-                      </TranscriptProvider>
-                    </RecordingStateProvider>
-                  </ConfigProvider>
-                </TooltipProvider>
-              </OnboardingProvider>
-          </UpdateCheckProvider>
+                </OllamaDownloadProvider>
+              </ConfigProvider>
+            </TranscriptProvider>
+          </RecordingStateProvider>
         </AnalyticsProvider>
+
+        <Toaster position="bottom-center" richColors closeButton />
       </body>
     </html>
   )

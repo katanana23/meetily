@@ -1,48 +1,54 @@
-// Тема и переключатель: system, light, dark.
-// Выбор запоминается в localStorage без мигания при загрузке.
+// Тема: светлая или тёмная, выбор хранится в localStorage (ключ прежний).
+// Старое значение «system» при первом чтении превращается в тему системы.
 
-export type ThemeMode = 'system' | 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark';
 
 const THEME_KEY = 'aid-meetings.theme';
+const THEME_EVENT = 'aid-theme-change';
 
-export function getStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'system';
+function systemTheme(): ThemeMode {
   try {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  } catch {}
-  return 'system';
-}
-
-export function setStoredTheme(mode: ThemeMode) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(THEME_KEY, mode);
-  } catch {}
-}
-
-export function applyTheme(mode: ThemeMode) {
-  if (typeof window === 'undefined') return;
-
-  const root = document.documentElement;
-  const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-  if (isDark) {
-    root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  } catch {
+    return 'light';
   }
 }
 
-// Блокирующий скрипт для вставки в <head> перед всем остальным.
-// Предотвращает мигание темы при загрузке страницы.
+export function getStoredTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch {
+    /* хранилище недоступно: берём тему системы */
+  }
+  return systemTheme();
+}
+
+export function setTheme(mode: ThemeMode) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(THEME_KEY, mode);
+  } catch {
+    /* тема просто не запомнится */
+  }
+  document.documentElement.classList.toggle('dark', mode === 'dark');
+  window.dispatchEvent(new CustomEvent<ThemeMode>(THEME_EVENT, { detail: mode }));
+}
+
+export function onThemeChange(cb: (mode: ThemeMode) => void) {
+  const handler = (e: Event) => cb((e as CustomEvent<ThemeMode>).detail);
+  window.addEventListener(THEME_EVENT, handler);
+  return () => window.removeEventListener(THEME_EVENT, handler);
+}
+
+// Блокирующий скрипт для <head>: ставит класс до первой отрисовки, без мигания.
 export const themeScript = `
 (function() {
   try {
-    const stored = localStorage.getItem('aid-meetings.theme');
-    const mode = (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'system';
-    const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (isDark) document.documentElement.classList.add('dark');
-  } catch {}
+    var s = localStorage.getItem('${THEME_KEY}');
+    var dark = s === 'dark' || (s !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.classList.add('dark');
+  } catch (e) {}
 })();
 `;

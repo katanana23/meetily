@@ -433,3 +433,12 @@ $env:RUST_LOG="debug"; ./clean_run_windows.bat
 
 **Whisper Integration**:
 - [frontend/src-tauri/src/whisper_engine/whisper_engine.rs](frontend/src-tauri/src/whisper_engine/whisper_engine.rs) - Whisper model management and transcription
+
+# Контекст проекта (источник правды)
+Перед началом работы прочитай вольт Obsidian:
+- `~/Documents/Obsidian/Aid-Vault-LiveSync/01 Projects/Personal/Portfolio/00 NOW.md` (текущий этап, следующий шаг, блокеры)
+- файл проекта в той же папке `projects/` (ветки, команды, что сломано)
+- правила в `03 RULES.md`
+После крупного шага обнови `00 NOW.md` и допиши `log/YYYY-MM-DD.md` (атомарно: временный файл, затем переименование). Решения добавляй строкой в `02 DECISIONS.md`. Самоотчёты в `docs/case/*_DONE.md` документацией не считаются и больше не создаются.
+Если вольт недоступен (облачная сессия claude.ai/code): работай строго по промпту задачи, он содержит нужный контекст. Работай в ветке, сдавай pull request; отчёт (файлы, проверки, скриншоты, что не удалось) пиши в описание PR, а не в файлы репозитория. Не сливай PR сам.
+

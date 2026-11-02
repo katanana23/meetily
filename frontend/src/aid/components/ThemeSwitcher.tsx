@@ -1,63 +1,31 @@
-// Переключатель темы: system / light / dark.
-
+// Переключатель темы: светлая и тёмная, одна кнопка.
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Monitor, Sun, Moon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ThemeMode, getStoredTheme, setStoredTheme, applyTheme } from '../lib/theme';
+import { Moon, Sun } from 'lucide-react';
+import { Button } from '@/aid/components/ui/button';
+import { getStoredTheme, onThemeChange, setTheme, type ThemeMode } from '@/aid/lib/theme';
+import { t } from '@/aid/strings';
 
 export function ThemeSwitcher() {
-  const [mode, setMode] = useState<ThemeMode>('system');
+  const [mode, setMode] = useState<ThemeMode>('light');
 
   useEffect(() => {
-    const stored = getStoredTheme();
-    setMode(stored);
-    applyTheme(stored);
+    setMode(getStoredTheme());
+    return onThemeChange(setMode);
+  }, []);
 
-    // Слушаем изменения system prefers-color-scheme
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      if (mode === 'system') applyTheme('system');
-    };
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [mode]);
-
-  const cycle = () => {
-    const next: ThemeMode = mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
-    setMode(next);
-    setStoredTheme(next);
-    applyTheme(next);
-  };
-
-  const icons = {
-    system: Monitor,
-    light: Sun,
-    dark: Moon,
-  };
-
-  const labels = {
-    system: 'Системная',
-    light: 'Светлая',
-    dark: 'Тёмная',
-  };
-
-  const Icon = icons[mode];
+  const next: ThemeMode = mode === 'dark' ? 'light' : 'dark';
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={cycle}>
-            <Icon className="h-5 w-5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Тема: {labels[mode]}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="ghost"
+      className="w-full justify-start px-3 text-muted-foreground hover:text-foreground"
+      onClick={() => setTheme(next)}
+      aria-label={next === 'dark' ? t('themeToDark') : t('themeToLight')}
+    >
+      {mode === 'dark' ? <Sun /> : <Moon />}
+      {next === 'dark' ? t('themeDark') : t('themeLight')}
+    </Button>
   );
 }

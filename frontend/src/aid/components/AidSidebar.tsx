@@ -1,115 +1,59 @@
-// Сайдбар Aid: компактный, системный, 220px
-
+// Сайдбар Aid: название, навигация, тема и индикатор приватности.
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
-import { Settings, Moon, Sun, Monitor, FileText } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { getStoredTheme, setStoredTheme, applyTheme, type ThemeMode } from '@/aid/lib/theme';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { MessagesSquare, Settings } from 'lucide-react';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import { PrivacyChip } from './PrivacyChip';
-import { useConfig } from '@/contexts/ConfigContext';
-import { getCombinedPrivacy } from '@/aid/lib/privacy';
+import { usePrivacy } from '@/aid/lib/privacy';
+import { cn } from '@/aid/lib/utils';
+import { t } from '@/aid/strings';
+
+const NAV = [
+  { label: t('navMeetings'), href: '/', icon: MessagesSquare, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
+  { label: t('navSettings'), href: '/settings', icon: Settings, match: (p: string) => p.startsWith('/settings') },
+];
 
 export function AidSidebar() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [theme, setTheme] = useState<ThemeMode>('system');
-  const { modelConfig: summaryModelConfig, transcriptModelConfig } = useConfig();
-
-  const privacyLevel = getCombinedPrivacy(
-    transcriptModelConfig?.provider,
-    summaryModelConfig?.provider
-  );
-
-  useEffect(() => {
-    const stored = getStoredTheme();
-    setTheme(stored);
-    applyTheme(stored);
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      if (theme === 'system') {
-        applyTheme('system');
-      }
-    };
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
-
-  const handleThemeChange = (mode: ThemeMode) => {
-    setTheme(mode);
-    setStoredTheme(mode);
-    applyTheme(mode);
-  };
-
-  const navItems = [
-    { label: 'Встречи', path: '/', icon: FileText },
-    { label: 'Настройки', path: '/settings', icon: Settings },
-  ];
+  const pathname = usePathname() ?? '/';
+  const { privacy } = usePrivacy();
 
   return (
-    <aside className="w-[220px] bg-card border-r border-border flex flex-col h-screen shrink-0">
-      {/* Шапка */}
-      <div className="px-4 py-4 border-b border-border">
-        <h2 className="text-sm font-semibold">Aid Meetings</h2>
+    <aside className="flex h-screen w-[240px] shrink-0 flex-col border-r border-border bg-card">
+      <div className="flex h-16 items-center gap-3 px-5">
+        <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground" aria-hidden>
+          A
+        </span>
+        <span className="text-[15px] font-semibold">{t('appName')}</span>
       </div>
 
-      {/* Навигация */}
-      <nav className="flex-1 p-2">
-        <div className="space-y-0.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.path}
-                onClick={() => router.push(item.path)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 ${
-                  pathname === item.path
-                    ? 'bg-accent text-accent-foreground font-medium'
-                    : 'hover:bg-muted text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+      <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Основная навигация">
+        {NAV.map((item) => {
+          const active = item.match(pathname);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+              )}
+            >
+              <Icon className={cn('size-[18px]', active && 'text-primary')} />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Переключатель темы + статус */}
-      <div className="p-3 border-t border-border space-y-2">
-        <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-          <button
-            onClick={() => handleThemeChange('light')}
-            className={`flex-1 p-1.5 rounded transition-colors ${
-              theme === 'light' ? 'bg-card shadow-sm' : ''
-            }`}
-            title="Светлая"
-          >
-            <Sun className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleThemeChange('system')}
-            className={`flex-1 p-1.5 rounded transition-colors ${
-              theme === 'system' ? 'bg-card shadow-sm' : ''
-            }`}
-            title="Системная"
-          >
-            <Monitor className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleThemeChange('dark')}
-            className={`flex-1 p-1.5 rounded transition-colors ${
-              theme === 'dark' ? 'bg-card shadow-sm' : ''
-            }`}
-            title="Тёмная"
-          >
-            <Moon className="h-4 w-4 mx-auto" />
-          </button>
+      <div className="space-y-2 border-t border-border p-3">
+        <div className="px-3 py-1">
+          <PrivacyChip privacy={privacy} />
         </div>
-
-        <PrivacyChip level={privacyLevel} />
+        <ThemeSwitcher />
       </div>
     </aside>
   );

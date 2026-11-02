@@ -4,9 +4,15 @@
 
 import { createFullMeetings } from './fixtures/meetings';
 import { createLongMeetings } from './fixtures/long';
+import { createEdgeMeetings } from './fixtures/edge';
 import type { MockMeeting } from './fixtures/types';
 
-export type ScenarioId = 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding';
+export type ScenarioId =
+  | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
+  | 'short-empty' | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
+
+/** Сколько реплик «ядро» присылает во время записи. */
+export type LiveMode = 'normal' | 'none' | 'few';
 
 export interface Scenario {
   id: ScenarioId;
@@ -22,6 +28,14 @@ export interface Scenario {
   recordingOnLoad: boolean;
   /** Команды падают (см. FAILING_COMMANDS в handlers.ts). */
   failing: boolean;
+  /** Реплики во время записи: как обычно, ни одной или только три. */
+  live?: LiveMode;
+  /** Запись «началась» столько секунд назад: длинная запись без ожидания. */
+  startOffsetSec?: number;
+  /** false: нет доступа к микрофону (в списке устройств нет входов). */
+  micPermission?: boolean;
+  /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
+  notificationsCoreDefault?: boolean;
 }
 
 export const SCENARIOS: Record<ScenarioId, Scenario> = {
@@ -48,6 +62,31 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
   onboarding: {
     id: 'onboarding', label: 'onboarding', description: 'Первый запуск: мастер настройки, модели не скачаны',
     meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
+  },
+  'short-empty': {
+    id: 'short-empty', label: 'short-empty', description: 'Запись на 3 секунды без единой реплики',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'none',
+  },
+  'long-empty': {
+    id: 'long-empty', label: 'long-empty', description: 'Запись на 5 минут без единой реплики и такая же встреча в списке',
+    meetings: () => [...createEdgeMeetings(), ...createFullMeetings().slice(0, 2)], onboardingCompleted: true, modelsReady: true,
+    recordingOnLoad: true, failing: false, live: 'none', startOffsetSec: 300,
+  },
+  sparse: {
+    id: 'sparse', label: 'sparse', description: 'Запись, в которой распознаны только три реплики',
+    meetings: () => [...createEdgeMeetings(), ...createFullMeetings().slice(0, 2)], onboardingCompleted: true, modelsReady: true,
+    recordingOnLoad: true, failing: false, live: 'few', startOffsetSec: 40,
+  },
+  'no-model': {
+    id: 'no-model', label: 'no-model', description: 'Мастер пройден, но модель распознавания не скачана; уведомления как в ядре по умолчанию',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: false, recordingOnLoad: false, failing: false,
+    notificationsCoreDefault: true,
+  },
+  'no-permission': {
+    id: 'no-permission', label: 'no-permission', description: 'Нет доступа к микрофону и записи экрана',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micPermission: false,
   },
 };
 

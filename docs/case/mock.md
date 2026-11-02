@@ -46,6 +46,11 @@ pnpm dev            # http://localhost:3118
 | `recording` | Идёт запись. На главной запись стартует сама через событие трея `request-recording-toggle`, то есть по настоящему пути приложения. Реплики приходят событием `transcript-update` раз в 1,8 с вместе с `speech-detected`. Пауза, возобновление и стоп работают; после стопа встреча сохраняется и открываются её детали. На других страницах ядро «уже пишет» с момента загрузки |
 | `error` | Команды ядра падают с текстами, похожими на настоящие (`database is locked`, `Parakeet model not loaded…`). Старт записи сначала шлёт `transcription-error`, потом отклоняется, как в `recording_commands.rs`. Список команд, которые падают: `FAILING_COMMANDS` в `handlers.ts` |
 | `onboarding` | Первый запуск: `get_onboarding_status` возвращает `null`, модели не скачаны. Мастер проходится целиком: загрузки идут с прогрессом около 6 секунд, разрешения выдаются по кнопке Enable. После Finish Setup открывается приложение |
+| `short-empty` | Запись стартует сама, реплик нет совсем. Остановите через 3 секунды: проверка правила «короче 5 с и без реплик не сохраняем» |
+| `long-empty` | То же, но запись «идёт» уже 5 минут (`startOffsetSec: 300`), реплик нет. В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
+| `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
+| `no-model` | Мастер пройден, но модель распознавания не скачана: «Начать запись» ведёт к загрузке модели. Уведомления как в ядре по умолчанию: согласие есть, показ выключен |
+| `no-permission` | Нет доступа к микрофону: в `get_audio_devices` нет входов, `trigger_*_permission` возвращают `false` |
 
 Во всех сценариях, как и в настоящем приложении, всегда падают две команды, которых нет в `generate_handler!` ядра: `api_get_auto_generate_setting` и `builtin_ai_get_models_directory`. Ошибка такая же, как у Tauri 2: `command <имя> not found`. Первую видно в Настройках → Summary: в консоли появляется `Failed to fetch auto-generate setting`.
 
@@ -86,7 +91,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
 |---|---|
 | Захват звука, Whisper/Parakeet | Звука нет. Транскрипт — заранее написанные реплики по таймеру. `whisper_transcribe_audio`, `parakeet_transcribe_audio` ничего не делают |
 | Уровень звука (`audio-levels`) | Синусоида вместо реального сигнала |
-| Системные разрешения macOS | `trigger_*_permission` всегда возвращает `true`. `open_system_settings` пишет предупреждение |
+| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценарии `no-permission` `false`. `open_system_settings` пишет предупреждение |
 | Файловая система | Пути вымышленные (`/mock/Meetily/...`). «Открыть папку» (`open_*_folder`, `open_meeting_folder`) пишет предупреждение. `read_audio_file` отдаёт пустой массив |
 | Диалоги выбора файлов | `select_and_validate_audio_command`, `select_legacy_database_path` возвращают `null`, как при отмене |
 | Перетаскивание файлов из Finder | Работает только через пресеты `dragEnter` / `dragDrop` |
@@ -111,7 +116,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
    },
    ```
 
-2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
+2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing`, `live`, `startOffsetSec`, `micPermission`, `notificationsCoreDefault` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
 3. Кнопка в плавающей панели появится сама, адрес — `?mock=slow`.
 
 ## Как добавить фикстуру
@@ -135,6 +140,7 @@ frontend/src/dev/mock-tauri/
     ├── types.ts      типы и buildTranscript
     ├── meetings.ts   9 встреч сценария full (все 6 шаблонов)
     ├── long.ts       длинная встреча и 45 встреч для сайдбара
+    ├── edge.ts       пустая длинная запись и почти пустая встреча
     ├── recording.ts  реплики живой записи
     └── settings.ts   модели, устройства, шаблоны, настройки
 ```

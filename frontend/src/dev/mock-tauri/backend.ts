@@ -129,7 +129,7 @@ export class MockBackend {
   beginLive() {
     this.recording = true;
     this.paused = false;
-    this.recStartedAt = Date.now();
+    this.recStartedAt = Date.now() - (this.scenario.startOffsetSec ?? 0) * 1000;
     this.pausedTotalMs = 0;
     this.seq = 0;
     this.lineIdx = 0;
@@ -139,6 +139,9 @@ export class MockBackend {
 
   private tick() {
     if (!this.recording || this.paused) return;
+    // Сценарии пустых записей: речь не распознана совсем или только три реплики
+    const live = this.scenario.live ?? 'normal';
+    if (live === 'none' || (live === 'few' && this.lineIdx >= 3)) return;
     const [speaker, text] = LIVE_LINES[this.lineIdx % LIVE_LINES.length];
     this.lineIdx++;
     const end = this.elapsedSec();

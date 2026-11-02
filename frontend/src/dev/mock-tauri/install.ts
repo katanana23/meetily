@@ -137,7 +137,7 @@ export function installMockTauri() {
 
   console.info(
     `%c[mock-tauri]%c Режим заглушек: сценарий "${scenario.id}" — ${scenario.description}. ` +
-      'Переключить: ?mock=empty|full|long|recording|error|onboarding, отключить: ?mock=off. ' +
+      `Переключить: ?mock=${Object.keys(SCENARIOS).join('|')}, отключить: ?mock=off. ` +
       'Состояние: window.__MEETILY_MOCK__',
     'background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px',
     'color:inherit',

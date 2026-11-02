@@ -1,17 +1,20 @@
 // Экран записи: таймер, пауза, стоп и транскрипт в реальном времени.
 // Реплики приходят из TranscriptContext (событие ядра transcript-update).
-// Здесь же напоминание предупредить участников (вместо тоста оригинала)
-// и ошибки распознавания во время записи.
+// Здесь же напоминание предупредить участников (вместо тоста оригинала),
+// ошибки распознавания и подсказки по тишине: «Не слышу речи» в первые 20 с
+// и «Похоже, встреча закончилась» после 2 минут тишины (сигналы: recording-outcome.tsx).
 
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { AlertCircle, Check, Loader2, Pause, Play, Square } from 'lucide-react';
+import { CheckCircle, CircleNotch, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
+import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
+import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle, formatTimer } from '@/aid/lib/format';
@@ -25,8 +28,52 @@ interface RecordingViewProps {
   phase: FinishPhase | null;
   duration: number;
   busy: 'pause' | 'stop' | 'check' | null;
+  live: LiveSpeech;
   onStop: () => void;
   onTogglePause: () => void;
+}
+
+/** Через сколько секунд без единого речевого сегмента показать «Не слышу речи». */
+export const NO_SPEECH_HINT_SEC = 20;
+/** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается. */
+export const LONG_SILENCE_SEC = 120;
+
+/** «Не слышу речи»: за первые 20 с VAD не нашёл ни одного речевого сегмента. */
+function NoSpeechHint() {
+  const [open, setOpen] = useState(false);
+  const sound = useSoundState(true);
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-border bg-card px-5 py-4" role="status">
+      <MicrophoneSlash weight="fill" className="size-5 shrink-0 text-destructive" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{silenceCause(sound)}</p>
+      </div>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        <SpeakerHigh />
+        {t('soundCheck')}
+      </Button>
+      <SoundCheckDialog open={open} onOpenChange={setOpen} />
+    </div>
+  );
+}
+
+/** Долгая тишина после речи: предложить остановить, но не останавливать самим. */
+function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onContinue: () => void }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-border bg-card px-5 py-4" role="alert">
+      <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onContinue}>
+          {t('continueRecording')}
+        </Button>
+        <Button variant="destructive" onClick={onStop}>
+          <Stop weight="fill" />
+          {t('stopRecording')}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 const PHASE: Record<FinishPhase, { title: string; hint: string }> = {
@@ -80,7 +127,6 @@ function ConsentNotice() {
           {t('consentNever')}
         </Button>
         <Button variant="outline" className="h-9 px-3" onClick={() => setShow(false)}>
-          <Check />
           {t('consentDone')}
         </Button>
       </div>
@@ -110,11 +156,19 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, busy, onStop, onTogglePause }: RecordingViewProps) {
+export function RecordingView({ isPaused, phase, duration, busy, live, onStop, onTogglePause }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
+  // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
+  const [silenceDismissedAt, setSilenceDismissedAt] = useState(0);
+
+  const heardNothing = live.vadSegments === 0 && live.textSegments === 0;
+  const showNoSpeech = live.tracking && heardNothing && duration >= NO_SPEECH_HINT_SEC;
+  const silentSince = Math.max(live.lastSpeechAt ?? 0, silenceDismissedAt);
+  const showLongSilence =
+    live.tracking && !isPaused && live.lastSpeechAt !== null && duration - silentSince >= LONG_SILENCE_SEC;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -126,9 +180,9 @@ export function RecordingView({ isPaused, phase, duration, busy, onStop, onToggl
       <div className="mx-auto flex min-h-full w-full max-w-[880px] items-center px-8 py-10">
         <Card className="w-full px-8 py-14 text-center" role="status" aria-live="polite">
           {phase === 'opening' ? (
-            <Check className="mx-auto size-8 text-primary" aria-hidden />
+            <CheckCircle weight="fill" className="mx-auto size-8 text-primary" aria-hidden />
           ) : (
-            <Loader2 className="mx-auto size-8 animate-spin text-primary" aria-hidden />
+            <CircleNotch className="mx-auto size-8 animate-spin text-primary" aria-hidden />
           )}
           <h1 className="mt-5 text-2xl font-semibold">{copy.title}</h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{copy.hint}</p>
@@ -155,21 +209,24 @@ export function RecordingView({ isPaused, phase, duration, busy, onStop, onToggl
         </div>
         <div className="flex gap-3">
           <Button variant="outline" size="xl" onClick={onTogglePause} disabled={busy !== null}>
-            {isPaused ? <Play /> : <Pause />}
+            {isPaused ? <Play weight="fill" /> : <Pause weight="fill" />}
             {isPaused ? t('resumeRecording') : t('pauseRecording')}
           </Button>
           <Button variant="destructive" size="xl" onClick={onStop} disabled={busy !== null}>
-            {busy === 'stop' ? <Loader2 className="animate-spin" /> : <Square className="fill-current" />}
+            {busy === 'stop' ? <CircleNotch className="animate-spin" /> : <Stop weight="fill" />}
             {t('stopRecording')}
           </Button>
         </div>
       </Card>
 
+      {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
+      {!showLongSilence && showNoSpeech && <NoSpeechHint />}
+
       <ConsentNotice />
 
       {problems.error && (
         <Alert variant="destructive" className="mt-4">
-          <AlertCircle />
+          <WarningCircle weight="fill" />
           <div>
             <AlertTitle>{problems.error.message}</AlertTitle>
             <AlertDescription>
@@ -187,8 +244,9 @@ export function RecordingView({ isPaused, phase, duration, busy, onStop, onToggl
 
       <section className="mt-6" aria-label={t('liveTranscript')}>
         {segments.length === 0 ? (
-          <Card className="px-8 py-12 text-center">
-            <p className="text-lg font-semibold">{t('waitingSpeech')}</p>
+          <Card className="flex flex-col items-center px-8 py-12 text-center">
+            <SpeakerHigh className="size-5 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-lg font-semibold">{t('waitingSpeech')}</p>
             <p className="mx-auto mt-1 max-w-md text-[15px] text-muted-foreground">{t('waitingSpeechHint')}</p>
           </Card>
         ) : (

@@ -7,27 +7,23 @@
 // Сверху Aid добавляет две проверки:
 // - перед стартом: есть ли модель распознавания и микрофон. Без них запись
 //   дала бы тишину или звук без текста, поэтому «Начать запись» ведёт на исправление;
-// - после стопа: запись короче 5 секунд без единой реплики не сохраняется
-//   (handleRecordingStop(false) оригинала: дождаться транскрипции, но не писать в базу).
+// - после стопа: решение по содержанию, а не по длительности (recording-outcome.tsx):
+//   нет речи → встреча не сохраняется, но её можно вернуть 10 секунд.
 
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { appDataDir } from '@tauri-apps/api/path';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
-import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useRecordingStateSync } from '@/hooks/useRecordingStateSync';
 import { useRecordingStart } from '@/hooks/useRecordingStart';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { getProviderCommands, hasDownloadingModel, type ModelWithStatus } from '@/lib/transcription-model-readiness';
-import { transcriptService } from '@/services/transcriptService';
 import { aidToast } from './toasts';
-
-/** Короче этого и без реплик запись не сохраняется. */
-export const MIN_SAVED_SECONDS = 5;
+import { useRecordingOutcome } from './recording-outcome';
 
 export type StartBlocker =
   | { kind: 'no-model' }
@@ -38,8 +34,6 @@ export type StartBlocker =
 function isNoRecording(error: unknown) {
   return String(error instanceof Error ? error.message : error).includes('No recording in progress');
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Те же команды, что проверяет useRecordingStart перед стартом
@@ -67,37 +61,20 @@ export async function checkReadyToRecord(
   }
 }
 
-/** Ждём, пока ядро допишет очередь распознавания (не дольше timeoutMs). */
-async function waitForTranscriptionIdle(timeoutMs: number) {
-  const until = Date.now() + timeoutMs;
-  while (Date.now() < until) {
-    try {
-      const s = await transcriptService.getTranscriptionStatus();
-      if (!s.is_processing && s.chunks_in_queue === 0) return;
-    } catch {
-      return;
-    }
-    await sleep(300);
-  }
-}
-
 export function useAidRecording() {
   const [isRecordingLocal, setIsRecordingLocal] = useState(false);
   const [busy, setBusy] = useState<'pause' | 'stop' | 'check' | null>(null);
   const [blocker, setBlocker] = useState<StartBlocker | null>(null);
-  const [discarding, setDiscarding] = useState(false);
   const recording = useRecordingState();
   const { setIsMeetingActive } = useSidebar();
-  const { transcriptsRef } = useTranscripts();
   const { checkPermissions } = usePermissionCheck();
-  const lastDuration = useRef(0);
+  const outcome = useRecordingOutcome();
 
   const { setIsRecordingDisabled } = useRecordingStateSync(isRecordingLocal, setIsRecordingLocal, setIsMeetingActive);
   const { handleRecordingStart } = useRecordingStart(isRecordingLocal, setIsRecordingLocal);
   const { handleRecordingStop, setIsStopping } = useRecordingStop(setIsRecordingLocal, setIsRecordingDisabled);
 
   const duration = recording.activeDuration ?? recording.recordingDuration ?? 0;
-  if (recording.isRecording) lastDuration.current = duration;
 
   const start = useCallback(async () => {
     if (recording.isRecording || recording.status === RecordingStatus.STARTING || busy) return;
@@ -115,36 +92,25 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.status, busy, checkPermissions, handleRecordingStart]);
 
   // Тот же порядок, что у RecordingControls: stop_recording с путём файла,
-  // затем пост-обработка в useRecordingStop.
+  // затем пост-обработка в useRecordingStop, но с решением по содержанию записи.
   const stop = useCallback(async () => {
     if (!recording.isRecording || busy === 'stop') return;
-    const seconds = lastDuration.current;
     setBusy('stop');
     setIsStopping(true);
     try {
       const dataDir = await appDataDir();
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       await invoke('stop_recording', { args: { save_path: `${dataDir}/recording-${stamp}.wav` } });
-
-      let save = true;
-      if (seconds < MIN_SAVED_SECONDS && transcriptsRef.current.length === 0) {
-        // короткая реплика могла ещё не дойти из очереди распознавания
-        await waitForTranscriptionIdle(3000);
-        save = transcriptsRef.current.length > 0;
-      }
-      if (!save) setDiscarding(true);
-      await handleRecordingStop(save);
-      if (!save) aidToast.info('Запись слишком короткая, не сохранена', { description: 'Речь не распознана. Запишите ещё раз.' });
+      await outcome.finish(handleRecordingStop);
     } catch (error) {
       if (isNoRecording(error)) return;
       console.error('[aid] Не удалось остановить запись:', error);
       aidToast.error('Не удалось остановить запись', { description: String(error) });
       await handleRecordingStop(false);
     } finally {
-      setDiscarding(false);
       setBusy(null);
     }
-  }, [recording.isRecording, busy, setIsStopping, handleRecordingStop, transcriptsRef]);
+  }, [recording.isRecording, busy, setIsStopping, handleRecordingStop, outcome]);
 
   const togglePause = useCallback(async () => {
     if (!recording.isRecording || busy) return;
@@ -161,7 +127,7 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  const phase: FinishPhase | null = discarding
+  const phase: FinishPhase | null = outcome.finishing === 'discarding'
     ? 'discarding'
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS
       ? 'transcribing'
@@ -183,6 +149,7 @@ export function useAidRecording() {
     blocker,
     dismissBlocker: () => setBlocker(null),
     busy,
+    live: outcome.live,
     start,
     stop,
     togglePause,

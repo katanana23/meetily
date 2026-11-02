@@ -32,6 +32,7 @@ import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 import { AidToaster } from '@/aid/components/AidToaster'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
+import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -44,6 +45,7 @@ if (process.env.NEXT_PUBLIC_UI === 'original') {
   require('@/aid/styles/legacy.css')
 }
 const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
+const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingProvider
 
 // Оба шрифта пишут в одну переменную --font-ui, на body ставится класс только одного
 const inter = Inter({
@@ -272,7 +274,8 @@ export default function RootLayout({
                     <UpdateCheckProvider>
                       <SidebarProvider>
                         <TooltipProvider>
-                          <RecordingPostProcessingProvider>
+                          {/* Aid: свой провайдер остановки (решение по содержанию записи, тот же путь для трея) */}
+                          <PostProcessing>
                             <ImportDialogProvider onOpen={handleOpenImportDialog}>
                               {/* Download progress toast provider - listens for background downloads */}
                               <DownloadProgressToastProvider />
@@ -308,7 +311,7 @@ export default function RootLayout({
                                 importFilePath={importFilePath}
                               />
                             </ImportDialogProvider>
-                          </RecordingPostProcessingProvider>
+                          </PostProcessing>
                         </TooltipProvider>
                       </SidebarProvider>
                     </UpdateCheckProvider>

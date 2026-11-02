@@ -10,7 +10,7 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { ExternalLink, FolderOpen } from 'lucide-react';
+import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Ear } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
@@ -26,12 +26,12 @@ import { BetaSettings } from '@/components/BetaSettings';
 import AnalyticsConsentSwitch from '@/components/AnalyticsConsentSwitch';
 
 const TABS = [
-  { value: 'general', label: t('settingsGeneral') },
-  { value: 'recording', label: t('settingsRecording') },
-  { value: 'transcription', label: t('settingsTranscription') },
-  { value: 'summary', label: t('settingsSummary') },
-  { value: 'beta', label: t('settingsBeta') },
-  { value: 'about', label: t('settingsAbout') },
+  { value: 'general', label: t('settingsGeneral'), icon: SlidersHorizontal },
+  { value: 'recording', label: t('settingsRecording'), icon: Microphone },
+  { value: 'transcription', label: t('settingsTranscription'), icon: Ear },
+  { value: 'summary', label: t('settingsSummary'), icon: Sparkle },
+  { value: 'beta', label: t('settingsBeta'), icon: Flask },
+  { value: 'about', label: t('settingsAbout'), icon: Info },
 ] as const;
 type TabValue = (typeof TABS)[number]['value'];
 
@@ -170,7 +170,7 @@ function AboutTab() {
       </Row>
       <Row title={t('licenseTitle')} hint={t('licenseHint')}>
         <Button variant="outline" onClick={() => void openUrl(LICENSE_URL)}>
-          <ExternalLink />
+          <ArrowSquareOut />
           {t('license')}
         </Button>
       </Row>
@@ -210,11 +210,15 @@ function SettingsContent() {
     <Tabs value={tab} onValueChange={change} className="mt-6">
       <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <TabsList aria-label={t('navSettings')}>
-          {TABS.map((x) => (
-            <TabsTrigger key={x.value} value={x.value} className="px-4">
-              {x.label}
-            </TabsTrigger>
-          ))}
+          {TABS.map((x) => {
+            const Icon = x.icon;
+            return (
+              <TabsTrigger key={x.value} value={x.value} className="gap-1.5 px-3">
+                <Icon weight={tab === x.value ? 'fill' : 'regular'} aria-hidden />
+                {x.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
       </div>
 

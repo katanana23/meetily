@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AlertCircle, ArrowLeft, Check, FolderOpen, Loader2, Pencil, RotateCw, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowClockwise, ArrowLeft, Check, CircleNotch, FolderOpen, MicrophoneSlash, PencilSimple, Sparkle, Trash, WarningCircle, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
@@ -18,7 +18,9 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/aid/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
+import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
+import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import { CopyActions } from '@/aid/components/CopyActions';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
@@ -38,7 +40,6 @@ import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useConfig } from '@/contexts/ConfigContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
-import Analytics from '@/lib/analytics';
 
 function BackLink() {
   return (
@@ -54,7 +55,7 @@ function BackLink() {
 function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyError; onRetry?: () => void }) {
   return (
     <Alert variant="destructive">
-      <AlertCircle />
+      <WarningCircle weight="fill" />
       <div>
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
@@ -62,7 +63,7 @@ function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyE
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {onRetry && (
               <Button variant="outline" onClick={onRetry}>
-                <RotateCw />
+                <ArrowClockwise />
                 {t('retry')}
               </Button>
             )}
@@ -96,13 +97,8 @@ function SummaryPanel({
   onGenerate: () => void;
 }) {
   if (empty && summary.kind !== 'ready') {
-    // В транскрипте нет текста: итогам не из чего собраться
-    return (
-      <Card className="p-8">
-        <h2 className="text-lg font-semibold">{t('noSummaryEmpty')}</h2>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">{t('noSummaryEmptyHint')}</p>
-      </Card>
-    );
+    // Причина и действия уже в блоке «Речь не распознана» выше; здесь одна строка
+    return <p className="px-1 text-[15px] text-muted-foreground">{t('noSummaryEmpty')}</p>;
   }
 
   if (summary.kind === 'loading') {
@@ -119,7 +115,7 @@ function SummaryPanel({
     return (
       <Card className="p-8" role="status" aria-live="polite">
         <div className="flex items-center gap-3">
-          <Loader2 className="size-5 animate-spin text-primary" aria-hidden />
+          <CircleNotch className="size-5 animate-spin text-primary" aria-hidden />
           <h2 className="text-lg font-semibold">{t('summaryProcessing')}</h2>
         </div>
         <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">{t('summaryProcessingHint')}</p>
@@ -132,7 +128,7 @@ function SummaryPanel({
       <div className="space-y-4">
         <ErrorAlert title={t('summaryFailed')} error={summary.error} />
         <Button size="lg" onClick={onGenerate}>
-          <Sparkles />
+          <Sparkle weight="fill" />
           {t('regenerateSummary')}
         </Button>
       </div>
@@ -145,7 +141,7 @@ function SummaryPanel({
         <h2 className="text-lg font-semibold">{t('noSummary')}</h2>
         <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">{t('noSummaryHint')}</p>
         <Button size="lg" className="mt-6" onClick={onGenerate}>
-          <Sparkles />
+          <Sparkle weight="fill" />
           {t('generateSummary')}
         </Button>
       </Card>
@@ -244,7 +240,7 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
           disabled={saving}
         />
         <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-          {saving ? <Loader2 className="animate-spin" /> : <Check />}
+          {saving ? <CircleNotch className="animate-spin" /> : <Check />}
         </Button>
         <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
           <X />
@@ -259,7 +255,7 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={begin} aria-label={t('rename')}>
-            <Pencil />
+            <PencilSimple />
           </Button>
         </TooltipTrigger>
         <TooltipContent>{t('rename')}</TooltipContent>
@@ -268,46 +264,15 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
   );
 }
 
-function DeleteDialog({ open, onOpenChange, onConfirm }: { open: boolean; onOpenChange: (v: boolean) => void; onConfirm: () => Promise<void> }) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent>
-        <DialogTitle>{t('deleteTitle')}</DialogTitle>
-        <DialogDescription>{t('deleteHint')}</DialogDescription>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" disabled={busy}>
-              {t('cancel')}
-            </Button>
-          </DialogClose>
-          <Button
-            variant="destructive"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onConfirm();
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy && <Loader2 className="animate-spin" />}
-            {t('delete')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+type Cause = StartBlocker['kind'] | 'silence' | 'heard-no-text';
 
-const CAUSE: Record<StartBlocker['kind'] | 'silence', string> = {
+const CAUSE: Record<Cause, string> = {
   'no-model': t('silentNoModel'),
   'model-downloading': t('silentNoModel'),
   'no-microphone': t('silentNoMic'),
   'check-failed': t('silentUnknown'),
   silence: t('silentUnknown'),
+  'heard-no-text': t('silentHeard'),
 };
 
 /**
@@ -315,22 +280,30 @@ const CAUSE: Record<StartBlocker['kind'] | 'silence', string> = {
  * поэтому ничего не удаляем: объясняем вероятную причину и даём действия.
  */
 function SilentRecording({
+  folder,
   canRetranscribe,
   onRetranscribe,
   onOpenFolder,
   onDelete,
 }: {
+  folder: string | null;
   canRetranscribe: boolean;
   onRetranscribe: () => void;
   onOpenFolder: () => void;
   onDelete: () => void;
 }) {
   const { checkPermissions } = usePermissionCheck();
-  const [cause, setCause] = useState<StartBlocker['kind'] | 'silence' | null>(null);
+  const [cause, setCause] = useState<Cause | null>(null);
 
   useEffect(() => {
     let alive = true;
-    void checkReadyToRecord(checkPermissions).then((b) => alive && setCause(b?.kind ?? 'silence'));
+    // Свежая запись: Aid знает, что детектор речи слышал голос, а текста не было
+    const outcome = readStoredOutcome(folder);
+    void checkReadyToRecord(checkPermissions).then((b) => {
+      if (!alive) return;
+      if (b) setCause(b.kind);
+      else setCause(outcome?.verdict === 'unrecognized' && outcome.vadSegments > 0 ? 'heard-no-text' : 'silence');
+    });
     return () => {
       alive = false;
     };
@@ -342,7 +315,10 @@ function SilentRecording({
 
   return (
     <Card className="mt-8 p-6" role="status">
-      <h2 className="text-lg font-semibold">{t('silentTitle')}</h2>
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <MicrophoneSlash weight="fill" className="size-5 text-destructive" aria-hidden />
+        {t('silentTitle')}
+      </h2>
       <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
       <div className="mt-5 flex flex-wrap gap-3">
         {needModel ? (
@@ -352,7 +328,7 @@ function SilentRecording({
         ) : (
           canRetranscribe && (
             <Button onClick={onRetranscribe}>
-              <RotateCw />
+              <ArrowClockwise />
               {t('retranscribe')}
             </Button>
           )
@@ -362,7 +338,7 @@ function SilentRecording({
           {t('openRecordingFolder')}
         </Button>
         <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={onDelete}>
-          <Trash2 />
+          <Trash />
           {t('delete')}
         </Button>
       </div>
@@ -427,15 +403,15 @@ function MeetingDetailsContent() {
   const activeTab = tab ?? 'summary';
 
   const rename = async (title: string) => {
-    await m.rename(title);
+    await renameMeeting(meta.id, title);
+    m.setTitle(title);
     setMeetings(meetings.map((x) => (x.id === meta.id ? { ...x, title } : x)));
     aidToast.success(t('renamed'));
   };
 
   const remove = async () => {
     try {
-      await m.remove();
-      void Analytics.trackMeetingDeleted(meta.id);
+      await deleteMeeting(meta.id);
       await refetchMeetings();
       setConfirmDelete(false);
       aidToast.success(t('deleted'), { description: t('deletedHint') });
@@ -446,7 +422,7 @@ function MeetingDetailsContent() {
   };
 
   const openFolder = () =>
-    void m.openFolder().catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
+    void openMeetingFolder(meta.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
 
   return (
     <>
@@ -475,7 +451,7 @@ function MeetingDetailsContent() {
                 onClick={() => setConfirmDelete(true)}
                 aria-label={t('deleteMeeting')}
               >
-                <Trash2 />
+                <Trash />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('deleteMeeting')}</TooltipContent>
@@ -485,6 +461,7 @@ function MeetingDetailsContent() {
 
       {empty && (
         <SilentRecording
+          folder={meta.folder_path ?? null}
           canRetranscribe={canRetranscribe}
           onRetranscribe={() => setRetranscribe(true)}
           onOpenFolder={openFolder}
@@ -512,15 +489,13 @@ function MeetingDetailsContent() {
                 getMarkdown={async () => transcriptAsMarkdown(shownTitle, await m.loadAll())}
               />
             </Toolbar>
-            {empty ? (
-              <p className="px-6 py-12 text-center text-[15px] text-muted-foreground">{t('emptyTranscript')}</p>
-            ) : (
+            {empty ? null : (
               <div className="px-2 py-3">
                 <TranscriptList segments={m.segments} />
                 {m.hasMore && (
                   <div className="flex justify-center px-4 pb-3 pt-4">
                     <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>
-                      {m.loadingMore && <Loader2 className="animate-spin" />}
+                      {m.loadingMore && <CircleNotch className="animate-spin" />}
                       {t('loadMore')} ({m.segments.length} из {m.total})
                     </Button>
                   </div>
@@ -531,7 +506,7 @@ function MeetingDetailsContent() {
         </TabsContent>
       </Tabs>
 
-      <DeleteDialog open={confirmDelete} onOpenChange={setConfirmDelete} onConfirm={remove} />
+      <DeleteMeetingDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={shownTitle} onConfirm={remove} />
       {canRetranscribe && (
         <RetranscribeDialog
           open={retranscribe}

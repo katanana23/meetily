@@ -6,32 +6,45 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { AlertCircle, ChevronRight, FileAudio, Loader2, Mic, RotateCw, Search } from 'lucide-react';
+import { ArrowClockwise, ChatsCircle, CircleNotch, FileAudio, MagnifyingGlass, Microphone, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
+import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
+import { MeetingRow, type MeetingListItem, type MeetingStatus } from '@/aid/components/MeetingRow';
+import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import { useAidRecording, type StartBlocker } from '@/aid/lib/recording';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { displayTitle, formatShortDate, isAutoTitle } from '@/aid/lib/format';
+import { displayTitle } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
 
-interface MeetingRow {
-  id: string;
-  title: string;
-  created_at?: string;
-}
-
 type ListState =
   | { kind: 'loading' }
   | { kind: 'error'; error: FriendlyError }
-  | { kind: 'ready'; meetings: MeetingRow[] };
+  | { kind: 'ready'; meetings: MeetingListItem[] };
+
+const SUMMARIZING = ['processing', 'pending', 'started', 'running', 'summarizing', 'regenerating'];
+
+/** Состояние встречи для строки списка: итоги, только транскрипт, речь не распознана. */
+async function loadStatus(meetingId: string): Promise<MeetingStatus> {
+  const [summary, page] = await Promise.allSettled([
+    invoke<{ status?: string; data?: unknown } | null>('api_get_summary', { meetingId }),
+    invoke<{ total_count?: number }>('api_get_meeting_transcripts', { meetingId, limit: 1, offset: 0 }),
+  ]);
+  const st = summary.status === 'fulfilled' ? (summary.value?.status ?? '').toLowerCase() : '';
+  if (SUMMARIZING.includes(st)) return 'summarizing';
+  if (st === 'completed' && summary.status === 'fulfilled' && summary.value?.data) return 'summary';
+  if (page.status !== 'fulfilled') return 'unknown';
+  return (page.value?.total_count ?? 0) > 0 ? 'transcript' : 'silent';
+}
 
 function useMeetingsList(refreshKey: unknown) {
   const [state, setState] = useState<ListState>({ kind: 'loading' });
@@ -39,15 +52,16 @@ function useMeetingsList(refreshKey: unknown) {
   const load = useCallback(async () => {
     try {
       const list = await invoke<Array<{ id: string; title: string }>>('api_get_meetings');
-      // Дату ядро отдаёт только в метаданных встречи
-      const metas = await Promise.allSettled(
-        list.map((m) => invoke<{ created_at?: string }>('api_get_meeting_metadata', { meetingId: m.id })),
-      );
+      // Дату ядро отдаёт только в метаданных встречи, состояние собираем из итогов и транскрипта
+      const [metas, statuses] = await Promise.all([
+        Promise.allSettled(list.map((m) => invoke<{ created_at?: string }>('api_get_meeting_metadata', { meetingId: m.id }))),
+        Promise.all(list.map((m) => loadStatus(m.id).catch((): MeetingStatus => 'unknown'))),
+      ]);
       setState({
         kind: 'ready',
         meetings: list.map((m, i) => {
           const meta = metas[i];
-          return { ...m, created_at: meta.status === 'fulfilled' ? meta.value?.created_at : undefined };
+          return { ...m, created_at: meta.status === 'fulfilled' ? meta.value?.created_at : undefined, status: statuses[i] };
         }),
       });
     } catch (error) {
@@ -59,7 +73,7 @@ function useMeetingsList(refreshKey: unknown) {
     void load();
   }, [load, refreshKey]);
 
-  return { state, reload: load };
+  return { state, setState, reload: load };
 }
 
 const BLOCKER: Record<Exclude<StartBlocker['kind'], 'check-failed'>, { title: string; hint: string; action: string; href: string }> = {
@@ -90,7 +104,7 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
 
   return (
     <Alert className="mt-8" aria-live="polite">
-      <AlertCircle />
+      <WarningCircle weight="fill" />
       <div>
         <AlertTitle>{copy.title}</AlertTitle>
         <AlertDescription>
@@ -109,7 +123,7 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
             )}
             {blocker.kind !== 'no-model' && (
               <Button variant="outline" onClick={onRetry}>
-                <RotateCw />
+                <ArrowClockwise />
                 {t('checkAgain')}
               </Button>
             )}
@@ -132,8 +146,40 @@ interface HomeViewProps {
 }
 
 function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }: HomeViewProps) {
-  const { meetings: sidebarMeetings } = useSidebar();
-  const { state, reload } = useMeetingsList(sidebarMeetings);
+  const { meetings: sidebarMeetings, setMeetings } = useSidebar();
+  const { state, setState, reload } = useMeetingsList(sidebarMeetings);
+  const [toDelete, setToDelete] = useState<MeetingListItem | null>(null);
+
+  const patch = (fn: (list: MeetingListItem[]) => MeetingListItem[]) =>
+    setState((prev) => (prev.kind === 'ready' ? { kind: 'ready', meetings: fn(prev.meetings) } : prev));
+
+  const rename = async (m: MeetingListItem, title: string) => {
+    try {
+      await renameMeeting(m.id, title);
+      patch((list) => list.map((x) => (x.id === m.id ? { ...x, title } : x)));
+      setMeetings(sidebarMeetings.map((x) => (x.id === m.id ? { ...x, title } : x)));
+      aidToast.success(t('renamed'));
+    } catch (error) {
+      aidToast.error(t('renameFailed'), { description: String(error) });
+      throw error;
+    }
+  };
+
+  const remove = async () => {
+    if (!toDelete) return;
+    try {
+      await deleteMeeting(toDelete.id);
+      patch((list) => list.filter((x) => x.id !== toDelete.id));
+      setMeetings(sidebarMeetings.filter((x) => x.id !== toDelete.id));
+      setToDelete(null);
+      aidToast.success(t('deleted'), { description: t('deletedHint') });
+    } catch (error) {
+      aidToast.error(t('deleteFailed'), { description: String(error) });
+    }
+  };
+
+  const openFolder = (m: MeetingListItem) =>
+    void openMeetingFolder(m.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
@@ -159,7 +205,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
             </Button>
           )}
           <Button size="xl" onClick={onStart} disabled={isStarting}>
-            {isStarting ? <Loader2 className="animate-spin" /> : <Mic />}
+            {isStarting ? <CircleNotch className="animate-spin" /> : <Microphone weight="fill" />}
             {t('startRecording')}
           </Button>
         </div>
@@ -168,7 +214,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive" className="mt-8">
-          <AlertCircle />
+          <WarningCircle weight="fill" />
           <div>
             <AlertTitle>{t('startFailed')}</AlertTitle>
             <AlertDescription>
@@ -181,14 +227,14 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
 
       {state.kind === 'error' ? (
         <Alert variant="destructive" className="mt-8">
-          <AlertCircle />
+          <WarningCircle weight="fill" />
           <div>
             <AlertTitle>{t('meetingsError')}</AlertTitle>
             <AlertDescription>
               <p>{state.error.message}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <Button variant="outline" onClick={() => void reload()}>
-                  <RotateCw />
+                  <ArrowClockwise />
                   {t('retry')}
                 </Button>
                 <ErrorDetails raw={state.error.raw} />
@@ -200,7 +246,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
         <>
           {(state.kind !== 'ready' || state.meetings.length > 0) && (
           <div className="relative mt-8">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               type="search"
               value={query}
@@ -229,37 +275,31 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
 
             {state.kind === 'ready' && state.meetings.length === 0 && (
               <Card className="flex flex-col items-center px-8 py-16 text-center">
-                <h2 className="text-xl font-semibold">{t('noMeetings')}</h2>
+                <ChatsCircle className="size-5 text-muted-foreground" aria-hidden />
+                <h2 className="mt-3 text-xl font-semibold">{t('noMeetings')}</h2>
                 <p className="mt-2 max-w-sm text-[15px] text-muted-foreground">{t('noMeetingsHint')}</p>
               </Card>
             )}
 
             {state.kind === 'ready' && state.meetings.length > 0 && filtered.length === 0 && (
-              <Card className="px-8 py-12 text-center">
-                <h2 className="text-lg font-semibold">{t('nothingFound')}</h2>
+              <Card className="flex flex-col items-center px-8 py-12 text-center">
+                <MagnifyingGlass className="size-5 text-muted-foreground" aria-hidden />
+                <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
                 <p className="mt-1 text-[15px] text-muted-foreground">{t('nothingFoundHint')}</p>
               </Card>
             )}
 
             {filtered.length > 0 && (
               <Card className="overflow-hidden">
-                <ul className="divide-y divide-border">
+                <ul className="divide-y divide-border" aria-label={t('meetingsList')}>
                   {filtered.map((m) => (
-                    <li key={m.id}>
-                      <Link
-                        href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-                        className="group flex min-h-[72px] items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-medium">{displayTitle(m.title)}</p>
-                          {/* у автоматического названия дата уже в заголовке */}
-                          {m.created_at && !isAutoTitle(m.title) && (
-                            <p className="mt-0.5 text-sm text-muted-foreground">{formatShortDate(m.created_at)}</p>
-                          )}
-                        </div>
-                        <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                      </Link>
-                    </li>
+                    <MeetingRow
+                      key={m.id}
+                      meeting={m}
+                      onRename={(title) => rename(m, title)}
+                      onDelete={() => setToDelete(m)}
+                      onOpenFolder={() => openFolder(m)}
+                    />
                   ))}
                 </ul>
               </Card>
@@ -267,6 +307,12 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
           </div>
         </>
       )}
+      <DeleteMeetingDialog
+        open={toDelete !== null}
+        onOpenChange={(open) => !open && setToDelete(null)}
+        title={toDelete ? displayTitle(toDelete.title) : undefined}
+        onConfirm={remove}
+      />
     </div>
   );
 }
@@ -283,6 +329,7 @@ export default function Home() {
           phase={rec.phase}
           duration={rec.duration}
           busy={rec.busy}
+          live={rec.live}
           onStop={rec.stop}
           onTogglePause={rec.togglePause}
         />

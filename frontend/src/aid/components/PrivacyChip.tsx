@@ -2,7 +2,7 @@
 // Смысл передают текст и иконка, цвет только поддерживает.
 'use client';
 
-import { Cloud, HelpCircle, ShieldCheck } from 'lucide-react';
+import { Cloud, Question, ShieldCheck } from '@phosphor-icons/react';
 import { Badge } from '@/aid/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import type { PrivacyInfo, PrivacyLevel, ProviderPrivacy } from '@/aid/lib/privacy';
@@ -12,7 +12,7 @@ import { cn } from '@/aid/lib/utils';
 const LEVEL = {
   local: { icon: ShieldCheck, label: t('privacyLocal'), hint: t('privacyHintLocal'), variant: 'accent' as const },
   cloud: { icon: Cloud, label: t('privacyCloud'), hint: t('privacyHintCloud'), variant: 'outline' as const },
-  unknown: { icon: HelpCircle, label: t('privacyUnknown'), hint: t('privacyHintUnknown'), variant: 'secondary' as const },
+  unknown: { icon: Question, label: t('privacyUnknown'), hint: t('privacyHintUnknown'), variant: 'secondary' as const },
 } satisfies Record<PrivacyLevel, unknown>;
 
 const WHERE: Record<PrivacyLevel, string> = {
@@ -37,7 +37,7 @@ export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; clas
           className={cn('h-8 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
           aria-label={`${t('privacy')}: ${label}. ${hint}`}
         >
-          <Icon aria-hidden />
+          <Icon weight="fill" aria-hidden />
           {label}
         </Badge>
       </TooltipTrigger>

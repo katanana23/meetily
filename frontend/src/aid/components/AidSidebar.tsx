@@ -1,19 +1,38 @@
-// Сайдбар Aid: название, навигация, тема и индикатор приватности.
+// Сайдбар Aid: название, навигация, идущая запись, тема и индикатор приватности.
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Settings } from 'lucide-react';
+import { ChatsCircle, GearSix, Record } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { PrivacyChip } from './PrivacyChip';
 import { usePrivacy } from '@/aid/lib/privacy';
+import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
+import { useRecordingState } from '@/contexts/RecordingStateContext';
 
 const NAV = [
-  { label: t('navMeetings'), href: '/', icon: MessagesSquare, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
-  { label: t('navSettings'), href: '/settings', icon: Settings, match: (p: string) => p.startsWith('/settings') },
+  { label: t('navMeetings'), href: '/', icon: ChatsCircle, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
+  { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p: string) => p.startsWith('/settings') },
 ];
+
+const ITEM =
+  'flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** Запись идёт, а пользователь ушёл с главной: напоминание и путь обратно к кнопке «Остановить». */
+function RecordingLink({ pathname }: { pathname: string }) {
+  const rec = useRecordingState();
+  if (!rec.isRecording || pathname === '/') return null;
+  const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
+  return (
+    <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
+      <Record weight="fill" className={cn('size-5 text-destructive', !rec.isPaused && 'animate-pulse')} aria-hidden />
+      <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
+      <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
+    </Link>
+  );
+}
 
 export function AidSidebar() {
   const pathname = usePathname() ?? '/';
@@ -37,16 +56,14 @@ export function AidSidebar() {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-              )}
+              className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
             >
-              <Icon className={cn('size-[18px]', active && 'text-primary')} />
+              <Icon weight={active ? 'fill' : 'regular'} className={cn('size-5', active && 'text-primary')} aria-hidden />
               {item.label}
             </Link>
           );
         })}
+        <RecordingLink pathname={pathname} />
       </nav>
 
       <div className="space-y-2 border-t border-border p-3">

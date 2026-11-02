@@ -3020,3 +3020,41 @@
 [data-sonner-toast].border-red-300 {
   border-color: hsl(var(--destructive) / 0.4);
 }
+
+/*
+ * Распознавание: эмодзи моделей оригинала (⚡ 📦 🎯) заменены иконками Phosphor (fill).
+ * LegacyBridge убирает эмодзи из текста и ставит data-aid-icon, а иконка рисуется маской.
+ * SVG взяты из @phosphor-icons/react (Lightning, Package, Target), MIT.
+ */
+.aid-legacy [data-aid-icon] {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  font-size: 0;
+  background-color: hsl(var(--primary));
+  -webkit-mask: var(--aid-icon) no-repeat center / contain;
+  mask: var(--aid-icon) no-repeat center / contain;
+}
+.aid-legacy [data-aid-icon='lightning'] {
+  --aid-icon: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22black%22%20viewBox%3D%220%200%20256%20256%22%3E%3Cpath%20d%3D%22M213.85%2C125.46l-112%2C120a8%2C8%2C0%2C0%2C1-13.69-7l14.66-73.33L45.19%2C143.49a8%2C8%2C0%2C0%2C1-3-13l112-120a8%2C8%2C0%2C0%2C1%2C13.69%2C7L153.18%2C90.9l57.63%2C21.61a8%2C8%2C0%2C0%2C1%2C3%2C12.95Z%22%3E%3C%2Fpath%3E%3C%2Fsvg%3E");
+}
+.aid-legacy [data-aid-icon='package'] {
+  --aid-icon: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22black%22%20viewBox%3D%220%200%20256%20256%22%3E%3Cpath%20d%3D%22M223.68%2C66.15%2C135.68%2C18a15.88%2C15.88%2C0%2C0%2C0-15.36%2C0l-88%2C48.17a16%2C16%2C0%2C0%2C0-8.32%2C14v95.64a16%2C16%2C0%2C0%2C0%2C8.32%2C14l88%2C48.17a15.88%2C15.88%2C0%2C0%2C0%2C15.36%2C0l88-48.17a16%2C16%2C0%2C0%2C0%2C8.32-14V80.18A16%2C16%2C0%2C0%2C0%2C223.68%2C66.15ZM128%2C32l80.35%2C44L178.57%2C92.29l-80.35-44Zm0%2C88L47.65%2C76%2C81.56%2C57.43l80.35%2C44Zm88%2C55.85h0l-80%2C43.79V133.83l32-17.51V152a8%2C8%2C0%2C0%2C0%2C16%2C0V107.56l32-17.51v85.76Z%22%3E%3C%2Fpath%3E%3C%2Fsvg%3E");
+}
+.aid-legacy [data-aid-icon='target'] {
+  --aid-icon: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22black%22%20viewBox%3D%220%200%20256%20256%22%3E%3Cpath%20d%3D%22M221.87%2C83.16A104.1%2C104.1%2C0%2C1%2C1%2C195.67%2C49l22.67-22.68a8%2C8%2C0%2C0%2C1%2C11.32%2C11.32L167.6%2C99.71h0l-37.71%2C37.71-23.95%2C23.95a40%2C40%2C0%2C0%2C0%2C62-35.67%2C8%2C8%2C0%2C1%2C1%2C16-.9%2C56%2C56%2C0%2C0%2C1-95.5%2C42.79h0a56%2C56%2C0%2C0%2C1%2C73.13-84.43L184.3%2C60.39a87.88%2C87.88%2C0%2C1%2C0%2C23.13%2C29.67%2C8%2C8%2C0%2C0%2C1%2C14.44-6.9Z%22%3E%3C%2Fpath%3E%3C%2Fsvg%3E");
+}
+
+/* Распознавание: бейдж «Рекомендуем» висел на краю карточки (absolute -top-2 -right-2).
+   Ставим его внутрь карточки над названием. */
+.aid-legacy .absolute.-top-2.-right-2.rounded-full {
+  position: static;
+  display: inline-flex;
+  margin: 14px 0 -6px 16px;
+}
+
+/* Подпись под названием модели была сдвинута под эмодзи (ml-9) */
+.aid-legacy .text-2xl[data-aid-icon] ~ h3 {
+  margin-left: 2px;
+}

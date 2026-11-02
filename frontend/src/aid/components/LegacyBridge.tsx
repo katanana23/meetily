@@ -23,8 +23,18 @@ function report(text: string) {
   console.info('[aid] Нет перевода для строки оригинала:', JSON.stringify(text));
 }
 
+/** Эмодзи моделей в оригинале → иконка Phosphor (рисует legacy.css по data-aid-icon). */
+const EMOJI_ICONS: Record<string, string> = { '⚡': 'lightning', '📦': 'package', '🎯': 'target' };
+
 function translateText(node: Text) {
   const value = node.nodeValue;
+  const icon = value ? EMOJI_ICONS[value.trim()] : undefined;
+  if (icon && node.parentElement && node.parentElement.childNodes.length === 1) {
+    node.parentElement.setAttribute('data-aid-icon', icon);
+    node.parentElement.setAttribute('aria-hidden', 'true');
+    node.nodeValue = '';
+    return;
+  }
   if (!value || !/[A-Za-z]/.test(value)) return;
   const next = translate(value);
   if (next == null) {

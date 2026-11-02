@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { getStoredTheme, onThemeChange, setTheme, type ThemeMode } from '@/aid/lib/theme';
 import { t } from '@/aid/strings';

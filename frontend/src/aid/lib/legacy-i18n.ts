@@ -194,7 +194,8 @@ const EXACT: Record<string, string> = {
   'Smaller size with good accuracy': 'Меньше размер, хорошая точность',
   tokens: 'токенов',
   files: '',
-  Using: 'Распознаёт',
+  // «Using {модель} for transcription»: показывается и для нескачанной модели, поэтому «выбрана»
+  Using: 'Выбрана модель:',
   'for transcription': '',
   'Summary Language': 'Язык итогов',
   'Pin one language as the default for new meetings. Unpinned languages remain as quick-switch options in the summary generator. Auto uses the dominant transcript language.':
@@ -333,7 +334,7 @@ const EXACT: Record<string, string> = {
 
 const PATTERNS: Array<[RegExp, (...m: string[]) => string]> = [
   [/^Supported formats: (.+)$/, (_, f) => `Подходят: ${f}`],
-  [/^Using (.+) for transcription$/, (_, n) => `Распознаёт: ${translate(n) ?? n}`],
+  [/^Using (.+) for transcription$/, (_, n) => `Выбрана модель: ${translate(n) ?? n}`],
   [/^Downloading (.+)\.\.\.$/, (_, n) => `Скачиваем ${n}…`],
   [/^Cancelling (.+)\.\.\.$/, (_, n) => `Отменяем загрузку ${n}…`],
   [/^(.+) download cancelled$/, (_, n) => `Загрузка ${n} отменена`],

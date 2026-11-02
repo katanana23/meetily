@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, FileCode2 } from 'lucide-react';
+import { Check, Copy, FileMd } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { Button } from '@/aid/components/ui/button';
 import { t } from '@/aid/strings';
@@ -77,7 +77,7 @@ export function CopyActions({ subject, getText, getMarkdown, disabled }: CopyAct
         disabled={disabled}
         aria-label={`${t('copyAsMarkdown')}: ${subject}`}
       >
-        {copied === 'markdown' ? <Check /> : <FileCode2 />}
+        {copied === 'markdown' ? <Check /> : <FileMd />}
         {copied === 'markdown' ? t('copied') : t('copyAsMarkdown')}
       </Button>
       <span className="sr-only" aria-live="polite">

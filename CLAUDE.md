@@ -12,7 +12,7 @@
 
 ## Стек интерфейса
 - Только shadcn/ui (компоненты в `src/aid/components/ui`, на Radix) и Tailwind 3.4. Tailwind не обновлять.
-- Иконки только `lucide-react`. Gravity UI, Solar и другие наборы не добавлять.
+- Иконки только `@phosphor-icons/react` (fill для акцента и активных состояний, regular для остального), размеры 16 и 20 px. Gravity UI, Solar и другие наборы не добавлять. `lucide-react` остаётся только в оригинальных файлах.
 - Токены в `src/aid/styles/globals.css`: одна светлая и одна тёмная тема, один акцент (`--primary`), радиусы 16–24 px, кнопки 44–56 px, шрифт Inter (latin + cyrillic). Без градиентов, свечений и стекла.
 - Логику записи и данных не дублировать: брать хуки и контексты оригинала (`useRecordingStart`, `useRecordingStop`, `TranscriptContext`).
 - Переключатель интерфейса: `NEXT_PUBLIC_UI=aid` (по умолчанию) или `original` в `frontend/.env.local`.

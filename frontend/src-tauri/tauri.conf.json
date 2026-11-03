@@ -18,6 +18,8 @@
                 "resizable": true,
                 "fullscreen": false,
                 "backgroundColor": "#F7F7F8",
+                "titleBarStyle": "Overlay",
+                "hiddenTitle": true,
                 "decorations": true
             }
         ],
@@ -61,6 +63,8 @@
                         "core:tray:default",
                         "core:window:allow-set-title",
                         "core:window:allow-set-theme",
+                        "core:window:allow-start-dragging",
+                        "core:window:allow-internal-toggle-maximize",
                         "core:window:allow-set-background-color",
                         "core:webview:allow-set-webview-background-color",
                         "store:default",

@@ -172,10 +172,12 @@ export class MockBackend {
         if (n !== 1) return;
         line = ['', 'Продолжение следует...'];
         break;
-      case 'one-phrase':
-        if (n !== 0) return;
-        line = ['', 'Созвон переносим на пятницу'];
+      case 'script': {
+        const script = this.scenario.script ?? [];
+        if (n >= script.length) return;
+        line = ['', script[n]];
         break;
+      }
       case 'vad-only':
         // VAD слышит речь, текста нет
         this.vadSegment();
@@ -197,7 +199,8 @@ export class MockBackend {
     this.lineIdx++;
     this.vadSegment();
     const end = this.elapsedSec();
-    const duration = Math.min(4, Math.max(1.5, text.length / 18));
+    // около 12 символов в секунду: обычный темп речи, длительность сегмента как у VAD
+    const duration = Math.max(1.5, text.length / 12);
     const start = Math.max(0, end - duration);
     const now = new Date();
     this.lastActivity = Date.now();

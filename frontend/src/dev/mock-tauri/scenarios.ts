@@ -9,7 +9,7 @@ import type { MockMeeting } from './fixtures/types';
 
 export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
-  | 'silence-5s' | 'silence-hallucination' | 'one-phrase' | 'heard-no-text' | 'mid-silence'
+  | 'silence-5s' | 'silence-hallucination' | 'words-3' | 'words-12' | 'words-20' | 'heard-no-text' | 'mid-silence'
   | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
 
 /**
@@ -19,11 +19,11 @@ export type ScenarioId =
  * - none: тишина, VAD молчит;
  * - few: три реплики, потом тишина;
  * - hallucination: тишина, на один шумовой сегмент модель выдаёт «Продолжение следует...»;
- * - one-phrase: одна фраза «Созвон переносим на пятницу», потом тишина;
+ * - script: реплики из scenario.script по одной на такт, потом тишина;
  * - vad-only: VAD слышит речь, но текста нет (модель не распознаёт);
  * - then-silence: пять реплик, потом тишина и скачок времени на silenceJumpSec.
  */
-export type LiveMode = 'normal' | 'none' | 'few' | 'hallucination' | 'one-phrase' | 'vad-only' | 'then-silence';
+export type LiveMode = 'normal' | 'none' | 'few' | 'hallucination' | 'script' | 'vad-only' | 'then-silence';
 
 export interface Scenario {
   id: ScenarioId;
@@ -45,6 +45,8 @@ export interface Scenario {
   startOffsetSec?: number;
   /** then-silence: на сколько секунд «перематывается» время после последней реплики. */
   silenceJumpSec?: number;
+  /** script: реплики без подписи спикера, по одной на такт. */
+  script?: string[];
   /** false: нет доступа к микрофону (в списке устройств нет входов). */
   micPermission?: boolean;
   /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
@@ -86,10 +88,26 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'hallucination', startOffsetSec: 180,
   },
-  'one-phrase': {
-    id: 'one-phrase', label: 'one-phrase', description: '20 секунд и одна фраза «Созвон переносим на пятницу»: встреча должна сохраниться',
+  'words-3': {
+    id: 'words-3', label: 'words-3', description: 'Три слова «Да, хорошо, давай»: меньше порога, встреча не сохраняется',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
-    live: 'one-phrase', startOffsetSec: 15,
+    live: 'script', startOffsetSec: 10, script: ['Да, хорошо, давай.'],
+  },
+  'words-12': {
+    id: 'words-12', label: 'words-12', description: '12 слов в трёх репликах: меньше порога 15 слов, встреча не сохраняется',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 20, script: ['Коротко: релиз переносим на четверг.', 'Тесты пока не прошли, жду отчёт.', 'Всё.'],
+  },
+  'words-20': {
+    id: 'words-20', label: 'words-20', description: '20 слов и больше 10 секунд речи: встреча сохраняется',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 30,
+    script: [
+      'Давайте договоримся: релиз переносим на четверг.',
+      'Лада до среды пришлёт отчёт по тестам.',
+      'Если всё зелёное, выкатываем утром.',
+      'Возражений нет.',
+    ],
   },
   'heard-no-text': {
     id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, но распознавание не даёт текста: встреча сохраняется как «Речь не распознана»',

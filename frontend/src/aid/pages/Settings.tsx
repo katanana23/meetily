@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Ear } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
+import { Page } from '@/aid/components/Page';
 import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Switch } from '@/aid/components/ui/switch';
@@ -206,31 +207,38 @@ function SettingsContent() {
     router.replace(`/settings?tab=${value}`, { scroll: false });
   };
 
-  return (
-    <Tabs value={tab} onValueChange={change} className="mt-6">
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+  const header = (
+    <>
+      <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
+      <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1">
         <TabsList aria-label={t('navSettings')}>
           {TABS.map((x) => {
             const Icon = x.icon;
             return (
               <TabsTrigger key={x.value} value={x.value} className="gap-1.5 px-3">
-                <Icon weight={tab === x.value ? 'fill' : 'regular'} aria-hidden />
+                <Icon aria-hidden />
                 {x.label}
               </TabsTrigger>
             );
           })}
         </TabsList>
       </div>
+    </>
+  );
 
-      <TabsContent value="general">
+  return (
+    // Tabs снаружи: вкладки в неподвижной шапке, содержимое в прокручиваемой области
+    <Tabs value={tab} onValueChange={change} className="flex h-full min-w-0 flex-1">
+      <Page header={header}>
+      <TabsContent value="general" className="mt-0">
         <GeneralTab />
       </TabsContent>
-      <TabsContent value="recording">
+      <TabsContent value="recording" className="mt-0">
         <Legacy>
           <RecordingSettings />
         </Legacy>
       </TabsContent>
-      <TabsContent value="transcription">
+      <TabsContent value="transcription" className="mt-0">
         <Legacy>
           <TranscriptSettings
             transcriptModelConfig={transcriptModelConfig}
@@ -238,32 +246,35 @@ function SettingsContent() {
           />
         </Legacy>
       </TabsContent>
-      <TabsContent value="summary">
-        <Legacy>
+      <TabsContent value="summary" className="mt-0">
+        {/* aid-no-autosummary: переключатель «Итоги автоматически» скрыт, Aid делает итоги только по кнопке */}
+        <Legacy className="aid-no-autosummary">
           <SummaryModelSettings />
         </Legacy>
       </TabsContent>
-      <TabsContent value="beta">
+      <TabsContent value="beta" className="mt-0">
         <Legacy>
           <BetaSettings />
         </Legacy>
       </TabsContent>
-      <TabsContent value="about">
+      <TabsContent value="about" className="mt-0">
         <AboutTab />
       </TabsContent>
+      </Page>
     </Tabs>
   );
 }
 
 export default function Settings() {
   return (
-    <main className="h-screen flex-1 overflow-y-auto bg-background">
-      <div className="mx-auto w-full max-w-[880px] px-8 pb-16 pt-10">
-        <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
-        <Suspense fallback={<Skeleton className="mt-6 h-12 w-[520px] max-w-full rounded-2xl" />}>
-          <SettingsContent />
-        </Suspense>
-      </div>
-    </main>
+    <Suspense
+      fallback={
+        <Page header={<h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>}>
+          <Skeleton className="h-40 w-full rounded-3xl" />
+        </Page>
+      }
+    >
+      <SettingsContent />
+    </Suspense>
   );
 }

@@ -100,7 +100,7 @@ const ru = {
   generateSummary: 'Сделать итоги',
   regenerateSummary: 'Попробовать снова',
   summaryProcessing: 'Готовим итоги',
-  summaryProcessingHint: 'Модель читает транскрипт. Можно переключиться на вкладку «Транскрипт».',
+  summaryProcessingHint: 'Это займёт до пары минут, транскрипт можно читать дальше.',
   summaryFailed: 'Итоги не получились',
   nothingToCopy: 'Копировать нечего: реплик нет',
   noSummaryEmpty: 'Итоги появятся, когда в транскрипте будет текст.',
@@ -136,7 +136,11 @@ const ru = {
   // копирование
   copy: 'Копировать',
   copied: 'Скопировано',
-  copyAsMarkdown: 'Как Markdown',
+  copyAsMarkdown: 'В Markdown',
+  copyAsText: 'Текстом',
+  collapse: 'Свернуть',
+  expand: 'Развернуть',
+  summaryRedo: 'Сделать заново',
   copyFailed: 'Не получилось скопировать. Выделите текст и нажмите ⌘C.',
 
   // настройки

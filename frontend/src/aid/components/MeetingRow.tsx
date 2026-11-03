@@ -9,7 +9,7 @@ import {
   CaretRight,
   ChatText,
   Check,
-  CircleNotch,
+  SpinnerGap,
   FolderOpen,
   MicrophoneSlash,
   PencilSimple,
@@ -35,11 +35,11 @@ export interface MeetingListItem {
   status: MeetingStatus;
 }
 
-const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon; label: string; className: string; weight: 'fill' | 'regular' }> = {
-  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary', weight: 'fill' },
-  summarizing: { icon: CircleNotch, label: t('statusSummarizing'), className: 'animate-spin text-primary', weight: 'regular' },
-  transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground', weight: 'regular' },
-  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive', weight: 'fill' },
+const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon; label: string; className: string }> = {
+  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary' },
+  summarizing: { icon: SpinnerGap, label: t('statusSummarizing'), className: 'animate-spin text-primary' },
+  transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
+  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive' },
 };
 
 function IconAction({
@@ -141,7 +141,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
             disabled={saving}
           />
           <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-            {saving ? <CircleNotch className="animate-spin" /> : <Check />}
+            {saving ? <SpinnerGap className="animate-spin" /> : <Check />}
           </Button>
           <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
             <X />
@@ -161,7 +161,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
             className="flex min-w-0 flex-1 items-center gap-4 self-stretch rounded-2xl py-4 pl-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {StatusIcon ? (
-              <StatusIcon weight={status.weight} className={cn('size-5 shrink-0', status.className)} aria-hidden />
+              <StatusIcon className={cn('size-5 shrink-0', status.className)} aria-hidden />
             ) : (
               <span className="size-5 shrink-0" aria-hidden />
             )}

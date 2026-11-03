@@ -27,7 +27,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
   const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
   return (
     <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
-      <Record weight="fill" className={cn('size-5 text-destructive', !rec.isPaused && 'animate-pulse')} aria-hidden />
+      <Record className={cn('size-5 text-destructive', !rec.isPaused && 'animate-pulse')} aria-hidden />
       <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
       <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
     </Link>
@@ -58,7 +58,7 @@ export function AidSidebar() {
               aria-current={active ? 'page' : undefined}
               className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
             >
-              <Icon weight={active ? 'fill' : 'regular'} className={cn('size-5', active && 'text-primary')} aria-hidden />
+              <Icon className={cn('size-5', active && 'text-primary')} aria-hidden />
               {item.label}
             </Link>
           );

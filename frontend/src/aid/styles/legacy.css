@@ -3058,3 +3058,9 @@
 .aid-legacy .text-2xl[data-aid-icon] ~ h3 {
   margin-left: 2px;
 }
+
+/* Итоги: первая карточка SummaryModelSettings («Итоги автоматически»).
+   В Aid итоги создаются только по кнопке, поэтому переключатель не показываем. */
+.aid-no-autosummary > .flex.flex-col.gap-4 > div:first-child {
+  display: none;
+}

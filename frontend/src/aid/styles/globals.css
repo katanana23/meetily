@@ -206,3 +206,67 @@ body:has(.aid-onboarding) .aid-toaster [data-sonner-toast][data-styled='false'] 
 .aid-legacy.aid-onboarding .fixed.inset-0.bg-gray-50 {
   background-color: hsl(var(--background));
 }
+
+/* Фон темы на всём окне: при растягивании и «резиновой» прокрутке WebKit
+   показывает фон html, а не белый по умолчанию. */
+html {
+  height: 100%;
+  background-color: hsl(var(--background));
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100%;
+  overscroll-behavior: none;
+}
+
+/*
+ * Прокрутка контента. scrollbar-gutter: stable держит место под полосу всегда,
+ * поэтому ширина не меняется, когда содержимое начинает прокручиваться.
+ * Полоса: 10 px места, бегунок 6 px (рамка 2 px прозрачная), дорожки нет,
+ * бегунок полупрозрачный и проявляется при прокрутке (is-scrolling) и наведении.
+ * Только ::-webkit-scrollbar: его понимают WebKit (WKWebView в Tauri на macOS)
+ * и Chromium; scrollbar-width/scrollbar-color не задаём, иначе Chromium
+ * игнорирует ::-webkit-scrollbar.
+ */
+.aid-scroll,
+.aid-gutter {
+  scrollbar-gutter: stable;
+}
+
+.aid-gutter {
+  overflow: hidden;
+}
+
+.aid-scroll {
+  overscroll-behavior: contain;
+}
+
+.aid-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+.aid-scroll::-webkit-scrollbar-track,
+.aid-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.aid-scroll::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+  background-color: transparent;
+}
+
+.aid-scroll:hover::-webkit-scrollbar-thumb,
+.aid-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--foreground) / 0.22);
+}
+
+.aid-scroll::-webkit-scrollbar-thumb:hover,
+.aid-scroll::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--foreground) / 0.4);
+}

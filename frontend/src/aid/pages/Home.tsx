@@ -6,13 +6,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, ChatsCircle, CircleNotch, FileAudio, MagnifyingGlass, Microphone, WarningCircle } from '@phosphor-icons/react';
+import { ArrowClockwise, ChatsCircle, SpinnerGap, FileAudio, MagnifyingGlass, Microphone, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
+import { Page } from '@/aid/components/Page';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, type MeetingListItem, type MeetingStatus } from '@/aid/components/MeetingRow';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
@@ -103,8 +104,8 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
   };
 
   return (
-    <Alert className="mt-8" aria-live="polite">
-      <WarningCircle weight="fill" />
+    <Alert aria-live="polite">
+      <WarningCircle />
       <div>
         <AlertTitle>{copy.title}</AlertTitle>
         <AlertDescription>
@@ -193,9 +194,11 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
       : state.meetings;
   }, [state, query]);
 
-  return (
-    <div className="mx-auto w-full max-w-[880px] px-8 py-10">
-      <header className="flex flex-wrap items-end justify-between gap-6">
+  const showSearch = state.kind !== 'error' && (state.kind !== 'ready' || state.meetings.length > 0);
+
+  const header = (
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-6">
         <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
         <div className="flex flex-wrap gap-3">
           {betaFeatures.importAndRetranscribe && (
@@ -205,16 +208,34 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
             </Button>
           )}
           <Button size="xl" onClick={onStart} disabled={isStarting}>
-            {isStarting ? <CircleNotch className="animate-spin" /> : <Microphone weight="fill" />}
+            {isStarting ? <SpinnerGap className="animate-spin" /> : <Microphone />}
             {t('startRecording')}
           </Button>
         </div>
-      </header>
+      </div>
+      {showSearch && (
+        <div className="relative mt-6">
+          <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('searchMeetings')}
+            aria-label={t('searchMeetings')}
+            className="pl-12"
+            disabled={state.kind !== 'ready'}
+          />
+        </div>
+      )}
+    </>
+  );
 
+  return (
+    <Page header={header}>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
-        <Alert variant="destructive" className="mt-8">
-          <WarningCircle weight="fill" />
+        <Alert variant="destructive">
+          <WarningCircle />
           <div>
             <AlertTitle>{t('startFailed')}</AlertTitle>
             <AlertDescription>
@@ -226,8 +247,8 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
       )}
 
       {state.kind === 'error' ? (
-        <Alert variant="destructive" className="mt-8">
-          <WarningCircle weight="fill" />
+        <Alert variant="destructive" className={blocker || startError ? 'mt-6' : ''}>
+          <WarningCircle />
           <div>
             <AlertTitle>{t('meetingsError')}</AlertTitle>
             <AlertDescription>
@@ -244,22 +265,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
         </Alert>
       ) : (
         <>
-          {(state.kind !== 'ready' || state.meetings.length > 0) && (
-          <div className="relative mt-8">
-            <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('searchMeetings')}
-              aria-label={t('searchMeetings')}
-              className="pl-12"
-              disabled={state.kind !== 'ready'}
-            />
-          </div>
-          )}
-
-          <div className={state.kind === 'ready' && state.meetings.length === 0 ? 'mt-8' : 'mt-4'}>
+          <div className={blocker || startError ? 'mt-6' : ''}>
             {state.kind === 'loading' && (
               <Card className="divide-y divide-border overflow-hidden" role="status" aria-busy="true" aria-label={t('loading')}>
                 {[0, 1, 2, 3].map((i) => (
@@ -313,7 +319,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
         title={toDelete ? displayTitle(toDelete.title) : undefined}
         onConfirm={remove}
       />
-    </div>
+    </Page>
   );
 }
 
@@ -321,27 +327,23 @@ export default function Home() {
   const rec = useAidRecording();
   const showRecording = rec.isRecording || rec.phase !== null;
 
-  return (
-    <main className="h-screen flex-1 overflow-y-auto bg-background">
-      {showRecording ? (
-        <RecordingView
-          isPaused={rec.isPaused}
-          phase={rec.phase}
-          duration={rec.duration}
-          busy={rec.busy}
-          live={rec.live}
-          onStop={rec.stop}
-          onTogglePause={rec.togglePause}
-        />
-      ) : (
-        <HomeView
-          onStart={() => void rec.start()}
-          isStarting={rec.isStarting}
-          blocker={rec.blocker}
-          onDismissBlocker={rec.dismissBlocker}
-          startError={rec.startError}
-        />
-      )}
-    </main>
+  return showRecording ? (
+    <RecordingView
+      isPaused={rec.isPaused}
+      phase={rec.phase}
+      duration={rec.duration}
+      busy={rec.busy}
+      live={rec.live}
+      onStop={rec.stop}
+      onTogglePause={rec.togglePause}
+    />
+  ) : (
+    <HomeView
+      onStart={() => void rec.start()}
+      isStarting={rec.isStarting}
+      blocker={rec.blocker}
+      onDismissBlocker={rec.dismissBlocker}
+      startError={rec.startError}
+    />
   );
 }

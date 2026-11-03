@@ -37,7 +37,7 @@ export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; clas
           className={cn('h-8 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
           aria-label={`${t('privacy')}: ${label}. ${hint}`}
         >
-          <Icon weight="fill" aria-hidden />
+          <Icon aria-hidden />
           {label}
         </Badge>
       </TooltipTrigger>

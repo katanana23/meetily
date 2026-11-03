@@ -1,7 +1,8 @@
-// Экран «Встреча»: название (переименование), дата, длительность и число реплик,
-// вкладки «Итоги» и «Транскрипт» с копированием в текст и Markdown,
-// состояния загрузки, пустых итогов и ошибки. Пустой транскрипт не прячется:
-// встреча с записью без реплик показывает вероятную причину и что сделать.
+// Экран «Встреча»: главное здесь транскрипт, он открыт сразу.
+// Итоги вторичны: кнопка «Сделать итоги» в шапке, а готовые итоги показываются
+// сворачиваемым блоком над транскриптом. Пока итогов нет, блоков про них нет.
+// Копирование текста и Markdown собрано в одном меню «Копировать».
+// Встреча без реплик показывает одно сообщение «Речь не распознана» с действиями.
 
 'use client';
 
@@ -10,20 +11,44 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowClockwise, ArrowLeft, Check, CircleNotch, FolderOpen, MicrophoneSlash, PencilSimple, Sparkle, Trash, WarningCircle, X } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  ArrowLeft,
+  CaretDown,
+  Check,
+  SpinnerGap,
+  Copy,
+  FileMd,
+  FolderOpen,
+  MicrophoneSlash,
+  PencilSimple,
+  Sparkle,
+  TextAlignLeft,
+  Trash,
+  WarningCircle,
+  X,
+} from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/aid/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/aid/components/ui/dropdown-menu';
+import { Page } from '@/aid/components/Page';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
-import { readStoredOutcome } from '@/aid/lib/recording-outcome';
-import { CopyActions } from '@/aid/components/CopyActions';
+import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
+import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
   transcriptAsMarkdown,
@@ -35,11 +60,14 @@ import {
 import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
 import { displayTitle, formatDateTime, formatDuration, isAutoTitle, plural } from '@/aid/lib/format';
+import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useConfig } from '@/contexts/ConfigContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
+
+const WIDTH = 'max-w-[840px]'; // колонка текста реплик около 700 px
 
 function BackLink() {
   return (
@@ -55,7 +83,7 @@ function BackLink() {
 function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyError; onRetry?: () => void }) {
   return (
     <Alert variant="destructive">
-      <WarningCircle weight="fill" />
+      <WarningCircle />
       <div>
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
@@ -72,112 +100,6 @@ function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyE
         </AlertDescription>
       </div>
     </Alert>
-  );
-}
-
-/** Панель действий над содержимым вкладки. Заголовка нет: его роль играет вкладка. */
-function Toolbar({ children, note }: { children: React.ReactNode; note?: string }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-3">
-      <p className="text-sm text-muted-foreground">{note}</p>
-      {children}
-    </div>
-  );
-}
-
-function SummaryPanel({
-  title,
-  summary,
-  empty,
-  onGenerate,
-}: {
-  title: string;
-  summary: SummaryState;
-  empty: boolean;
-  onGenerate: () => void;
-}) {
-  if (empty && summary.kind !== 'ready') {
-    // Причина и действия уже в блоке «Речь не распознана» выше; здесь одна строка
-    return <p className="px-1 text-[15px] text-muted-foreground">{t('noSummaryEmpty')}</p>;
-  }
-
-  if (summary.kind === 'loading') {
-    return (
-      <Card className="space-y-4 p-6" role="status" aria-busy="true" aria-label={t('loading')}>
-        <Skeleton className="h-6 w-1/3 rounded-lg" />
-        <Skeleton className="h-4 w-full rounded-lg" />
-        <Skeleton className="h-4 w-5/6 rounded-lg" />
-      </Card>
-    );
-  }
-
-  if (summary.kind === 'processing') {
-    return (
-      <Card className="p-8" role="status" aria-live="polite">
-        <div className="flex items-center gap-3">
-          <CircleNotch className="size-5 animate-spin text-primary" aria-hidden />
-          <h2 className="text-lg font-semibold">{t('summaryProcessing')}</h2>
-        </div>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">{t('summaryProcessingHint')}</p>
-      </Card>
-    );
-  }
-
-  if (summary.kind === 'failed') {
-    return (
-      <div className="space-y-4">
-        <ErrorAlert title={t('summaryFailed')} error={summary.error} />
-        <Button size="lg" onClick={onGenerate}>
-          <Sparkle weight="fill" />
-          {t('regenerateSummary')}
-        </Button>
-      </div>
-    );
-  }
-
-  if (summary.kind === 'empty') {
-    return (
-      <Card className="p-8">
-        <h2 className="text-lg font-semibold">{t('noSummary')}</h2>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">{t('noSummaryHint')}</p>
-        <Button size="lg" className="mt-6" onClick={onGenerate}>
-          <Sparkle weight="fill" />
-          {t('generateSummary')}
-        </Button>
-      </Card>
-    );
-  }
-
-  const markdown = summary.markdown;
-  return (
-    <Card className="overflow-hidden">
-      <Toolbar>
-        <CopyActions
-          subject="итоги"
-          getText={() => markdownToPlain(markdown)}
-          getMarkdown={() => (/^#\s/.test(markdown) ? markdown : `# ${title}\n\n${markdown}`)}
-        />
-      </Toolbar>
-      <article className="prose prose-neutral max-w-none px-6 py-6 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-2xl prose-h2:text-lg prose-h3:text-base prose-p:leading-7 prose-li:my-1 prose-table:text-sm prose-th:text-left">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
-      </article>
-    </Card>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-busy="true" aria-label={t('loading')}>
-      <Skeleton className="h-11 w-44 rounded-2xl" />
-      <Skeleton className="mt-6 h-9 w-2/3 rounded-xl" />
-      <Skeleton className="mt-4 h-5 w-48 rounded-lg" />
-      <Skeleton className="mt-10 h-12 w-64 rounded-2xl" />
-      <Card className="mt-6 space-y-4 p-6">
-        <Skeleton className="h-6 w-1/3 rounded-lg" />
-        <Skeleton className="h-4 w-full rounded-lg" />
-        <Skeleton className="h-4 w-5/6 rounded-lg" />
-      </Card>
-    </div>
   );
 }
 
@@ -240,7 +162,7 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
           disabled={saving}
         />
         <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-          {saving ? <CircleNotch className="animate-spin" /> : <Check />}
+          {saving ? <SpinnerGap className="animate-spin" /> : <Check />}
         </Button>
         <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
           <X />
@@ -251,7 +173,9 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
 
   return (
     <div className="flex items-start gap-1">
-      <h1 className="min-w-0 text-3xl font-semibold leading-tight tracking-tight">{shown}</h1>
+      <h1 className="line-clamp-2 min-w-0 text-2xl font-semibold leading-tight tracking-tight" title={shown}>
+        {shown}
+      </h1>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={begin} aria-label={t('rename')}>
@@ -314,9 +238,9 @@ function SilentRecording({
   const needModel = cause === 'no-model' || cause === 'model-downloading';
 
   return (
-    <Card className="mt-8 p-6" role="status">
+    <Card className="p-6" role="status">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <MicrophoneSlash weight="fill" className="size-5 text-destructive" aria-hidden />
+        <MicrophoneSlash className="size-5 text-destructive" aria-hidden />
         {t('silentTitle')}
       </h2>
       <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
@@ -346,19 +270,225 @@ function SilentRecording({
   );
 }
 
+
+/** Итоги над транскриптом: только когда они есть, готовятся или не получились. */
+function SummaryBlock({
+  summary,
+  onRetry,
+}: {
+  summary: SummaryState;
+  onRetry: () => void;
+}) {
+  // Свёрнуты по умолчанию: главное на странице транскрипт. Раскрываются сами,
+  // когда итоги только что сделаны на этой странице.
+  const [open, setOpen] = useState(false);
+  const wasProcessing = useRef(false);
+  useEffect(() => {
+    if (summary.kind === 'processing') wasProcessing.current = true;
+    else if (summary.kind === 'ready' && wasProcessing.current) {
+      wasProcessing.current = false;
+      setOpen(true);
+    }
+  }, [summary.kind]);
+
+  if (summary.kind === 'processing') {
+    return (
+      <div className="mb-8 flex items-center gap-3 rounded-2xl bg-muted px-5 py-4" role="status" aria-live="polite">
+        <SpinnerGap className="size-5 shrink-0 animate-spin text-primary" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{t('summaryProcessing')}</p>
+          <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (summary.kind === 'failed') {
+    return (
+      <div className="mb-8">
+        <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />
+      </div>
+    );
+  }
+
+  if (summary.kind !== 'ready') return null;
+
+  return (
+    <section className="mb-8 rounded-3xl border border-border bg-card" aria-labelledby="summary-title">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="summary-body"
+          className="flex h-11 flex-1 items-center gap-3 rounded-2xl px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Sparkle className="size-5 text-primary" aria-hidden />
+          <span id="summary-title" className="text-base font-semibold">
+            {t('summary')}
+          </span>
+          <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', !open && '-rotate-90')} aria-hidden />
+          <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
+        </button>
+        <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={onRetry}>
+          <ArrowClockwise />
+          {t('summaryRedo')}
+        </Button>
+      </div>
+      {open && (
+        <article
+          id="summary-body"
+          className="prose prose-neutral max-w-none border-t border-border px-6 pb-6 pt-5 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-li:my-1 prose-table:text-sm prose-th:text-left"
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary.markdown}</ReactMarkdown>
+        </article>
+      )}
+    </section>
+  );
+}
+
+/** Копирование и экспорт в одном месте: транскрипт и итоги, текстом или Markdown. */
+function CopyMenu({
+  disabled,
+  getTranscriptText,
+  getTranscriptMarkdown,
+  summary,
+  title,
+}: {
+  disabled: boolean;
+  getTranscriptText: () => Promise<string>;
+  getTranscriptMarkdown: () => Promise<string>;
+  summary: string | null;
+  title: string;
+}) {
+  const run = async (get: () => string | Promise<string>) => {
+    try {
+      const ok = await copyToClipboard(await get());
+      if (ok) aidToast.success(t('copied'));
+      else aidToast.error(t('copyFailed'));
+    } catch {
+      aidToast.error(t('copyFailed'));
+    }
+  };
+
+  const trigger = (
+    <Button variant="outline" disabled={disabled} aria-label={disabled ? `${t('copy')}: ${t('nothingToCopy')}` : undefined}>
+      <Copy />
+      {t('copy')}
+      <CaretDown className="!size-4 text-muted-foreground" aria-hidden />
+    </Button>
+  );
+
+  if (disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0} className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {trigger}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{t('nothingToCopy')}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuLabel>{t('transcript')}</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => void run(getTranscriptText)}>
+          <TextAlignLeft />
+          {t('copyAsText')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void run(getTranscriptMarkdown)}>
+          <FileMd />
+          {t('copyAsMarkdown')}
+        </DropdownMenuItem>
+        {summary && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t('summary')}</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => void run(() => markdownToPlain(summary))}>
+              <TextAlignLeft />
+              {t('copyAsText')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void run(() => (/^#\s/.test(summary) ? summary : `# ${title}\n\n${summary}`))}>
+              <FileMd />
+              {t('copyAsMarkdown')}
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function IconAction({ label, onClick, children, destructive }: { label: string; onClick: () => void; children: React.ReactNode; destructive?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('text-muted-foreground', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          onClick={onClick}
+          aria-label={label}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function LoadingState() {
+  return (
+    <Page
+      width={WIDTH}
+      header={
+        <div role="status" aria-busy="true" aria-label={t('loading')}>
+          <Skeleton className="h-11 w-44 rounded-2xl" />
+          <Skeleton className="mt-4 h-9 w-2/3 rounded-xl" />
+          <Skeleton className="mt-3 h-5 w-48 rounded-lg" />
+        </div>
+      }
+    >
+      <div className="space-y-5" aria-hidden>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="grid grid-cols-[3.5rem_1fr] gap-x-4">
+            <Skeleton className="ml-auto h-4 w-9 rounded-lg" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full rounded-lg" />
+              <Skeleton className="h-4 w-2/3 rounded-lg" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Page>
+  );
+}
+
 function MeetingDetailsContent() {
-  const meetingId = useSearchParams().get('id');
+  const params = useSearchParams();
+  const meetingId = params.get('id');
   const router = useRouter();
   const m = useMeeting(meetingId);
   const { meetings, setMeetings, refetchMeetings } = useSidebar();
   const { betaFeatures } = useConfig();
-  const [tab, setTab] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retranscribe, setRetranscribe] = useState(false);
 
   const meta = m.meeting.kind === 'ready' ? m.meeting.meta : null;
   const shownTitle = meta ? displayTitle(meta.title) : '';
   const segmentsLabel = useMemo(() => `${m.total} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
+
+  // Оригинальная страница встречи по ?source=recording запускает итоги сама.
+  // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
+  useEffect(() => {
+    if (meetingId && params.get('source')) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
+  }, [meetingId, params, router]);
 
   useEffect(() => {
     if (shownTitle) document.title = `${shownTitle} · ${t('appName')}`;
@@ -371,26 +501,20 @@ function MeetingDetailsContent() {
 
   if (m.meeting.kind === 'not-found') {
     return (
-      <>
-        <BackLink />
-        <Card className="mt-6 px-8 py-14 text-center">
+      <Page width={WIDTH} header={<BackLink />}>
+        <Card className="px-8 py-14 text-center">
           <h1 className="text-2xl font-semibold">{t('meetingNotFound')}</h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
         </Card>
-      </>
+      </Page>
     );
   }
 
   if (m.meeting.kind === 'error' || !meta) {
     return (
-      <>
-        <BackLink />
-        <div className="mt-6">
-          {m.meeting.kind === 'error' && (
-            <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />
-          )}
-        </div>
-      </>
+      <Page width={WIDTH} header={<BackLink />}>
+        {m.meeting.kind === 'error' && <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />}
+      </Page>
     );
   }
 
@@ -400,7 +524,10 @@ function MeetingDetailsContent() {
   const duration = formatDuration(m.duration);
   const facts = [date, duration, segmentsLabel].filter(Boolean).join(' · ');
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
-  const activeTab = tab ?? 'summary';
+  const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
+  // «Сделать итоги» в шапке, только пока итогов нет: ход генерации, ошибка
+  // и «Сделать заново» показываются в блоке итогов над транскриптом
+  const showGenerate = !empty && m.summary.kind === 'empty';
 
   const rename = async (title: string) => {
     await renameMeeting(meta.id, title);
@@ -424,42 +551,42 @@ function MeetingDetailsContent() {
   const openFolder = () =>
     void openMeetingFolder(meta.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
 
-  return (
+  const header = (
     <>
       <BackLink />
-
-      <header className="mt-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1">
           <Title title={meta.title} onRename={rename} />
-          <p className="mt-2 text-sm text-muted-foreground">{facts}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
         </div>
-        <div className="flex gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={openFolder} aria-label={t('openRecordingFolder')}>
-                <FolderOpen />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('openRecordingFolder')}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => setConfirmDelete(true)}
-                aria-label={t('deleteMeeting')}
-              >
-                <Trash />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('deleteMeeting')}</TooltipContent>
-          </Tooltip>
+        <div className="flex flex-wrap items-center gap-2">
+          {showGenerate && (
+            <Button variant="outline" onClick={() => void m.generateSummary()}>
+              <Sparkle className="text-primary" />
+              {t('generateSummary')}
+            </Button>
+          )}
+          <CopyMenu
+            disabled={empty}
+            title={shownTitle}
+            summary={summaryReady}
+            getTranscriptText={async () => transcriptAsText(await m.loadAll())}
+            getTranscriptMarkdown={async () => transcriptAsMarkdown(shownTitle, await m.loadAll())}
+          />
+          <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
+            <FolderOpen />
+          </IconAction>
+          <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)} destructive>
+            <Trash />
+          </IconAction>
         </div>
-      </header>
+      </div>
+    </>
+  );
 
-      {empty && (
+  return (
+    <Page width={WIDTH} header={header}>
+      {empty ? (
         <SilentRecording
           folder={meta.folder_path ?? null}
           canRetranscribe={canRetranscribe}
@@ -467,44 +594,22 @@ function MeetingDetailsContent() {
           onOpenFolder={openFolder}
           onDelete={() => setConfirmDelete(true)}
         />
-      )}
-
-      <Tabs value={activeTab} onValueChange={setTab} className="mt-8">
-        <TabsList aria-label={t('meetingSections')}>
-          <TabsTrigger value="summary">{t('summary')}</TabsTrigger>
-          <TabsTrigger value="transcript">{t('transcript')}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="summary">
-          <SummaryPanel title={shownTitle} summary={m.summary} empty={empty} onGenerate={() => void m.generateSummary()} />
-        </TabsContent>
-
-        <TabsContent value="transcript">
-          <Card className="overflow-hidden">
-            <Toolbar note={empty ? t('nothingToCopy') : undefined}>
-              <CopyActions
-                subject="транскрипт"
-                disabled={empty}
-                getText={async () => transcriptAsText(await m.loadAll())}
-                getMarkdown={async () => transcriptAsMarkdown(shownTitle, await m.loadAll())}
-              />
-            </Toolbar>
-            {empty ? null : (
-              <div className="px-2 py-3">
-                <TranscriptList segments={m.segments} />
-                {m.hasMore && (
-                  <div className="flex justify-center px-4 pb-3 pt-4">
-                    <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>
-                      {m.loadingMore && <CircleNotch className="animate-spin" />}
-                      {t('loadMore')} ({m.segments.length} из {m.total})
-                    </Button>
-                  </div>
-                )}
+      ) : (
+        <>
+          <SummaryBlock summary={m.summary} onRetry={() => void m.generateSummary()} />
+          <section aria-label={t('transcript')}>
+            <TranscriptList segments={m.segments} />
+            {m.hasMore && (
+              <div className="flex justify-center pt-8">
+                <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>
+                  {m.loadingMore && <SpinnerGap className="animate-spin" />}
+                  {t('loadMore')} ({m.segments.length} из {m.total})
+                </Button>
               </div>
             )}
-          </Card>
-        </TabsContent>
-      </Tabs>
+          </section>
+        </>
+      )}
 
       <DeleteMeetingDialog open={confirmDelete} onOpenChange={setConfirmDelete} title={shownTitle} onConfirm={remove} />
       {canRetranscribe && (
@@ -516,18 +621,14 @@ function MeetingDetailsContent() {
           onComplete={() => void m.retry()}
         />
       )}
-    </>
+    </Page>
   );
 }
 
 export default function MeetingDetails() {
   return (
-    <main className="h-screen flex-1 overflow-y-auto bg-background">
-      <div className="mx-auto w-full max-w-[880px] px-8 pb-16 pt-6">
-        <Suspense fallback={<LoadingState />}>
-          <MeetingDetailsContent />
-        </Suspense>
-      </div>
-    </main>
+    <Suspense fallback={<LoadingState />}>
+      <MeetingDetailsContent />
+    </Suspense>
   );
 }

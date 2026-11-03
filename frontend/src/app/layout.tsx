@@ -33,6 +33,7 @@ import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/toolt
 import { AidToaster } from '@/aid/components/AidToaster'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
+import { AidIcons } from '@/aid/components/AidIcons'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -291,12 +292,14 @@ export default function RootLayout({
                                   <OnboardingFlow onComplete={handleOnboardingComplete} />
                                 )
                               ) : isAidUI ? (
-                                <AidTooltipProvider delayDuration={300}>
-                                  <div className="flex h-screen overflow-hidden">
-                                    <AidSidebar />
-                                    {children}
-                                  </div>
-                                </AidTooltipProvider>
+                                <AidIcons>
+                                  <AidTooltipProvider delayDuration={300}>
+                                    <div className="flex h-screen overflow-hidden">
+                                      <AidSidebar />
+                                      {children}
+                                    </div>
+                                  </AidTooltipProvider>
+                                </AidIcons>
                               ) : (
                                 <div className="flex">
                                   <Sidebar />

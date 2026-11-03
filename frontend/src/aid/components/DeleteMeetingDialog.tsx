@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CircleNotch, Trash } from '@phosphor-icons/react';
+import { SpinnerGap, Trash } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { t } from '@/aid/strings';
@@ -43,7 +43,7 @@ export function DeleteMeetingDialog({ open, onOpenChange, title, onConfirm }: De
               }
             }}
           >
-            {busy ? <CircleNotch className="animate-spin" /> : <Trash />}
+            {busy ? <SpinnerGap className="animate-spin" /> : <Trash />}
             {t('delete')}
           </Button>
         </DialogFooter>

@@ -15,7 +15,6 @@ import { countWords } from '@/aid/lib/speech';
 import { formatNumber } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
-import { SectionHeading } from '@/aid/components/SectionHeading';
 
 const BUCKET_SEC = 5;
 const BARS = 40;
@@ -57,8 +56,11 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
   ];
 
   return (
-    <section aria-label={t('pulseTitle')} className="mb-8">
-      <SectionHeading meta={t('pulseWindow')}>{t('pulseTitle')}</SectionHeading>
+    <section aria-label={t('pulseTitle')} className="mb-4 rounded-tile bg-card p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-medium text-muted-foreground">{t('pulseTitle')}</h2>
+        <span className="text-xs text-muted-foreground">{t('pulseWindow')}</span>
+      </div>
       {/* Полосы: низ выровнен, высота через scaleY (только transform) */}
       <div className="mt-3 flex h-14 items-end gap-[3px]" aria-hidden>
         {bars.map(({ bucket, value }) => {
@@ -68,7 +70,7 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
               key={bucket}
               className={cn(
                 'h-full flex-1 origin-bottom rounded-full transition-transform duration-500 ease-out',
-                value === null ? 'bg-foreground/5' : value > 0 ? 'bg-foreground' : 'bg-foreground/15',
+                value === null ? 'bg-foreground/5' : value > 0 ? 'bg-primary-ink' : 'bg-foreground/15',
                 now && !isPaused && 'aid-pulse-now',
               )}
               style={{ transform: `scaleY(${value === null || value === 0 ? 0.08 : 0.25 + value * 0.75})` }}
@@ -76,7 +78,7 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
           );
         })}
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label} className="min-w-0">
             <dt className="truncate text-xs text-muted-foreground">{s.label}</dt>

@@ -1,8 +1,7 @@
 /*
- * Токены ShadeNotes. Монохром: окно, одна плитка контента, одна плитка-полоса
- * записи внизу, текст белый или чёрный, вторичный серый. Единственный акцент на
- * экране: красная кнопка записи и индикатор идущей записи (--record). Кобальт
- * остаётся только у ссылок (--link). Без градиентов, стекла и свечений.
+ * Токены ShadeNotes: одна светлая и одна тёмная тема, один акцент (кобальт).
+ * Плоские поверхности без градиентов, стекла и свечений. Кнопка записи и
+ * капсула монохромные (.aid-record) с красной точкой записи (--record).
  * Шрифт SF Pro: системный шрифт macOS (-apple-system выбирает SF Pro Text или
  * Display по размеру). В приложение он не встраивается (лицензия Apple), на Mac
  * он и так есть. Запасной для Windows и Linux Inter из next/font (--font-inter).
@@ -18,48 +17,56 @@
 
 @layer base {
   :root {
-    /* Светлая тема: окно белое, плитки #F2F2F2, наведение и колодцы #E8E8E8 */
+    /* Бенто: белый фон окна, плитки светло-серые, один ряд отступов
+       (8 px между плитками, 16 px внутри), радиус плитки 20 px. */
     --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
+    --foreground: 240 8% 5%;
 
-    --card: 0 0% 95%;
-    --card-foreground: 0 0% 0%;
+    /* Плитка */
+    --card: 240 9% 96%;
+    --tile-bg: var(--card);
+    --card-foreground: 240 8% 5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover-foreground: 240 8% 5%;
 
-    /* Главная кнопка: цвет текста темы с инвертированным текстом (монохром) */
-    --primary: 0 0% 0%;
+    /* Единственный акцент: кобальт #3044D8. --primary заливка (кнопки),
+       --primary-ink текст и иконки акцента (контраст AA на фоне и плитке). */
+    --primary: 233 68% 52%;
     --primary-foreground: 0 0% 100%;
-    --primary-ink: 0 0% 0%;
+    --primary-ink: 233 68% 52%;
+    /* Точка записи: красный, как у системного индикатора записи */
+    --record: 4 77% 53%;
 
-    /* Единственный акцент: красный записи. Ссылки: кобальт */
-    --record: 4 77% 50%;
-    --link: 233 68% 52%;
+    --secondary: 240 10% 92%;
+    --secondary-foreground: 240 8% 5%;
+    /* Подсветка внутри плитки: наведение, вторичные поверхности */
+    --muted: 240 10% 92%;
+    --muted-foreground: 240 5% 38%;
 
-    --secondary: 0 0% 91%;
-    --secondary-foreground: 0 0% 0%;
-    --muted: 0 0% 91%;
-    /* #666666: 5,1:1 на плитке #F2F2F2 */
-    --muted-foreground: 0 0% 40%;
+    --accent: 240 10% 92%;
+    --accent-foreground: 240 8% 5%;
 
-    --accent: 0 0% 91%;
-    --accent-foreground: 0 0% 0%;
-
+    /* Семантика ошибок и записи */
     --destructive: 4 77% 43%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 87%;
-    --input: 0 0% 86%;
-    /* Фокус-кольцо: цвет текста темы, полупрозрачное (tailwind.config.js: / 0.5) */
-    --ring: 0 0% 0%;
+    --border: 240 8% 90%;
+    --input: 240 7% 84%;
+    --ring: 233 68% 52%;
 
-    --loader: 0 0% 40%;
-    --skeleton: 0 0% 90%;
+    /* Лоадеры: один стиль на всё приложение (Spinner, Skeleton и мост оригинала) */
+    --loader: 240 5% 38%;
+    --skeleton: 240 9% 91%;
     --loader-speed: 0.9s;
 
-    /* Радиусы концентричны окну macOS: плитка = окно минус зазор до края (8 px),
-       вложенный элемент = плитка минус внутренний отступ. Строки списка и
-       колодцы 12 px, миниатюра статуса 10 px, кнопки и поля круглые. */
+    /* Ритм бенто и концентричные радиусы: всё считается от радиуса окна macOS.
+       Плитка стоит в окне с отступом --tile-gap, поэтому её радиус меньше на этот
+       отступ; вложенный элемент стоит в плитке с отступом --inner-gap, его радиус
+       меньше радиуса плитки на этот отступ. Кнопки и поля круглые (pill). */
+    /* Окно macOS 26 по замеру скриншота с Mac: скругление ≈ 17 pt (точка на
+       диагонали угла в 8 px от вершины при масштабе 1,65 px/pt). Плитка 17 − 8 =
+       9 pt: зазор до края окна одинаковый, 8 pt, и по краю, и в углу. С плиткой
+       22 pt зазор в углу вырастал до 14 pt («дыры»). */
     --window-radius: 17px;
     --tile-gap: 8px;
     --tile-pad: 16px;
@@ -67,45 +74,43 @@
     --tile-radius: calc(var(--window-radius) - var(--tile-gap));
     --nested-radius: max(calc(var(--tile-radius) - var(--inner-gap)), 6px);
     --radius: var(--tile-radius);
-    /* Плитка-полоса записи внизу */
-    --dock-height: 88px;
   }
 
   .dark {
-    /* Тёмная тема: окно #000, плитки #121212, наведение и колодцы #1A1A1A,
-       текст #FFFFFF, вторичный #9B9B9B (6,7:1 на #121212) */
+    /* Чёрный фон, плитки на тон светлее */
     --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
+    --foreground: 240 4% 95%;
 
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 100%;
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 100%;
+    --card: 240 5% 8%;
+    --tile-bg: var(--card);
+    --card-foreground: 240 4% 95%;
+    --popover: 240 5% 12%;
+    --popover-foreground: 240 4% 95%;
 
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 0%;
-    --primary-ink: 0 0% 100%;
+    /* Кобальт чуть светлее: белый текст на кнопке 5.1:1; для текста и иконок
+       акцента светлый кобальт #8391FA: 7.4:1 на чёрном, 6.5:1 на плитке */
+    --primary: 233 85% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-ink: 233 92% 75%;
+    --record: 4 90% 60%;
 
-    --record: 4 84% 56%;
-    --link: 233 92% 75%;
+    --secondary: 240 6% 13%;
+    --secondary-foreground: 240 4% 95%;
+    --muted: 240 6% 13%;
+    --muted-foreground: 240 5% 63%;
 
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 61%;
-
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 240 6% 13%;
+    --accent-foreground: 240 4% 95%;
 
     --destructive: 4 92% 69%;
     --destructive-foreground: 0 0% 0%;
 
-    --border: 0 0% 14%;
-    --input: 0 0% 15%;
-    --ring: 0 0% 100%;
+    --border: 240 6% 16%;
+    --input: 240 6% 19%;
+    --ring: 233 92% 75%;
 
-    --loader: 0 0% 61%;
-    --skeleton: 0 0% 12%;
+    --loader: 240 5% 63%;
+    --skeleton: 240 6% 13%;
   }
 }
 
@@ -127,10 +132,6 @@
     font-feature-settings: 'cv11', 'ss01';
     overflow: hidden;
     height: 100%;
-  }
-
-  ::selection {
-    background: hsl(var(--foreground) / 0.18);
   }
 
   .tabular {
@@ -162,7 +163,7 @@
   padding: 0 !important;
 }
 
-/* Уведомления (sonner) в токенах Aid: фон поповера, рамка, радиус плитки,
+/* Уведомления (sonner) в токенах Aid: фон поповера, рамка, радиус 16 px,
    крестик внутри справа, цвет иконки по смыслу, без «богатых» заливок. */
 /* :root поднимает специфичность над [data-sonner-theme='dark'] из стилей sonner */
 :root [data-sonner-toaster].aid-toaster {
@@ -178,7 +179,7 @@
   padding: 16px 44px 16px 16px;
   align-items: flex-start;
   font-size: 14px;
-  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.3);
+  box-shadow: 0 8px 24px hsl(240 10% 4% / 0.12);
 }
 
 .aid-toaster [data-sonner-toast] [data-title] {
@@ -209,7 +210,7 @@
 }
 
 .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible {
-  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.5);
+  box-shadow: 0 0 0 2px hsl(var(--ring));
 }
 
 .aid-toaster [data-sonner-toast] [data-icon] {
@@ -226,7 +227,7 @@
 }
 
 .aid-toaster [data-sonner-toast][data-type='success'] [data-icon] {
-  color: hsl(var(--foreground));
+  color: hsl(var(--primary));
 }
 
 .aid-toaster [data-sonner-toast][data-type='error'] [data-icon] {
@@ -234,7 +235,7 @@
 }
 
 .aid-toaster [data-sonner-toast][data-type='warning'] [data-icon] {
-  color: hsl(var(--foreground));
+  color: hsl(32 95% 44%);
 }
 
 /* :root и data-styled: правило sonner для кнопки действия специфичнее нашего */
@@ -365,9 +366,24 @@ html body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* Полоса записи (RecordDock): смена состояния появляется с лёгким масштабом;
-   во время записи кольцо вспыхивает на сигнал речи, точка мерцает.
-   Только transform и opacity; prefers-reduced-motion выключает. */
+/* Кнопка записи (RecordDock): только transform и opacity, без скачков раскладки.
+   Покой: кольцо «дышит». Запись: кольцо вспыхивает на сигнал речи, точка мерцает.
+   Смена состояния: появление с лёгким масштабом (морфинг кнопки в капсулу). */
+@keyframes aid-dock-breathe {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  70% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
 @keyframes aid-dock-speech {
   from {
     transform: scale(0.55);
@@ -387,13 +403,17 @@ html body[data-scroll-locked] {
 
 @keyframes aid-dock-in {
   from {
-    transform: scale(0.96);
+    transform: scale(0.82);
     opacity: 0;
   }
   to {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+.aid-dock-breathe {
+  animation: aid-dock-breathe 2.8s ease-out infinite;
 }
 
 .aid-dock-speech {
@@ -407,10 +427,11 @@ html body[data-scroll-locked] {
 .aid-dock-in {
   /* ease-out-quint: плавная остановка без перелёта */
   animation: aid-dock-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-  transform-origin: center;
+  transform-origin: center bottom;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .aid-dock-breathe,
   .aid-dock-speech,
   .aid-dock-dot,
   .aid-dock-in {
@@ -421,44 +442,25 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Красная кнопка записи: единственный акцент. Круг 56 px, белый микрофон. */
-.aid-record-button {
-  background: hsl(var(--record));
-  color: #fff;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease-out;
+/* Правая часть окна: одна серая плитка, как сайдбар (app/layout.tsx). Внутри неё
+   свои ступени тона: блоки (итоги, настройки, карточки) на ступень светлее плитки,
+   наведение и поля ещё на ступень. Поэтому здесь переопределены --card и --muted:
+   компоненты внутри берут bg-card и bg-muted как обычно. Фон самой плитки берёт
+   значение --tile-bg, вычисленное на :root (до переопределения). */
+.aid-main {
+  background: hsl(var(--tile-bg));
+  --card: 240 10% 92%;
+  --muted: 240 9% 88%;
+  --secondary: 240 9% 88%;
+  --accent: 240 9% 88%;
 }
 
-.group:hover .aid-record-button {
-  filter: brightness(1.08);
-}
-
-.group:active .aid-record-button {
-  transform: scale(0.96);
-}
-
-.aid-record-dot {
-  background: hsl(var(--record));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aid-record-button {
-    transition: none;
-  }
-}
-
-/* Иконка в кнопке с текстом на своей подложке: 4 px вокруг знака, скругление
-   вложенного элемента. На сплошной заливке (главная кнопка цвета текста темы,
-   красная) подложка цветом текста кнопки. */
-.aid-btn:not(.aid-btn-icon) > svg:not(.aid-spinner) {
-  box-sizing: content-box;
-  padding: 4px;
-  border-radius: var(--nested-radius);
-  background: hsl(var(--foreground) / 0.08);
-}
-
-.aid-btn-solid:not(.aid-btn-icon) > svg:not(.aid-spinner) {
-  background: currentColor;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+.dark .aid-main {
+  --card: 240 5% 12%;
+  --muted: 240 6% 16%;
+  --secondary: 240 6% 16%;
+  --accent: 240 6% 16%;
+  --input: 240 6% 21%;
 }
 
 /* Текущая полоса «Пульса разговора» (LivePulse): мерцает, пока идёт запись */
@@ -476,6 +478,19 @@ html body[data-scroll-locked] {
   .aid-pulse-now {
     animation: none;
   }
+}
+
+/* Иконка в кнопке с текстом на своей подложке: 4 px вокруг знака, скругление
+   вложенного элемента. На кобальтовой и красной заливке подложка светлая. */
+.aid-btn:not(.aid-btn-icon) > svg:not(.aid-spinner) {
+  box-sizing: content-box;
+  padding: 4px;
+  border-radius: var(--nested-radius);
+  background: hsl(var(--foreground) / 0.08);
+}
+
+.aid-btn-solid:not(.aid-btn-icon) > svg:not(.aid-spinner) {
+  background: hsl(0 0% 100% / 0.18);
 }
 
 /* Курсор печатной машинки в конце живого транскрипта (TranscriptList, live) */
@@ -499,6 +514,63 @@ html body[data-scroll-locked] {
 @media (prefers-reduced-motion: reduce) {
   .aid-caret {
     animation: none;
+  }
+}
+
+/* Капсула идущей записи: монохром, цвет текста темы (белый в тёмной, чёрный
+   в светлой) и красная точка записи. Без градиентов, стекла и цветных
+   свечений; наружу только мягкая нейтральная тень. */
+.aid-record {
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  box-shadow: 0 6px 16px -8px hsl(0 0% 0% / 0.45);
+}
+
+.aid-record-dot {
+  background: hsl(var(--record));
+}
+
+/* Кнопка записи в покое: круглая, сплошной кобальт акцента (--primary), белый
+   микрофон, без градиента. От круга расходятся две волны (transform и opacity). */
+.aid-record-button {
+  background: hsl(var(--primary));
+  color: #fff;
+  box-shadow: 0 8px 18px -10px hsl(0 0% 0% / 0.5);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease-out;
+}
+
+.aid-record-button:hover {
+  background: hsl(var(--primary) / 0.9);
+}
+
+.aid-record-wave {
+  background: hsl(var(--primary) / 0.3);
+  animation: aid-record-wave 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.aid-record-wave-late {
+  animation-delay: 1.3s;
+}
+
+@keyframes aid-record-wave {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-record-wave {
+    display: none;
+  }
+  .aid-record-button {
+    transition: none;
   }
 }
 

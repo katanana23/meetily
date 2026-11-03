@@ -21,11 +21,7 @@ module.exports = {
   			foreground: 'hsl(var(--foreground))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
-  			// Aid: фокус-кольцо полупрозрачное, цвет текста темы (globals.css)
-  			ring: 'hsl(var(--ring) / 0.5)',
-  			// Aid: ссылки; единственное место, где остаётся кобальт
-  			link: 'hsl(var(--link, var(--primary)))',
-  			record: 'hsl(var(--record, var(--destructive)))',
+  			ring: 'hsl(var(--ring))',
   			primary: {
   				DEFAULT: 'hsl(var(--primary))',
   				foreground: 'hsl(var(--primary-foreground))',
@@ -69,8 +65,6 @@ module.exports = {
   			// Aid: концентричные радиусы (globals.css): окно → плитка → вложенный элемент
   			window: 'var(--window-radius, 17px)',
   			tile: 'var(--tile-radius, 9px)',
-  			row: '12px',
-  			thumb: '10px',
   			nested: 'var(--nested-radius, 6px)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

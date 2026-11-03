@@ -21,7 +21,7 @@ const DialogContent = React.forwardRef<
       // data-aid: окно Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-tile bg-popover p-6 text-popover-foreground shadow-[0_24px_48px_-12px_rgb(0_0_0/0.5)] focus-visible:outline-none',
+        'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-tile bg-popover p-6 text-popover-foreground shadow-xl focus-visible:outline-none',
         className,
       )}
       {...props}

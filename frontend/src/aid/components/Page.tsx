@@ -52,15 +52,15 @@ export function Page({ header, children, width = 'max-w-[1120px]', className }: 
           data-tauri-drag-region
           className={cn('aid-gutter relative z-10 shrink-0 transition-shadow', scrolled && 'shadow-[0_8px_16px_-12px_hsl(var(--foreground)/0.25)]')}
         >
-          <div data-tauri-drag-region className={cn('w-full px-4 pb-5 pt-5', width)}>
+          <div data-tauri-drag-region className={cn('w-full px-4 pb-4 pt-4', width)}>
             {header}
           </div>
         </header>
       )}
       <div ref={ref} className="aid-scroll min-h-0 flex-1 overflow-y-auto">
-        {/* Страница внутри плитки контента: 16 px от её края, как у шапки.
-            Полоса записи стоит отдельной плиткой ниже и контент не закрывает. */}
-        <div className={cn('w-full px-4 pb-6', header ? 'pt-1' : 'pt-4', width)}>{children}</div>
+        {/* Страница внутри серой плитки (.aid-main): 16 px от её края, как у шапки.
+            pb-32: кнопка записи плавает над контентом и не закрывает последнюю строку */}
+        <div className={cn('w-full px-4 pb-32', header ? 'pt-1' : 'pt-4', width)}>{children}</div>
       </div>
     </main>
   );

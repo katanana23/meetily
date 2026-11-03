@@ -1,12 +1,9 @@
-// Сайдбар ShadeNotes: лежит прямо на фоне окна, без плитки и рамки. Знак и
-// название в полосе окна (TitleBar). Пункты навигации без подложек: активный
-// пункт цветом текста, остальные серым; иконка на тихой монохромной подложке 28 px.
-// Внизу приватность и тема такими же тихими строками.
+// Сайдбар Aid: навигация, идущая запись, тема и индикатор приватности.
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GearSix, Notebook } from '@phosphor-icons/react';
+import { GearSix, Notebook, Record } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { PrivacyChip } from './PrivacyChip';
 import { usePrivacy } from '@/aid/lib/privacy';
@@ -20,22 +17,19 @@ const NAV = [
   { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p: string) => p.startsWith('/settings') },
 ];
 
-/** Строка сайдбара: 44 px, без подложки; наведение и активный пункт только цветом текста. */
-export const SIDEBAR_ROW =
-  'flex h-11 items-center gap-3 rounded-row px-2 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const ITEM =
+  'flex h-11 items-center gap-3 rounded-nested px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-/** Запись идёт, а пользователь ушёл с главной: индикатор записи и путь обратно к «Остановить». */
+/** Запись идёт, а пользователь ушёл с главной: напоминание и путь обратно к кнопке «Остановить». */
 function RecordingLink({ pathname }: { pathname: string }) {
   const rec = useRecordingState();
   if (!rec.isRecording || pathname === '/') return null;
   const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
   return (
-    <Link href="/" className={cn(SIDEBAR_ROW, 'text-foreground')}>
-      <span className="flex size-5 items-center justify-center" aria-hidden>
-        <span className={cn('size-2.5 rounded-full bg-record', !rec.isPaused && 'aid-dock-dot')} />
-      </span>
+    <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
+      <Record className={cn('size-5 text-destructive', !rec.isPaused && 'motion-safe:animate-pulse')} aria-hidden />
       <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
-      <span className="tabular text-sm text-muted-foreground">{formatTimer(seconds)}</span>
+      <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
     </Link>
   );
 }
@@ -45,8 +39,10 @@ export function AidSidebar() {
   const { privacy } = usePrivacy();
 
   return (
-    <aside className="flex h-full w-[248px] shrink-0 flex-col">
-      <nav className="flex-1 space-y-0.5 px-1 pt-1" aria-label="Основная навигация">
+    // Плитка бенто: на тон светлее фона, радиус --tile-radius (rounded-tile), без рамки
+    <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-tile bg-card">
+      {/* Знак, название и кнопки окна теперь в верхней полосе окна (TitleBar) */}
+      <nav className="flex-1 space-y-1 p-2" aria-label="Основная навигация">
         {NAV.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
@@ -55,11 +51,14 @@ export function AidSidebar() {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn(SIDEBAR_ROW, active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+              className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
             >
-              {/* Иконка на своей подложке 28 px со скруглением вложенного элемента, монохром */}
+              {/* Иконка на своей подложке бенто: плитка 28 px со скруглением вложенного элемента */}
               <span
-                className={cn('flex size-7 shrink-0 items-center justify-center rounded-nested transition-colors', active ? 'bg-foreground/15' : 'bg-foreground/[0.06]')}
+                className={cn(
+                  'flex size-7 shrink-0 items-center justify-center rounded-nested transition-colors',
+                  active ? 'bg-primary/15 text-primary-ink' : 'bg-foreground/[0.06]',
+                )}
                 aria-hidden
               >
                 <Icon className="size-4" />
@@ -71,8 +70,10 @@ export function AidSidebar() {
         <RecordingLink pathname={pathname} />
       </nav>
 
-      <div className="space-y-0.5 px-1 pb-1">
-        <PrivacyChip privacy={privacy} />
+      <div className="space-y-2 p-2">
+        <div className="px-3 py-1">
+          <PrivacyChip privacy={privacy} />
+        </div>
         <ThemeSwitcher />
       </div>
     </aside>

@@ -1,25 +1,30 @@
-// Строка списка встреч, как трек в плеере: без фона и рамок, наведение подсвечивает
-// строку колодцем радиусом 12 px. Слева миниатюра-статус 56 px (квадрат радиусом
-// 10 px на тон светлее, внутри залитая иконка состояния), название 16 px, вторичная
-// строка 14 px серым, справа длительность моноширинным серым; переименование и
-// удаление появляются при наведении и при фокусе с клавиатуры; те же действия
-// в меню по правому клику. Переименование прямо в строке.
+// Строка списка встреч: состояние встречи иконкой и словами, переименование
+// прямо в строке, удаление с подтверждением. Кнопки появляются при наведении
+// и при фокусе с клавиатуры; те же действия есть в меню по правому клику.
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
-import { ChatText, FolderOpen, MicrophoneSlash, PencilSimple, Sparkle, Trash, type Icon } from '@phosphor-icons/react';
+import {
+  CaretRight,
+  ChatText,
+  FolderOpen,
+  MicrophoneSlash,
+  PencilSimple,
+  Sparkle,
+  Trash,
+  type Icon,
+} from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/aid/components/ui/context-menu';
-import { editableTitle, formatNumber, formatOffset, formatShortDate, formatTime, formatTimer, isAutoTitle, plural, shownTitle } from '@/aid/lib/format';
+import { editableTitle, formatNumber, formatOffset, formatShortDate, formatTime, formatVolume, isAutoTitle, plural, shownTitle } from '@/aid/lib/format';
 import type { TranscriptMatch } from '@/aid/lib/transcript-search';
 import { InlineRename } from '@/aid/components/InlineRename';
 import type { MeetingDetails, MeetingStatus } from '@/aid/lib/meeting-details-cache';
-import { ROW_META, ROW_TITLE } from '@/aid/lib/type';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 
@@ -36,23 +41,12 @@ export interface MeetingListItem {
 }
 
 const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon | null; label: string; className: string }> = {
-  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-foreground' },
+  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary-ink' },
   // Итоги в работе: общий Spinner вместо иконки (см. ниже)
   summarizing: { icon: null, label: t('statusSummarizing'), className: '' },
   transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
-  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-muted-foreground' },
+  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive' },
 };
-
-/** Миниатюра-статус 56 px: квадрат на тон светлее плитки, внутри залитая иконка состояния. */
-export function StatusThumb({ kind, className }: { kind: MeetingStatus; className?: string }) {
-  const status = kind !== 'unknown' ? STATUS[kind] : null;
-  const StatusIcon = status?.icon;
-  return (
-    <span className={cn('flex size-14 shrink-0 items-center justify-center rounded-thumb bg-muted', className)} title={status?.label} aria-hidden>
-      {kind === 'summarizing' ? <Spinner /> : StatusIcon ? <StatusIcon className={cn('size-6', status?.className)} /> : null}
-    </span>
-  );
-}
 
 function IconAction({
   label,
@@ -73,7 +67,7 @@ function IconAction({
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-10 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-5', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-9 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-4', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={ariaLabel}
         >
@@ -99,8 +93,8 @@ interface MeetingRowProps {
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly, match }: MeetingRowProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // Встреча открывается: длительность справа меняется на спиннер сразу после клика.
-  // Страница встречи может грузиться заметное время (в разработке Next её компилирует),
+  // Встреча открывается: шеврон меняется на спиннер сразу после клика. Страница
+  // встречи может грузиться заметное время (в разработке Next её компилирует),
   // и без отклика клик выглядел несработавшим. Через 15 с состояние сбрасывается.
   const [opening, setOpening] = useState(false);
   useEffect(() => {
@@ -115,33 +109,33 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
   // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
   const titleIsDate = isAutoTitle(meeting.title) && !d?.contentTitle;
   const date = meeting.created_at && !titleIsDate ? (timeOnly ? formatTime(meeting.created_at) : formatShortDate(meeting.created_at)) : null;
-  const words = d && d.words > 0 ? `${formatNumber(d.words)} ${plural(d.words, 'слово', 'слова', 'слов')}` : null;
-  // «Итоги готовы» словами не повторяется в каждой строке: это знак в миниатюре, подпись есть у диктора
+  // Полезное вместо «Только транскрипт»: длительность и объём. «Итоги готовы» словами
+  // не повторяется в каждой строке: это знак Sparkle, подпись есть у диктора
+  const volume = kind === 'transcript' || kind === 'summary' || kind === 'summarizing' ? formatVolume(d?.durationSec, d?.words) : null;
   const label = kind === 'transcript' || kind === 'summary' ? null : status?.label;
-  const meta = [date, words, label].filter(Boolean).join(' · ');
-  // Длительность справа моноширинным: 04:07 или 1:02:15
-  const duration = d?.durationSec ? formatTimer(d.durationSec) : null;
+  const meta = [date, volume, label].filter(Boolean).join(' · ');
 
   const begin = () => setEditing(true);
 
   if (editing) {
     return (
-      <li className="rounded-row bg-muted p-2">
+      <li className="rounded-nested bg-muted p-1">
         <InlineRename
           initial={editableTitle(meeting.title, d?.contentTitle)}
           onSave={onRename}
           onClose={() => setEditing(false)}
-          inputClassName="h-11 bg-card text-base font-medium"
+          inputClassName="h-11 text-[15px] font-medium"
         />
       </li>
     );
   }
 
+  const StatusIcon = status?.icon;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <li
-          // Вся строка открывает встречу: клик по полям мимо ссылки тоже.
+          // Вся строка открывает встречу: клик по шеврону и полям мимо ссылки тоже.
           // Кнопки действий и поле переименования не открывают (свои обработчики).
           onClick={(e) => {
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -151,7 +145,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
           }}
           aria-busy={opening || undefined}
           className={cn(
-            'group relative flex min-h-[72px] cursor-pointer select-none items-center gap-4 rounded-row p-2 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
+            'group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
             opening && 'bg-muted',
           )}
         >
@@ -167,27 +161,31 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
                 guardNavigation(meetingHref(meeting.id));
               }
             }}
-            className="flex min-w-0 flex-1 items-center gap-4 self-stretch rounded-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            <StatusThumb kind={kind} />
+            {kind === 'summarizing' ? (
+              <Spinner />
+            ) : StatusIcon ? (
+              <StatusIcon className={cn('size-5 shrink-0', status?.className)} aria-hidden />
+            ) : (
+              <span className="size-5 shrink-0" aria-hidden />
+            )}
             <span className="min-w-0 flex-1">
-              <span className={cn('block truncate', ROW_TITLE)} title={shown}>
-                {shown}
-              </span>
+              <span className="block truncate text-[15px] font-medium" title={shown}>{shown}</span>
               {/* Разделители для диктора: иначе имя ссылки читается слитно, «НазваниеСегодня, 10:00» */}
               {kind === 'summary' && <span className="sr-only">, {t('statusSummary')}</span>}
               {meta && (
-                <span className={cn('mt-0.5 block truncate', ROW_META)}>
+                <span className="mt-0.5 block text-sm text-muted-foreground">
                   <span className="sr-only">, </span>
                   {meta}
                 </span>
               )}
               {match && (
-                <span className={cn('mt-1 line-clamp-2 block', ROW_META)} data-aid-match>
+                <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground" data-aid-match>
                   <span className="sr-only">, {t('foundInText')}: </span>
                   {match.start !== null && <span className="tabular mr-1.5 text-xs">{formatOffset(match.start)}</span>}
                   {match.before}
-                  <mark className="rounded-[3px] bg-foreground/15 text-foreground">{match.hit}</mark>
+                  <mark className="rounded-[3px] bg-primary/20 text-foreground">{match.hit}</mark>
                   {match.after}
                   {match.hits > 1 && <span className="ml-1.5 whitespace-nowrap text-xs">ещё в {formatNumber(match.hits - 1)} {plural(match.hits - 1, 'реплике', 'репликах', 'репликах')}</span>}
                 </span>
@@ -203,14 +201,12 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               <Trash />
             </IconAction>
           </div>
-          {/* Справа длительность моноширинным серым; пока встреча открывается, спиннер */}
-          <span className="flex w-16 shrink-0 justify-end pr-2">
-            {opening ? (
-              <Spinner size={16} label={t('opening')} />
-            ) : (
-              duration && <span className="tabular font-mono text-sm text-muted-foreground">{duration}</span>
-            )}
-          </span>
+          {/* Шеврон: исключение из правила fill (CLAUDE.md); пока встреча открывается, спиннер */}
+          {opening ? (
+            <Spinner size={16} label={t('opening')} />
+          ) : (
+            <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </li>
       </ContextMenuTrigger>
       <ContextMenuContent>

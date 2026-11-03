@@ -1,5 +1,4 @@
-// shadcn/ui Button. Монохром: главная кнопка цвета текста темы с инвертированным
-// текстом, вторичная на колодце (тон наведения). Размеры 44, 48 и 56 px.
+// shadcn/ui Button. Размеры под десктоп с крупными целями: 44, 48 и 56 px.
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -12,15 +11,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Главная кнопка: цвет текста темы (белая в тёмной, чёрная в светлой), без акцента
-        default: 'aid-btn-solid bg-primary text-primary-foreground hover:bg-primary/85',
+        // Главная кнопка: плоский кобальт (стекло и градиент только у элементов записи)
+        default: 'aid-btn-solid bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'aid-btn-solid bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        // Вторичная кнопка: колодец (тон наведения), без рамки
-        outline: 'bg-muted text-foreground hover:bg-input',
-        secondary: 'bg-muted text-foreground hover:bg-input',
+        // Вторичная кнопка бенто: заливка на ступень темнее (светлая) или светлее (тёмная), без рамки
+        outline: 'bg-secondary text-secondary-foreground hover:bg-input',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-input',
         ghost: 'text-foreground hover:bg-muted',
-        // Ссылка: единственное место с кобальтом
-        link: 'text-link underline-offset-4 hover:underline',
+        link: 'text-primary-ink underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-11 px-5',

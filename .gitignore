@@ -79,3 +79,9 @@ target/
 frontend/src-tauri/binaries/*.sql
 /meetily-dump.sql
 *.dump.sql
+
+# Impeccable (дизайн-навык для агентов): движок скачивается на машину, не в git
+.claude/skills/impeccable/scripts/bin/
+.claude/skills/impeccable/scripts/.impeccable/
+.claude/skills/impeccable/scripts/config.json
+.claude/settings.local.json

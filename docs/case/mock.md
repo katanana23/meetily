@@ -51,7 +51,9 @@ pnpm dev            # http://localhost:3118
 | `words-3` | Одна реплика «Да, хорошо, давай.» (3 слова). После стопа: меньше порога, тост «Слишком мало речи, запись не сохранена» с «Вернуть» |
 | `words-12` | Три реплики, 12 слов. После стопа: меньше порога 15 слов, встреча не сохраняется |
 | `words-20` | Четыре реплики, 20 слов и около 12 секунд речи. После стопа встреча сохраняется |
-| `heard-no-text` | VAD слышит речь (`transcription-progress` идут), но `transcript-update` нет: так выглядит сбой распознавания. После стопа встреча сохраняется с блоком «Речь не распознана» |
+| `heard-no-text` | VAD слышит речь (`transcription-progress` идут), но `transcript-update` нет. Длины речи ядро не присылает, явной причины (нет модели, ошибка распознавания) нет, поэтому встреча не сохраняется: тост «Речи не было, запись не сохранена» с «Вернуть» |
+| `noise-30s` | 30 секунд тишины с шумом (`startOffsetSec: 25`). Детектор ложно срабатывает три раза на 2 секунды в сумме, модель выдаёт «...», «Продолжение следует...», «♪». После стопа: не сохраняется, тост «Речи не было, запись не сохранена» |
+| `recognition-failed` | Три короткие реплики на 12 секунд речи, затем `transcription-warning` (флаги сценария `scriptSeconds: 4`, `warnAfterScript: true`). Детектор слышал не меньше 10 секунд и есть явная причина: встреча сохраняется с блоком «Речь не распознана» |
 | `mid-silence` | Пять реплик, потом время «перематывается» на 130 секунд (`silenceJumpSec`): на экране записи «Похоже, встреча закончилась. Остановить?» |
 | `long-empty` | Запись «идёт» уже 5 минут (`startOffsetSec: 300`), VAD молчит: на экране записи «Не слышу речи». В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
 | `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
@@ -81,11 +83,14 @@ pnpm dev            # http://localhost:3118
 __MEETILY_MOCK__.calledCommands      // какие команды вызывались
 __MEETILY_MOCK__.unknownCommands     // вызовы без заглушки
 __MEETILY_MOCK__.listenedEvents      // на что подписан интерфейс
+__MEETILY_MOCK__.doubleUnlistens     // отписки, которые настоящий Tauri не пережил бы
 __MEETILY_MOCK__.backend.meetings    // «база» встреч (можно править на лету)
 __MEETILY_MOCK__.emit('chunk-drop-warning', 'текст')   // любое событие ядра
 __MEETILY_MOCK__.presets.micUnavailable()              // готовые события
 __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из трея»
 ```
+
+Ловушка отписок: как и настоящий Tauri, заглушка бросает `TypeError: undefined is not an object (evaluating 'listeners[eventId].handlerId')` из `unregisterListener`, если отписка пришла дважды или раньше, чем слушатель записан (в тот же такт, что разрешился `listen`). Каждый такой случай попадает в `doubleUnlistens`. Подписки Aid идут через `src/aid/lib/tauri-events.ts` и в ловушку не попадают; оригинальный `useRecordingStop` попадает, его страхует `installTauriEventGuard`.
 
 Готовые пресеты: `micUnavailable`, `micSwitched`, `micSwapFailed`, `micRecoveryExhausted`, `chunkDrop`, `transcriptError`, `transcriptionError`, `parakeetDownloadError`, `whisperDownloadError`, `ollamaDownloadError`, `importError`, `retranscriptionError`, `stopFromTray`, `trayToggle`, `dragEnter`, `dragDrop`, `dragLeave`.
 

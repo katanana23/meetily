@@ -174,8 +174,19 @@ export class MockBackend {
         break;
       case 'script': {
         const script = this.scenario.script ?? [];
+        if (n === script.length && this.scenario.warnAfterScript) {
+          this.emit('transcription-warning', 'Transcription failed: model returned no output');
+          return;
+        }
         if (n >= script.length) return;
-        line = ['', script[n]];
+        line = ['', script[n], this.scenario.scriptSeconds];
+        break;
+      }
+      case 'noise': {
+        // короткие ложные срабатывания VAD на шум, модель выдаёт мусор
+        const noise: Array<[string, number]> = [['...', 0.6], ['Продолжение следует...', 0.8], ['♪', 0.6]];
+        if (n >= noise.length) return;
+        line = ['', noise[n][0], noise[n][1]];
         break;
       }
       case 'vad-only':
@@ -200,7 +211,7 @@ export class MockBackend {
     this.vadSegment();
     const end = this.elapsedSec();
     // около 12 символов в секунду: обычный темп речи, длительность сегмента как у VAD
-    const duration = Math.max(1.5, text.length / 12);
+    const duration = line[2] ?? Math.max(1.5, text.length / 12);
     const start = Math.max(0, end - duration);
     const now = new Date();
     this.lastActivity = Date.now();

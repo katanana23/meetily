@@ -9,7 +9,8 @@ import type { MockMeeting } from './fixtures/types';
 
 export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
-  | 'silence-5s' | 'silence-hallucination' | 'words-3' | 'words-12' | 'words-20' | 'heard-no-text' | 'mid-silence'
+  | 'silence-5s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'heard-no-text'
+  | 'recognition-failed' | 'mid-silence'
   | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
 
 /**
@@ -20,10 +21,12 @@ export type ScenarioId =
  * - few: три реплики, потом тишина;
  * - hallucination: тишина, на один шумовой сегмент модель выдаёт «Продолжение следует...»;
  * - script: реплики из scenario.script по одной на такт, потом тишина;
+ * - noise: тишина с шумом, три коротких ложных срабатывания VAD (0,6 + 0,8 + 0,6 с),
+ *   на которые модель выдаёт «...», «Продолжение следует...» и «♪»;
  * - vad-only: VAD слышит речь, но текста нет (модель не распознаёт);
  * - then-silence: пять реплик, потом тишина и скачок времени на silenceJumpSec.
  */
-export type LiveMode = 'normal' | 'none' | 'few' | 'hallucination' | 'script' | 'vad-only' | 'then-silence';
+export type LiveMode = 'normal' | 'none' | 'few' | 'hallucination' | 'script' | 'noise' | 'vad-only' | 'then-silence';
 
 export interface Scenario {
   id: ScenarioId;
@@ -47,6 +50,10 @@ export interface Scenario {
   silenceJumpSec?: number;
   /** script: реплики без подписи спикера, по одной на такт. */
   script?: string[];
+  /** script: длительность каждого сегмента в секундах вместо расчёта по длине текста. */
+  scriptSeconds?: number;
+  /** После реплик script ядро сообщает сбой распознавания (transcription-warning). */
+  warnAfterScript?: boolean;
   /** false: нет доступа к микрофону (в списке устройств нет входов). */
   micPermission?: boolean;
   /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
@@ -88,6 +95,16 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'hallucination', startOffsetSec: 180,
   },
+  'noise-30s': {
+    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды ложно срабатывает, всего на 2 секунды',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'noise', startOffsetSec: 25,
+  },
+  'recognition-failed': {
+    id: 'recognition-failed', label: 'recognition-failed', description: '12 секунд речи, три коротких реплики и сбой распознавания: «Речь не распознана»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 20, script: ['Так, начинаем.', 'Слышно меня?', 'Подождите.'], scriptSeconds: 4, warnAfterScript: true,
+  },
   'words-3': {
     id: 'words-3', label: 'words-3', description: 'Три слова «Да, хорошо, давай»: меньше порога, встреча не сохраняется',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
@@ -110,7 +127,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     ],
   },
   'heard-no-text': {
-    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, но распознавание не даёт текста: встреча сохраняется как «Речь не распознана»',
+    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет и причины сбоя нет: встреча не сохраняется',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'vad-only', startOffsetSec: 30,
   },

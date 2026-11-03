@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Проект
-Форк открытого Meetily (MIT, Zackriya Solutions), рабочее название «Aid Meetings»: приватный ИИ-ассистент встреч, запись, транскрипция и итоги на компьютере пользователя. Десктоп на Tauri 2: ядро на Rust (`frontend/src-tauri`, чужое), интерфейс на Next.js 14 + React 18. Мой слой интерфейса в `frontend/src/aid/`. Ветка `main` зеркалит оригинал, рабочая ветка `aid`. Подробнее: `docs/FORK.md`, `docs/isolation.md`, `docs/recon.md`.
+Форк открытого Meetily (MIT, Zackriya Solutions), продукт **ShadeNotes** (одно слово, S и N заглавные; прежнее рабочее название «Aid Meetings»): приватный ИИ-ассистент встреч, запись, транскрипция и итоги на компьютере пользователя. Десктоп на Tauri 2: ядро на Rust (`frontend/src-tauri`, чужое), интерфейс на Next.js 14 + React 18. Мой слой интерфейса в `frontend/src/aid/` (имя папки, ветка `aid`, префиксы `aid-` и `[aid]` остаются). Прежними остаются и `identifier` `io.github.katanana23.aid-meetings` (от него папка данных), имя репозитория `katanana23/meetily`, папки данных ядра (`APP_DATA_DIR_NAME = "Aid Meetings"`, `aid-meetings-recordings`) и ключи `localStorage` (`aid-meetings.theme` и др.): переименование потеряло бы данные пользователя. Ветка `main` зеркалит оригинал, рабочая ветка `aid`. Подробнее: `docs/FORK.md`, `docs/isolation.md`, `docs/recon.md`.
 
 ## Границы
 - `frontend/src-tauri` не менять. Исключение: строки идентичности в `config.rs` и `tauri.conf.json`, отдельным коммитом и по явной просьбе.

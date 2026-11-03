@@ -262,7 +262,7 @@ export function friendlyError(error: unknown, fallback: string): FriendlyError {
   const lower = raw.toLowerCase();
   let message = fallback;
   if (lower.includes('database is locked')) {
-    message = 'База встреч сейчас занята другим процессом. Закройте другие окна Aid Meetings и нажмите «Повторить».';
+    message = 'База встреч сейчас занята другим процессом. Закройте другие окна ShadeNotes и нажмите «Повторить».';
   } else if (lower.includes('no rows returned') || lower.includes('model not configured') || lower.includes('not configured')) {
     message = 'Модель для итогов не выбрана. Откройте «Настройки» и выберите модель.';
   } else if (lower.includes('connection refused') || lower.includes('ollama') || lower.includes('error sending request')) {

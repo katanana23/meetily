@@ -2,6 +2,8 @@
 
 Дата: 2026-10-06. Основа: `docs/recon.md`, код на коммите `a2cb62e` (Release v0.4.1) плюс патч идентичности (коммит «chore(fork): isolate app identity»).
 
+> 2026-11-03: продукт переименован в ShadeNotes. Изменились только `productName`, `title` окна и видимое имя в ядре (`fork_app_name!`). `identifier`, `APP_DATA_DIR_NAME = "Aid Meetings"` и `RECORDINGS_DIR_NAME` прежние, поэтому все пути ниже остались как были. Подробно: [`FORK.md`](FORK.md).
+
 Цель: форк «Aid Meetings» и оригинальный Meetily стоят на одном Mac, работают одновременно и не читают и не пишут данные друг друга.
 
 Почти все пути в Tauri 2 строятся от `identifier` из `tauri.conf.json`. На macOS `app_data_dir()` равен `~/Library/Application Support/<identifier>/`, на Windows `%APPDATA%\<identifier>\`, на Linux `~/.local/share/<identifier>/`. Поэтому главная правка одна: свой `identifier`. Остальные правки закрывают места, где ядро собирает путь по зашитому имени «Meetily», без учёта `identifier`.

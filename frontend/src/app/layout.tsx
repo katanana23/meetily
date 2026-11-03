@@ -272,7 +272,7 @@ export default function RootLayout({
   return (
     <html lang={isAidUI ? 'ru' : 'en'} suppressHydrationWarning>
       <head>
-        {isAidUI && <title>Aid Meetings</title>}
+        {isAidUI && <title>ShadeNotes</title>}
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body className={`${isAidUI ? inter.variable : sourceSans3.variable} font-sans antialiased`}>

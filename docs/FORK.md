@@ -1,6 +1,8 @@
 # Политика веток и обновлений форка
 
-Форк: `katanana23/meetily` («Aid Meetings»).
+Форк: `katanana23/meetily`, продукт **ShadeNotes** (до 2026-11-03 рабочее название «Aid Meetings»).
+
+При переименовании в ShadeNotes изменились только видимые имена: `productName` и `title` окна в `tauri.conf.json`, видимое имя в ядре (`fork_app_name!` в `config.rs`: подсказка трея, заголовки уведомлений) и тексты интерфейса. **Не менялись**: `identifier` `io.github.katanana23.aid-meetings` (от него папка данных, база, хранилище WebView, разрешения macOS), имя репозитория `katanana23/meetily`, ветка `aid`, `APP_DATA_DIR_NAME = "Aid Meetings"` (свои шаблоны, `notifications.json`), `RECORDINGS_DIR_NAME = "aid-meetings-recordings"`, ключи `localStorage` и `IndexedDB`. После установки сборки с новым `productName` на macOS появится `ShadeNotes.app`; старый `Aid Meetings.app` с тем же `identifier` нужно удалить вручную, иначе две копии будут спорить за один экземпляр и одни данные.
 Оригинал: [`Zackriya-Solutions/meeting-minutes`](https://github.com/Zackriya-Solutions/meeting-minutes) (Meetily), лицензия MIT.
 
 ## 1. Ветки
@@ -8,7 +10,7 @@
 | Ветка | Назначение | Кто пишет |
 |---|---|---|
 | `main` | Зеркало `main` оригинала. Своих коммитов нет. Обновляется только быстрой перемоткой (`--ff-only`) из `upstream/main` | никто, кроме синхронизации |
-| `aid` | Рабочая ветка форка: патч идентичности, документация, свои изменения. Отсюда собираются сборки «Aid Meetings» | все изменения форка |
+| `aid` | Рабочая ветка форка: патч идентичности, документация, свои изменения. Отсюда собираются сборки ShadeNotes | все изменения форка |
 | `feature/*`, `fix/*`, `claude/*` | Короткие ветки от `aid`, вливаются в `aid` через pull request | разработчик или агент |
 
 Правила:
@@ -65,7 +67,7 @@ git push -u origin HEAD
 ```bash
 # Идентичность в конфиге
 grep -nE '"(productName|identifier|title|createUpdaterArtifacts|pubkey|endpoints)"' frontend/src-tauri/tauri.conf.json
-# Ожидается: Aid Meetings, io.github.katanana23.aid-meetings, false, "", []
+# Ожидается: ShadeNotes (productName и title), io.github.katanana23.aid-meetings, false, "", []
 
 # Константы на месте
 grep -n 'fork_app_name\|APP_DISPLAY_NAME\|APP_DATA_DIR_NAME\|RECORDINGS_DIR_NAME' frontend/src-tauri/src/config.rs

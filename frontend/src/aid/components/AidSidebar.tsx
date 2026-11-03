@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChatsCircle, GearSix, Record } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { BrandMark } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';
 import { usePrivacy } from '@/aid/lib/privacy';
 import { formatTimer } from '@/aid/lib/format';
@@ -42,9 +43,8 @@ export function AidSidebar() {
     // Плитка бенто: на тон светлее фона, радиус 20 px, без рамки
     <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-[20px] bg-card">
       <div className="flex h-14 items-center gap-3 px-4">
-        <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground" aria-hidden>
-          A
-        </span>
+        {/* Место под маскота 28 px: пока нейтральный знак (BrandMark) */}
+        <BrandMark />
         <span className="text-[15px] font-semibold">{t('appName')}</span>
       </div>
 

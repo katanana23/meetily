@@ -1,8 +1,8 @@
-// Строки интерфейса Aid Meetings. Русский по умолчанию; английский добавляется
+// Строки интерфейса ShadeNotes (бывшее рабочее название Aid Meetings). Русский по умолчанию; английский добавляется
 // вторым словарём с теми же ключами.
 
 const ru = {
-  appName: 'Aid Meetings',
+  appName: 'ShadeNotes',
   loading: 'Загрузка…',
   retry: 'Повторить',
   back: 'Ко всем встречам',
@@ -159,8 +159,8 @@ const ru = {
   openLinkFailed: 'Не удалось открыть ссылку',
   saveFailed: 'Не удалось сохранить',
   version: 'Версия',
-  licenseTitle: 'Основано на Meetily',
-  licenseHint: 'Открытый проект Zackriya Solutions, лицензия MIT.',
+  licenseTitle: 'ShadeNotes основан на Meetily (MIT, Zackriya Solutions)',
+  licenseHint: 'Открытый исходный код. Текст лицензии оригинала сохранён без изменений.',
   license: 'Лицензия',
 
   // приватность

@@ -262,7 +262,7 @@ const EXACT: Record<string, string> = {
   'Meeting folder path not available': 'Папка с записью не найдена',
 
   // ---------- мастер первого запуска ----------
-  'Welcome to Meetily': 'Добро пожаловать в Aid Meetings',
+  'Welcome to Meetily': 'Добро пожаловать в ShadeNotes',
   'Record. Transcribe. Summarize. All on your device.': 'Запись, транскрипт и итоги на вашем компьютере.',
   'Your data never leaves your device': 'Данные не покидают компьютер',
   'Intelligent summaries & insights': 'Итоги, задачи и решения встречи',
@@ -382,7 +382,7 @@ export function translate(text: string): string | null {
   }
   // Бренд оригинала во фразе без перевода: хотя бы не показываем чужое имя.
   // Пути к файлам не трогаем: папка на диске называется так, как её создало ядро.
-  if (key.includes('Meetily') && !/[\\/]/.test(key)) return key.replace(/Meetily/g, 'Aid Meetings');
+  if (key.includes('Meetily') && !/[\\/]/.test(key)) return key.replace(/Meetily/g, 'ShadeNotes');
   return null;
 }
 

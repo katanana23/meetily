@@ -15,7 +15,6 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
-import { RecordButton } from '@/aid/components/RecordButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
@@ -345,7 +344,6 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const openFolder = (m: MeetingListItem) =>
     void openMeetingFolder(m.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
   const { openImportDialog } = useImportDialog();
-  const { hotkey, hotkeyScope } = useRecordingControls();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
 
@@ -394,42 +392,25 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
   const showSearch = state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
 
+  // Шапка: заголовок и импорт аудио иконкой; кнопка записи плавает внизу по центру (RecordDock)
   const header = (
-    <>
+    <div className="flex items-center justify-between gap-3">
       <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
-    </>
+      {betaFeatures.importAndRetranscribe && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="secondary" size="icon" className="size-14 [&_svg]:size-5" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
+              <UploadSimple />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('importAudio')}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   );
 
   return (
     <Page header={header}>
-      {/* Бенто: крупная плитка «Новая запись» (2/3), рядом малая плитка импорта */}
-      <div className="mb-2 grid grid-cols-3 gap-2">
-        <section
-          aria-label={t('newRecording')}
-          className={cn('flex min-h-[128px] items-center gap-5 rounded-tile bg-card p-4', betaFeatures.importAndRetranscribe ? 'col-span-2' : 'col-span-3')}
-        >
-          <RecordButton size={96} />
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight">{t('newRecording')}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{t('newRecordingHint')}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              <kbd className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-medium text-foreground">{hotkey}</kbd> {hotkeyScope}
-            </p>
-          </div>
-        </section>
-        {betaFeatures.importAndRetranscribe && (
-          <section aria-label={t('importAudio')} className="flex items-center justify-center rounded-tile bg-card p-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="size-14 [&_svg]:size-5" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
-                  <UploadSimple />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('importAudio')}</TooltipContent>
-            </Tooltip>
-          </section>
-        )}
-      </div>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">

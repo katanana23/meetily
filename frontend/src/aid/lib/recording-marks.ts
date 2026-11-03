@@ -5,9 +5,8 @@
 //
 // Зачем: решение «не сохранять» принимается после стопа, а встреча могла попасть
 // в базу другим путём. Пока пометка «удалить» жива, такая встреча скрыта из списка
-// и недоступна по прямому адресу. Удаляется она после 10 секунд отсчёта карточки
-// «Тишина» (отсчёт стоит, пока пользователь на ней) или при следующем запуске,
-// если приложение закрыли раньше. «Вернуть» снимает пометку.
+// и недоступна по прямому адресу. Удаляется она сразу после решения, а если ядро
+// было занято или приложение закрыли раньше, при следующем запуске.
 'use client';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -29,7 +28,7 @@ interface Marks {
   discarded: DiscardMark[];
   /** Папки записей, где детектор слышал речь, а текста нет («Не распознано»). */
   unrecognized: string[];
-  /** Папки записей без текста, которые пользователь вернул сам: показываются в общем списке. */
+  /** Папки записей без текста, которые пользователь раньше вернул сам (кнопкой «Вернуть» до восьмого круга): показываются в общем списке. */
   kept: string[];
   /** Однократный вопрос «Удалить N пустых записей?» уже задан. */
   emptyCleanupAsked: boolean;
@@ -78,39 +77,6 @@ export function markDiscarded(folder: string | null, name: string | null, window
   return mark;
 }
 
-/**
- * Пометки, у которых сейчас открыта карточка «Тишина»: срок удаления ведёт карточка
- * (её отсчёт встаёт на паузу), поэтому перечитывание списка их не удаляет. Только
- * в памяти: после перезапуска набор пуст и просроченные пометки удаляются как обычно.
- */
-const live = new Set<string>();
-const liveKey = (folder: string | null, name: string | null) => (folder ? `f:${folder}` : `n:${name ?? ''}`);
-
-export function setDiscardLive(folder: string | null, name: string | null, on: boolean) {
-  if (on) live.add(liveKey(folder, name));
-  else live.delete(liveKey(folder, name));
-}
-
-/** Отсчёт карточки закончился: пометка становится просроченной сейчас же. */
-export function expireDiscard(folder: string | null, name: string | null) {
-  const now = Date.now();
-  const m = read();
-  write({
-    ...m,
-    discarded: m.discarded.map((d) => ((folder ? d.folder === folder : !d.folder && d.name === name) ? { ...d, until: Math.min(d.until, now) } : d)),
-  });
-}
-
-/** «Вернуть»: снять пометку и запомнить, что запись оставлена намеренно. */
-export function keepRecording(folder: string | null) {
-  const m = read();
-  write({
-    ...m,
-    discarded: m.discarded.filter((d) => d.folder !== folder),
-    kept: folder ? uniq([...m.kept, folder]) : m.kept,
-  });
-}
-
 export function markUnrecognized(folder: string | null) {
   if (!folder) return;
   const m = read();
@@ -151,13 +117,12 @@ export function isKept(m: MeetingRef): boolean {
 
 /**
  * Удаляет встречи, у которых истекло окно «Вернуть», и забывает старые пометки.
- * Вызывается после отсчёта карточки «Тишина» и при запуске; пометки с открытой
- * карточкой пропускает. Возвращает число удалённых.
+ * Вызывается сразу после решения «не сохранять» и при запуске. Возвращает число удалённых.
  */
 export async function purgeDiscarded(): Promise<number> {
   const marks = read();
   const now = Date.now();
-  const due = marks.discarded.filter((d) => d.until <= now && !live.has(liveKey(d.folder, d.name)));
+  const due = marks.discarded.filter((d) => d.until <= now);
   if (!due.length) return 0;
   let removed = 0;
   try {

@@ -2,12 +2,11 @@
 // контента, на остальных страницах в правом нижнем углу: там колонка текста
 // прижата влево, и кнопка не закрывает реплики и таблицы итогов.
 // Состояния:
-// - покой: круглая кнопка 72 px, кольцо мягко «дышит» (на главной её нет: там
-//   кнопка 96 px в плитке «Новая запись»);
-// - запись: капсула с кольцом активности, таймером, паузой и «Остановить»;
+// - покой: круглая кнопка 72 px, монохром с красной точкой, кольцо мягко «дышит»;
+// - запись: капсула того же цвета с точкой записи, таймером, паузой и «Остановить»;
 // - завершение: «Завершаем запись» со спиннером;
-// - запись не сохранена: короткая карточка «Тишина. Сохранять нечего» на 10 с
-//   с «Вернуть запись» и «Проверить звук» (вместо тоста).
+// - запись не сохранена: короткая карточка «Тишина. Сохранять нечего» с «Проверить
+//   звук» и крестиком; уходит сама (NOTICE_MS в recording-outcome.tsx).
 // Переходы между состояниями и кольца анимируются только transform и opacity;
 // prefers-reduced-motion их выключает (globals.css, .aid-dock-*).
 //
@@ -18,7 +17,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Pause, Play, SpeakerHigh, Stop } from '@phosphor-icons/react';
+import { Pause, Play, SpeakerHigh, Stop, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { RecordButton } from '@/aid/components/RecordButton';
@@ -32,31 +31,11 @@ import { t } from '@/aid/strings';
 
 /** Точка записи с кольцом: вспышка на каждый сигнал речи (ключ меняется, анимация начинается заново). */
 function ActivityRing({ pulse, paused }: { pulse: number; paused: boolean }) {
-  // На кобальтовой капсуле: белое кольцо вспыхивает на речь, красная точка записи в белом круге
+  // На монохромной капсуле: красная точка записи, на речь вспыхивает красное кольцо
   return (
     <span className="relative flex size-10 shrink-0 items-center justify-center" aria-hidden>
-      {!paused && pulse > 0 && <span key={pulse} className="aid-dock-speech absolute inset-0 rounded-full border-2 border-white/80" />}
-      <span className="flex size-5 items-center justify-center rounded-full bg-white">
-        <span className={cn('size-2.5 rounded-full', paused ? 'bg-neutral-400' : 'aid-dock-dot bg-[#E5372B]')} />
-      </span>
-    </span>
-  );
-}
-
-/** Секунды до удаления; на паузе цифра стоит. Для диктора отсчёт не озвучивается каждую секунду. */
-function Countdown({ deadline, remaining }: { deadline: number | null; remaining: number }) {
-  const secondsLeft = () => Math.max(0, Math.ceil(((deadline ?? Date.now() + remaining) - Date.now()) / 1000));
-  const [left, setLeft] = useState(secondsLeft);
-  useEffect(() => {
-    setLeft(secondsLeft());
-    if (deadline === null) return;
-    const id = setInterval(() => setLeft(secondsLeft()), 250);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deadline, remaining]);
-  return (
-    <span aria-hidden className={cn('tabular min-w-[1.5ch] text-right', deadline === null ? 'opacity-60' : 'opacity-80')} title={deadline === null ? t('restoreCountdownPaused') : undefined}>
-      {left}
+      {!paused && pulse > 0 && <span key={pulse} className="aid-dock-speech absolute inset-0 rounded-full border-2 border-[hsl(var(--record))]" />}
+      <span className={cn('size-3.5 rounded-full', paused ? 'bg-background/40' : 'aid-dock-dot aid-record-dot')} />
     </span>
   );
 }
@@ -65,14 +44,13 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
   const silent = notice.verdict === 'no-speech';
   const { hold } = notice;
-  // Карточка уходит сама через 10 с; Esc закрывает раньше (кнопки-крестика нет:
-  // залитый X из Phosphor нарисован квадратом)
+  // Esc закрывает (если не открыт диалог проверки звука)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !soundCheck && notice.dismiss();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [notice, soundCheck]);
-  // Пока открыта «Проверить звук», отсчёт стоит: иначе диалог закрылся бы вместе с карточкой
+  // Пока открыта «Проверить звук», карточка не уходит: иначе диалог закрылся бы вместе с ней
   useEffect(() => hold('dialog', soundCheck), [hold, soundCheck]);
   useEffect(
     () => () => {
@@ -87,28 +65,31 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
       role="status"
       aria-live="polite"
       data-aid-outcome={notice.verdict}
-      data-aid-countdown={notice.deadline === null ? 'paused' : 'running'}
-      onPointerEnter={() => hold('hover', true)}
+      // pointerenter не приходит, если карточка появилась под неподвижным курсором (там была «Остановить»)
+      onPointerMove={() => hold('hover', true)}
       onPointerLeave={() => hold('hover', false)}
       onFocus={() => hold('focus', true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="relative w-[min(440px,calc(100vw-2rem))] rounded-tile bg-card p-4 shadow-lg ring-1 ring-border/60"
+      className="relative w-[min(400px,calc(100vw-2rem))] rounded-tile bg-card p-4 pr-14 shadow-lg ring-1 ring-border/60"
     >
+      {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute right-2 top-2 size-10 rounded-full text-muted-foreground hover:text-foreground [&_svg]:size-4"
+        onClick={notice.dismiss}
+        aria-label={t('close')}
+      >
+        <X weight="bold" />
+      </Button>
       <p className="text-[15px] font-semibold">{silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">{silent ? t('noSpeechNoticeHint') : t('tooLittleNoticeHint')}</p>
-      <p className="sr-only">{t('restoreCountdownSr')}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="main" onClick={notice.restore}>
-          {t('restoreRecording')}
-          <Countdown deadline={notice.deadline} remaining={notice.remaining} />
+      {silent && (
+        <Button variant="outline" className="mt-3 h-10 rounded-full px-4" onClick={() => setSoundCheck(true)}>
+          <SpeakerHigh />
+          {t('soundCheck')}
         </Button>
-        {silent && (
-          <Button variant="outline" size="main" onClick={() => setSoundCheck(true)}>
-            <SpeakerHigh />
-            {t('soundCheck')}
-          </Button>
-        )}
-      </div>
+      )}
       <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
     </div>
   );
@@ -129,19 +110,18 @@ export function RecordDock() {
   return (
     <div className={cn('pointer-events-none absolute inset-x-0 bottom-6 z-30 flex px-4', pathname === '/' ? 'justify-center' : 'justify-end pr-6')}>
       <div key={state} className="aid-dock-in pointer-events-auto">
-        {/* На главной в покое кнопка записи стоит в плитке «Новая запись», здесь не дублируется */}
-        {state === 'idle' && pathname !== '/' && <RecordButton size={72} />}
+        {state === 'idle' && <RecordButton />}
 
         {state === 'recording' && (
-          // Активное состояние записи: капсула в стекле кобальта (.aid-glass-record), белый текст
-          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-glass-record flex items-center gap-2 rounded-full p-2">
+          // Активное состояние записи: монохромная капсула (.aid-record) с красной точкой
+          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-record flex items-center gap-2 rounded-full p-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={openRecording}
                   aria-label={`${t('openRecording')}, ${formatTimer(c.duration)}`}
-                  className="flex h-14 items-center gap-2 rounded-full pl-2 pr-3 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  className="flex h-14 items-center gap-2 rounded-full pl-2 pr-3 hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background"
                 >
                   <ActivityRing pulse={live.vadSegments + live.textSegments} paused={c.isPaused} />
                   <span className="tabular text-lg font-semibold">{formatTimer(c.duration)}</span>
@@ -154,7 +134,7 @@ export function RecordDock() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-14 rounded-full bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                  className="size-14 rounded-full bg-background/10 text-background hover:bg-background/20 hover:text-background"
                   onClick={() => void c.togglePause()}
                   disabled={c.busy !== null}
                   aria-label={c.isPaused ? t('resumeRecording') : t('pauseRecording')}
@@ -166,8 +146,8 @@ export function RecordDock() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" className="h-14 rounded-full bg-white px-6 text-[#C42519] hover:bg-white/90 hover:text-[#C42519]" onClick={() => void c.stop()} disabled={c.busy !== null}>
-                  {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
+                <Button variant="ghost" className="h-14 rounded-full bg-background px-6 text-foreground hover:bg-background/85 hover:text-foreground" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                  {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop className="text-[hsl(var(--record))]" />}
                   {t('stopRecording')}
                 </Button>
               </TooltipTrigger>

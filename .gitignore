@@ -85,3 +85,12 @@ frontend/src-tauri/binaries/*.sql
 .claude/skills/impeccable/scripts/.impeccable/
 .claude/skills/impeccable/scripts/config.json
 .claude/settings.local.json
+# Impeccable live: состояние локального сервера и сессий, не для git
+**/.impeccable/live/server.json
+**/.impeccable/live/codex-worker.*
+**/.impeccable/live/sessions/
+**/.impeccable/live/previews/
+**/.impeccable/live/annotations/
+**/.impeccable/live/artifacts/
+**/.impeccable/live/accept-receipts/
+**/.impeccable/live/locks/

@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
 import { Check, MicrophoneSlash, SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
 import { BackButton } from '@/aid/components/BackButton';
@@ -171,6 +171,11 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [segments.length]);
+  // Реплики, которые уже были, когда экран записи открылся (вернулись из списка):
+  // их не перепечатываем; всё, что пришло после, печатается, включая первую
+  const [settledIds] = useState(() => new Set(segments.map((x) => x.id)));
+  // Реплика допечатана (печатная машинка в TranscriptList): докрутить к концу
+  const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
   if (phase) {
     const copy = PHASE[phase];
@@ -238,7 +243,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
           </Card>
         ) : (
           <>
-            <TranscriptList segments={segments} live />
+            <TranscriptList segments={segments} live onTyped={scrollToEnd} settledIds={settledIds} />
             <div ref={endRef} />
           </>
         )}

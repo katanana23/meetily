@@ -30,6 +30,7 @@
     --primary-ink: 233 68% 52%;
     /* Точка записи: красный, как у системного индикатора записи */
     --record: 4 77% 53%;
+    --record-hover: 4 72% 47%;
 
     --secondary: 240 10% 92%;
     --secondary-foreground: 240 8% 5%;
@@ -57,7 +58,7 @@
        Плитка стоит в окне с отступом --tile-gap, поэтому её радиус меньше на этот
        отступ; вложенный элемент стоит в плитке с отступом --inner-gap, его радиус
        меньше радиуса плитки на этот отступ. Кнопки и поля круглые (pill). */
-    --window-radius: 26px; /* окно macOS 26 с боковой панелью; уточнить замером */
+    --window-radius: 30px; /* окно macOS 26: 26 px давали «обрыв» у угла окна, по скриншоту с Mac +4 px */
     --tile-gap: 8px;
     --tile-pad: 16px;
     --inner-gap: 8px;
@@ -82,6 +83,7 @@
     --primary-foreground: 0 0% 100%;
     --primary-ink: 233 92% 75%;
     --record: 4 90% 60%;
+    --record-hover: 4 90% 55%;
 
     --secondary: 240 6% 13%;
     --secondary-foreground: 240 4% 95%;
@@ -431,9 +433,33 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Кнопка записи и капсула идущей записи: монохром, цвет текста темы (белый
-   круг в тёмной, чёрный в светлой) и красная точка записи. Без градиентов,
-   стекла и цветных свечений; наружу только мягкая нейтральная тень. */
+/* Курсор печатной машинки в конце живого транскрипта (TranscriptList, live) */
+.aid-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: hsl(var(--foreground) / 0.7);
+  animation: aid-caret 1.05s steps(1) infinite;
+}
+
+@keyframes aid-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-caret {
+    animation: none;
+  }
+}
+
+/* Капсула идущей записи: монохром, цвет текста темы (белый в тёмной, чёрный
+   в светлой) и красная точка записи. Без градиентов, стекла и цветных
+   свечений; наружу только мягкая нейтральная тень. */
 .aid-record {
   background: hsl(var(--foreground));
   color: hsl(var(--background));
@@ -442,6 +468,75 @@ html body[data-scroll-locked] {
 
 .aid-record-dot {
   background: hsl(var(--record));
+}
+
+/* Кнопка записи в покое: сплошной красный записи, белый микрофон. От круга
+   расходятся две волны (transform и opacity); при наведении и фокусе круг
+   раскрывается в капсулу с подписью «Записать ⌘⇧R». */
+.aid-record-button {
+  background: hsl(var(--record));
+  color: #fff;
+  box-shadow: 0 8px 18px -10px hsl(0 0% 0% / 0.5);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease-out;
+}
+
+.aid-record-button:hover {
+  background: hsl(var(--record-hover));
+}
+
+.aid-record-label {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  transition:
+    max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    margin-left 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease-out;
+}
+
+.group:hover .aid-record-label,
+.aid-record-button:focus-visible .aid-record-label {
+  max-width: 180px;
+  margin-left: 10px;
+  opacity: 1;
+}
+
+.aid-record-wave {
+  background: hsl(var(--record) / 0.35);
+  animation: aid-record-wave 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.aid-record-wave-late {
+  animation-delay: 1.3s;
+}
+
+.group:hover .aid-record-wave,
+.group:focus-within .aid-record-wave {
+  /* opacity здесь не сработает: её перебивает анимация волны */
+  visibility: hidden;
+}
+
+@keyframes aid-record-wave {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-record-wave {
+    display: none;
+  }
+  .aid-record-label,
+  .aid-record-button {
+    transition: none;
+  }
 }
 
 /* Десктопное приложение: ссылки и картинки не перетаскиваются. В WebKit на macOS

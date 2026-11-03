@@ -10,7 +10,8 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Waveform } from '@phosphor-icons/react';
+import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Trash, Waveform } from '@phosphor-icons/react';
+import { openTrash } from '@/aid/lib/recording-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
@@ -139,6 +140,28 @@ function StorageRow() {
   );
 }
 
+/** Корзина: пустые записи без звука лежат здесь 7 дней (recording-trash.ts). */
+function TrashRow() {
+  const { storageLocations } = useConfig();
+  const root = storageLocations?.recordings ?? null;
+  const open = async () => {
+    if (!root) return;
+    try {
+      await openTrash(root);
+    } catch (error) {
+      aidToast.error(t('openFolderFailed'), { description: String(error) });
+    }
+  };
+  return (
+    <Row title={t('trashTitle')} hint={t('trashHint')}>
+      <Button variant="outline" onClick={() => void open()} disabled={!root}>
+        <Trash />
+        {t('openTrash')}
+      </Button>
+    </Row>
+  );
+}
+
 function GeneralTab() {
   return (
     // Бенто: каждая настройка отдельной плиткой, 8 px между плитками
@@ -148,6 +171,7 @@ function GeneralTab() {
       </Card>
       <Card>
         <StorageRow />
+        <TrashRow />
       </Card>
       <Card className="p-4">
         <Legacy className="aid-legacy-flat">

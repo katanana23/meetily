@@ -23,6 +23,8 @@ import { isDiscarded, isHallucination, judgeRecording, type NoTextReason, type R
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
 import { markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
+import { formatLevel, isSilent, measureRecordingLevel } from './audio-level';
+import { moveRecordingToTrash, purgeTrash } from './recording-trash';
 import { t } from '@/aid/strings';
 
 /**
@@ -67,8 +69,8 @@ export interface DiscardNotice {
 
 interface Ctx {
   live: LiveSpeech;
-  /** Идёт оценка или запись не сохраняется: экран записи показывает «Завершаем запись». */
-  finishing: 'judging' | 'discarding' | null;
+  /** Идёт оценка, проверка звука или запись не сохраняется: экран записи показывает «Завершаем запись». */
+  finishing: 'judging' | 'checking-sound' | 'discarding' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
   notice: DiscardNotice | null;
 }
@@ -179,9 +181,11 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [closeNotice, hold, sync],
   );
 
-  // При запуске: удалить пустые записи, у которых окно «Вернуть» истекло, пока приложение было закрыто
+  // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
+  // раз, и очистить корзину от записей старше 7 дней
   useEffect(() => {
     void purgeDiscarded();
+    void purgeTrash();
   }, []);
 
   seconds.current = recording.activeDuration ?? seconds.current;
@@ -219,10 +223,36 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const judgement = judgeRecording({ segments, vadSegments, detectorSeconds, noTextReason });
         let verdict = judgement.verdict;
         let reason = judgement.reason;
+        const folder = sessionStorage.getItem('last_recording_folder_path');
+        const name = sessionStorage.getItem('last_recording_meeting_name');
+
         // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
         if (isDiscarded(verdict) && !liveRef.current.tracking) {
-          verdict = verdict === 'too-little' ? 'speech' : 'unrecognized';
+          verdict = 'unrecognized';
           reason = 'начало записи не отслежено, сохраняем как есть';
+        }
+
+        // Текста нет. Это тишина или сломалось распознавание? Решает сам звук:
+        // удаляется только запись, где и звук на уровне тишины, и текста нет.
+        // Громче порога или не удалось измерить: «Не распознано» (audio-level.ts)
+        let levelNote = 'не измерялся (есть текст)';
+        if (isDiscarded(verdict)) {
+          setFinishing('checking-sound');
+          const measured = await measureRecordingLevel(folder, seconds.current || null);
+          if (measured.kind === 'unknown') {
+            levelNote = `не измерен: ${measured.reason}`;
+            verdict = 'unrecognized';
+            reason = `${reason}; уровень звука не измерен, сохраняем в «Не распознано»`;
+          } else {
+            levelNote = formatLevel(measured.level);
+            if (!isSilent(measured.level)) {
+              verdict = 'unrecognized';
+              reason = `${reason}; звук выше порога тишины, сохраняем в «Не распознано»`;
+            } else {
+              reason = `${reason}; звук на уровне тишины, удаляем (папка в корзину)`;
+            }
+          }
+          setFinishing('judging');
         }
 
         // Журнал решения: одна строка на каждую остановку (консоль окна; логгер
@@ -233,11 +263,10 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
             `(${vadSegments} сегм.), реплик ${judgement.segmentsBefore} → ${judgement.segmentsAfter} после чистки, ` +
             `слов ${judgement.words}, речь в репликах ${fmt(judgement.speechSeconds)}, ` +
             `модель ${model === null ? 'не проверена' : model ? 'есть' : 'нет'}, ` +
-            `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'} → ${verdict}: ${reason}`,
+            `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'}, ` +
+            `звук: ${levelNote} → ${verdict}: ${reason}`,
         );
 
-        const folder = sessionStorage.getItem('last_recording_folder_path');
-        const name = sessionStorage.getItem('last_recording_meeting_name');
         try {
           sessionStorage.setItem(
             OUTCOME_KEY,
@@ -255,15 +284,18 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
           return verdict;
         }
 
-        // Речи не было или слишком мало: пометка «не сохранять» ставится сразу,
-        // до любой записи в базу, поэтому такая встреча не появится в списке и не
-        // откроется по адресу, даже если попадёт в базу другим путём. В базу не пишем
-        // (оригинальный путь handleRecordingStop(false)); всё, что успело попасть
-        // в базу с этой папкой, удаляется сразу. Вернуть такую запись нельзя.
+        // Тишина и нет текста: пометка «не сохранять» ставится сразу, до любой записи
+        // в базу, поэтому такая встреча не появится в списке и не откроется по адресу,
+        // даже если попадёт в базу другим путём. В базу не пишем (оригинальный путь
+        // handleRecordingStop(false)); то, что успело попасть в базу с этой папкой,
+        // удаляется сразу. Папка записи со звуком уходит в корзину на 7 дней
+        // (recording-trash.ts), а не стирается.
         markDiscarded(folder, name, 0);
         setFinishing('discarding');
         await handle(false);
         void purgeDiscarded();
+        const trashed = await moveRecordingToTrash(folder, name);
+        console.info(trashed ? `[aid] Папка пустой записи перенесена в корзину: ${trashed}` : `[aid] Папка пустой записи осталась на месте: ${folder}`);
         showNotice(verdict as DiscardNotice['verdict']);
         // Окно за другим приложением: системное уведомление, иначе карточку никто не увидит.
         // Через менеджер уведомлений ядра: он учитывает согласие, «Не беспокоить» и

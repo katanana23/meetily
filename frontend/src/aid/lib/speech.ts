@@ -113,7 +113,7 @@ export function hasMeaningfulSpeech(segments: SpeechSegment[]): boolean {
 export type RecordingVerdict =
   /** Есть осмысленная речь: обычная встреча. */
   | 'speech'
-  /** Речь была, но меньше порога: не сохраняется (с возможностью вернуть). */
+  /** Речь была, но меньше порога: сохраняется обычной встречей (текст есть). */
   | 'too-little'
   /** Речи не было: не сохраняется (с возможностью вернуть). */
   | 'no-speech'
@@ -181,9 +181,14 @@ export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
   return { ...base, verdict: 'no-speech', reason: `детектор слышал только ${heard}, меньше ${MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED} с` };
 }
 
-/** Не сохраняем: «Вернуть» доступно 10 секунд. */
+/**
+ * Кандидат на удаление: текста нет совсем. Окончательно решает уровень звука
+ * (audio-level.ts): тишина удаляется, остальное уходит в «Не распознано».
+ * 'too-little' (слова есть, но меньше порога) не удаляется: текст есть, это
+ * обычная короткая встреча.
+ */
 export function isDiscarded(v: RecordingVerdict): boolean {
-  return v === 'no-speech' || v === 'too-little';
+  return v === 'no-speech';
 }
 
 export function countWords(text: string): number {

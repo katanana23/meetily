@@ -21,6 +21,7 @@ import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import { type StartBlocker } from '@/aid/lib/recording';
@@ -105,6 +106,9 @@ function useMeetingsList(refreshKey: unknown) {
 
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
+
+  // Разработка: заранее скомпилировать страницу встречи, иначе первый клик ждёт 5–7 с
+  useEffect(() => warmUpRoutes(), []);
 
   return { state, setState, reload: () => load() };
 }

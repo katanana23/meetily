@@ -3,7 +3,7 @@
 // и при фокусе с клавиатуры; те же действия есть в меню по правому клику.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
@@ -93,6 +93,15 @@ interface MeetingRowProps {
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly, match }: MeetingRowProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  // Встреча открывается: шеврон меняется на спиннер сразу после клика. Страница
+  // встречи может грузиться заметное время (в разработке Next её компилирует),
+  // и без отклика клик выглядел несработавшим. Через 15 с состояние сбрасывается.
+  const [opening, setOpening] = useState(false);
+  useEffect(() => {
+    if (!opening) return;
+    const timer = setTimeout(() => setOpening(false), 15_000);
+    return () => clearTimeout(timer);
+  }, [opening]);
   const d = meeting.details;
   const shown = shownTitle(meeting.title, d?.contentTitle);
   const kind = d?.status ?? 'unknown';
@@ -131,9 +140,14 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
           onClick={(e) => {
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
+            setOpening(true);
             openMeeting(router.push, meeting.id);
           }}
-          className="group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted"
+          aria-busy={opening || undefined}
+          className={cn(
+            'group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
+            opening && 'bg-muted',
+          )}
         >
           <Link
             href={meetingHref(meeting.id)}
@@ -142,7 +156,10 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
             draggable={false}
             onClick={(e) => {
               // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
-              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) guardNavigation(meetingHref(meeting.id));
+              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
+                setOpening(true);
+                guardNavigation(meetingHref(meeting.id));
+              }
             }}
             className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
@@ -184,8 +201,12 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               <Trash />
             </IconAction>
           </div>
-          {/* Шеврон: единственное исключение из правила fill (CLAUDE.md) */}
-          <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {/* Шеврон: исключение из правила fill (CLAUDE.md); пока встреча открывается, спиннер */}
+          {opening ? (
+            <Spinner size={16} label={t('opening')} />
+          ) : (
+            <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </li>
       </ContextMenuTrigger>
       <ContextMenuContent>

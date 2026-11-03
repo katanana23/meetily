@@ -33,6 +33,8 @@ export function setTheme(mode: ThemeMode) {
     /* тема просто не запомнится */
   }
   document.documentElement.classList.toggle('dark', mode === 'dark');
+  // Окно Tauri в цвет темы: без белой полосы при растягивании (window-theme.ts)
+  void import('./window-theme').then((m) => m.syncWindowTheme(mode));
   window.dispatchEvent(new CustomEvent<ThemeMode>(THEME_EVENT, { detail: mode }));
 }
 

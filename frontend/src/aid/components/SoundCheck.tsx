@@ -102,12 +102,12 @@ export function SoundCheckDialog({ open, onOpenChange }: { open: boolean; onOpen
         )}
         <p className="mt-2 text-sm text-muted-foreground">{t('devicesLocked')}</p>
         <DialogFooter>
-          <Button variant="outline" onClick={() => void invoke('open_system_settings').catch(() => undefined)}>
+          <Button variant="outline" size="main" onClick={() => void invoke('open_system_settings').catch(() => undefined)}>
             <GearSix />
             {t('openSystemSettings')}
           </Button>
           <DialogClose asChild>
-            <Button>{t('done')}</Button>
+            <Button size="main">{t('done')}</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

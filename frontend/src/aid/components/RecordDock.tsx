@@ -28,10 +28,13 @@ import { t } from '@/aid/strings';
 
 /** Точка записи с кольцом: вспышка на каждый сигнал речи (ключ меняется, анимация начинается заново). */
 function ActivityRing({ pulse, paused }: { pulse: number; paused: boolean }) {
+  // На кобальтовой капсуле: белое кольцо вспыхивает на речь, красная точка записи в белом круге
   return (
     <span className="relative flex size-10 shrink-0 items-center justify-center" aria-hidden>
-      {!paused && pulse > 0 && <span key={pulse} className="aid-dock-speech absolute inset-0 rounded-full border-2 border-destructive" />}
-      <span className={cn('size-3 rounded-full', paused ? 'bg-muted-foreground' : 'aid-dock-dot bg-destructive')} />
+      {!paused && pulse > 0 && <span key={pulse} className="aid-dock-speech absolute inset-0 rounded-full border-2 border-white/80" />}
+      <span className="flex size-5 items-center justify-center rounded-full bg-white">
+        <span className={cn('size-2.5 rounded-full', paused ? 'bg-neutral-400' : 'aid-dock-dot bg-[#E5372B]')} />
+      </span>
     </span>
   );
 }
@@ -65,12 +68,12 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
       <p className="text-[15px] font-semibold">{silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">{silent ? t('noSpeechNoticeHint') : t('tooLittleNoticeHint')}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button className="h-11 rounded-full px-4" onClick={notice.restore}>
+        <Button className="h-14 rounded-full px-6" onClick={notice.restore}>
           {t('restoreRecording')}
           <Countdown until={notice.until} />
         </Button>
         {silent && (
-          <Button variant="outline" className="h-11 rounded-full px-4" onClick={() => setSoundCheck(true)}>
+          <Button variant="outline" className="h-14 rounded-full px-6" onClick={() => setSoundCheck(true)}>
             <SpeakerHigh />
             {t('soundCheck')}
           </Button>
@@ -105,10 +108,11 @@ export function RecordDock() {
                 disabled={c.isStarting}
                 aria-label={t('startRecording')}
                 aria-keyshortcuts="Meta+Shift+R Control+Shift+R"
-                className="relative flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-[1.04] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-70"
+                className="aid-accent-fill relative flex size-[72px] items-center justify-center rounded-full text-primary-foreground shadow-lg transition-transform hover:scale-[1.04] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-70"
               >
                 {!c.isStarting && <span className="aid-dock-breathe absolute inset-0 rounded-full border-2 border-primary" aria-hidden />}
-                {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-5" />}
+                {/* 28 px: единственная иконка крупнее 20 px (CLAUDE.md) */}
+                {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-7" />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -118,14 +122,15 @@ export function RecordDock() {
         )}
 
         {state === 'recording' && (
-          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="flex items-center gap-2 rounded-full bg-card p-2 shadow-lg ring-1 ring-border/60">
+          // Активное состояние записи: капсула на акцентном градиенте, белый текст
+          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-accent-fill flex items-center gap-2 rounded-full p-2 text-primary-foreground shadow-lg">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={openRecording}
                   aria-label={`${t('openRecording')}, ${formatTimer(c.duration)}`}
-                  className="flex h-12 items-center gap-2 rounded-full pl-1 pr-3 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-14 items-center gap-2 rounded-full pl-2 pr-3 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
                   <ActivityRing pulse={live.vadSegments + live.textSegments} paused={c.isPaused} />
                   <span className="tabular text-lg font-semibold">{formatTimer(c.duration)}</span>
@@ -136,9 +141,9 @@ export function RecordDock() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="size-12 rounded-full"
+                  className="size-14 rounded-full bg-white/15 text-white hover:bg-white/25 hover:text-white"
                   onClick={() => void c.togglePause()}
                   disabled={c.busy !== null}
                   aria-label={c.isPaused ? t('resumeRecording') : t('pauseRecording')}
@@ -150,7 +155,7 @@ export function RecordDock() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="destructive" className="h-12 rounded-full px-5" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                <Button variant="ghost" className="h-14 rounded-full bg-white px-6 text-[#C42519] hover:bg-white/90 hover:text-[#C42519]" onClick={() => void c.stop()} disabled={c.busy !== null}>
                   {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
                   {t('stopRecording')}
                 </Button>
@@ -163,7 +168,7 @@ export function RecordDock() {
         )}
 
         {state === 'finishing' && (
-          <div role="status" aria-live="polite" className="flex h-16 items-center gap-3 rounded-full bg-card px-6 text-[15px] font-medium shadow-lg ring-1 ring-border/60">
+          <div role="status" aria-live="polite" className="flex h-[72px] items-center gap-3 rounded-full bg-card px-7 text-[15px] font-medium shadow-lg ring-1 ring-border/60">
             <Spinner />
             {c.phase === 'opening' ? t('savedShort') : t('finishingShort')}
           </div>

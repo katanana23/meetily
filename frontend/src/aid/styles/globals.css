@@ -27,6 +27,9 @@
     --primary: 233 68% 52%;
     --primary-foreground: 0 0% 100%;
     --primary-ink: 233 68% 52%;
+    /* Сдержанный градиент акцента (.aid-accent-fill): свет сверху и глубокий кобальт */
+    --primary-light: 233 72% 62%;
+    --primary-deep: 233 72% 38%;
 
     --secondary: 240 10% 92%;
     --secondary-foreground: 240 8% 5%;
@@ -71,6 +74,8 @@
     --primary: 233 85% 62%;
     --primary-foreground: 0 0% 100%;
     --primary-ink: 233 92% 75%;
+    --primary-light: 233 88% 70%;
+    --primary-deep: 233 75% 44%;
 
     --secondary: 240 6% 13%;
     --secondary-foreground: 240 4% 95%;
@@ -417,4 +422,27 @@ html body[data-scroll-locked] {
   .aid-dock-speech {
     opacity: 0;
   }
+}
+
+/* Градиент только на акцентных элементах: главная кнопка (вариант default у Button),
+   кнопка записи и капсула идущей записи. Радиальный свет сверху переходит в кобальт
+   и глубокий кобальт к низу, тонкий внутренний блик по верхнему краю. Без свечений
+   наружу и без фиолетово-розовых переходов. Текст стоит в средней части, где цвет
+   равен --primary (контраст белого 7:1 в светлой теме и 5:1 в тёмной). */
+.aid-accent-fill {
+  background-color: hsl(var(--primary));
+  background-image:
+    radial-gradient(120% 70% at 50% 0%, hsl(var(--primary-light) / 0.9) 0%, hsl(var(--primary-light) / 0) 60%),
+    linear-gradient(180deg, hsl(var(--primary)) 40%, hsl(var(--primary-deep)) 100%);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.22),
+    inset 0 -1px 0 hsl(var(--primary-deep) / 0.6);
+}
+
+.aid-accent-fill:hover {
+  filter: brightness(1.06);
+}
+
+.aid-accent-fill:active {
+  filter: brightness(0.96);
 }

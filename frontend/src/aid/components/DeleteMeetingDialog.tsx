@@ -28,11 +28,12 @@ export function DeleteMeetingDialog({ open, onOpenChange, title, onConfirm }: De
         </DialogDescription>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={busy}>
+            <Button variant="outline" size="main" disabled={busy}>
               {t('cancel')}
             </Button>
           </DialogClose>
           <Button
+            size="main"
             variant="destructive"
             disabled={busy}
             onClick={async () => {

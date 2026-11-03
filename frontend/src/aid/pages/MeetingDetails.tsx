@@ -85,7 +85,7 @@ function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyE
           <p>{error.message}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {onRetry && (
-              <Button variant="outline" onClick={onRetry}>
+              <Button variant="outline" size="main" onClick={onRetry}>
                 <ArrowClockwise />
                 {t('retry')}
               </Button>
@@ -240,22 +240,22 @@ function SilentRecording({
       <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
       <div className="mt-5 flex flex-wrap gap-3">
         {needModel ? (
-          <Button asChild>
+          <Button asChild size="main">
             <Link href="/settings?tab=transcription">{t('downloadModel')}</Link>
           </Button>
         ) : (
           canRetranscribe && (
-            <Button onClick={onRetranscribe}>
+            <Button size="main" onClick={onRetranscribe}>
               <ArrowClockwise />
               {t('retranscribe')}
             </Button>
           )
         )}
-        <Button variant="outline" onClick={onOpenFolder}>
+        <Button variant="outline" size="main" onClick={onOpenFolder}>
           <FolderOpen />
           {t('openRecordingFolder')}
         </Button>
-        <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={onDelete}>
+        <Button variant="ghost" size="main" className="text-destructive hover:text-destructive" onClick={onDelete}>
           <Trash />
           {t('delete')}
         </Button>
@@ -567,8 +567,9 @@ function MeetingDetailsContent() {
         <BackLink />
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
-            <Button variant="outline" onClick={() => void m.generateSummary()}>
-              <Sparkle className="text-primary-ink" />
+            // Главное действие страницы: 56 px и акцентный градиент
+            <Button size="main" onClick={() => void m.generateSummary()}>
+              <Sparkle />
               {t('generateSummary')}
             </Button>
           )}

@@ -9,7 +9,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        // Главная кнопка: сдержанный градиент кобальта (.aid-accent-fill в globals.css)
+        default: 'aid-accent-fill text-primary-foreground',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         // Вторичная кнопка бенто: заливка на ступень темнее (светлая) или светлее (тёмная), без рамки
         outline: 'bg-secondary text-secondary-foreground hover:bg-input',
@@ -21,6 +22,8 @@ const buttonVariants = cva(
         default: 'h-11 px-5',
         sm: 'h-11 px-4',
         lg: 'h-12 px-6 text-[15px]',
+        // Главные действия (пустые состояния, диалоги, «Сделать итоги»): не ниже 56 px, иконка 20 px
+        main: 'h-14 px-6 text-[15px]',
         xl: 'h-14 px-7 text-base',
         icon: 'h-11 w-11',
       },

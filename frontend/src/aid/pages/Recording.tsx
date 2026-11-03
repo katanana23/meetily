@@ -52,7 +52,7 @@ function NoSpeechHint() {
         <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
         <p className="mt-0.5 text-sm text-muted-foreground">{silenceCause(sound)}</p>
       </div>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="main" onClick={() => setOpen(true)}>
         <SpeakerHigh />
         {t('soundCheck')}
       </Button>
@@ -67,10 +67,10 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
     <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-card p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={onContinue}>
+        <Button variant="outline" size="main" onClick={onContinue}>
           {t('continueRecording')}
         </Button>
-        <Button variant="destructive" onClick={onStop}>
+        <Button variant="destructive" size="main" onClick={onStop}>
           <Stop />
           {t('stopRecording')}
         </Button>

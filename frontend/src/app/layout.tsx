@@ -37,7 +37,7 @@ import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
 import { installTauriEventGuard } from '@/aid/lib/tauri-events'
-import { syncWindowTheme } from '@/aid/lib/window-theme'
+import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -55,6 +55,7 @@ const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingP
 // и окно в цвет темы с самого старта
 if (isAidUI) {
   installTauriEventGuard()
+  if (typeof window !== 'undefined') markTitlebarOverlay()
   void syncWindowTheme()
 }
 
@@ -306,7 +307,8 @@ export default function RootLayout({
                                   <AidTooltipProvider delayDuration={300}>
                                     {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
                                     <AidRecordingControls>
-                                      <div className="flex h-screen gap-2 overflow-hidden bg-background p-2">
+                                      {/* data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
+                                      <div data-tauri-drag-region className="flex h-screen gap-2 overflow-hidden bg-background p-2">
                                         <AidSidebar />
                                         <div className="relative flex min-w-0 flex-1">
                                           {children}

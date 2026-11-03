@@ -46,8 +46,15 @@ export function Page({ header, children, width = 'max-w-[880px]', className }: P
     <main className={cn('flex h-full min-w-0 flex-1 flex-col bg-background', className)}>
       {header && (
         // Бенто: шапка на фоне окна без линии; под прокрученным контентом лёгкая тень вместо рамки
-        <header className={cn('aid-gutter relative z-10 shrink-0 transition-shadow', scrolled && 'shadow-[0_8px_16px_-12px_hsl(var(--foreground)/0.25)]')}>
-          <div className={cn('mx-auto w-full px-6 pb-4 pt-4', width)}>{header}</div>
+        // data-tauri-drag-region: поля шапки перетаскивают окно (кнопки и текст внутри нет),
+        // двойной клик по ним разворачивает окно
+        <header
+          data-tauri-drag-region
+          className={cn('aid-gutter relative z-10 shrink-0 transition-shadow', scrolled && 'shadow-[0_8px_16px_-12px_hsl(var(--foreground)/0.25)]')}
+        >
+          <div data-tauri-drag-region className={cn('mx-auto w-full px-6 pb-4 pt-4', width)}>
+            {header}
+          </div>
         </header>
       )}
       <div ref={ref} className="aid-scroll min-h-0 flex-1 overflow-y-auto">

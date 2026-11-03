@@ -18,6 +18,16 @@ function inTauri(): boolean {
   return Boolean(w.__TAURI_INTERNALS__) && !w.__MEETILY_MOCK__;
 }
 
+/**
+ * macOS в Tauri: заголовок окна в режиме Overlay (tauri.conf.json), кнопки окна
+ * поверх нашего фона. Класс на <html> включает место под них в сайдбаре
+ * (.aid-titlebar-overlay). В браузере и на других системах места не нужно.
+ */
+export function markTitlebarOverlay() {
+  if (!inTauri()) return;
+  if (/Mac/i.test(navigator.platform || navigator.userAgent)) document.documentElement.classList.add('aid-titlebar-overlay');
+}
+
 export async function syncWindowTheme(mode: ThemeMode = getStoredTheme()) {
   if (!inTauri()) return;
   const color = WINDOW_BACKGROUND[mode];

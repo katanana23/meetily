@@ -42,7 +42,9 @@ export function AidSidebar() {
   return (
     // Плитка бенто: на тон светлее фона, радиус 20 px, без рамки
     <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-[20px] bg-card">
-      <div className="flex h-14 items-center gap-3 px-4">
+      {/* Верх сайдбара перетаскивает окно; в Tauri на macOS здесь место под кнопки окна (28 px) */}
+      <div data-tauri-drag-region className="h-0 shrink-0 [.aid-titlebar-overlay_&]:h-7" />
+      <div data-tauri-drag-region className="flex h-14 items-center gap-3 px-4">
         {/* Место под маскота 28 px: пока нейтральный знак (BrandMark) */}
         <BrandMark />
         <span className="text-[15px] font-semibold">{t('appName')}</span>

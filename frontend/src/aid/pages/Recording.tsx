@@ -80,7 +80,8 @@ function NoSpeechHint({ heard }: { heard: boolean }) {
   }
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-row bg-muted p-4" role="status">
-      <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
+      {/* Серым: красный на экране записи только у точки записи */}
+      <MicrophoneSlash className="size-5 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
         <p className="mt-0.5 text-sm text-muted-foreground">{silenceCause(sound)}</p>
@@ -100,11 +101,12 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-row bg-muted p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
-        <Button variant="outline" size="main" onClick={onContinue}>
+        <Button variant="ghost" size="main" onClick={onContinue}>
           {t('continueRecording')}
         </Button>
-        <Button variant="destructive" size="main" onClick={onStop}>
-          <Stop />
+        {/* Остановка не разрушительна (встреча сохранится): кнопка чернилами, красный только у знака */}
+        <Button size="main" onClick={onStop}>
+          <Stop className="text-record" />
           {t('stopRecording')}
         </Button>
       </div>

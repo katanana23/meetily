@@ -234,7 +234,7 @@
 }
 
 .aid-toaster [data-sonner-toast][data-type='warning'] [data-icon] {
-  color: hsl(32 95% 44%);
+  color: hsl(var(--foreground));
 }
 
 /* :root и data-styled: правило sonner для кнопки действия специфичнее нашего */

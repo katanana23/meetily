@@ -48,7 +48,7 @@ export function StatusThumb({ kind, className }: { kind: MeetingStatus; classNam
   const status = kind !== 'unknown' ? STATUS[kind] : null;
   const StatusIcon = status?.icon;
   return (
-    <span className={cn('flex size-14 shrink-0 items-center justify-center rounded-thumb bg-muted', className)} aria-hidden>
+    <span className={cn('flex size-14 shrink-0 items-center justify-center rounded-thumb bg-muted', className)} title={status?.label} aria-hidden>
       {kind === 'summarizing' ? <Spinner /> : StatusIcon ? <StatusIcon className={cn('size-6', status?.className)} /> : null}
     </span>
   );

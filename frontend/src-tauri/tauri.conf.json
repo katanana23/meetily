@@ -78,6 +78,24 @@
                             "allow": [
                                 {
                                     "path": "$APPDATA/*"
+                                },
+                                {
+                                    "path": "$VIDEO/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$VIDEO/aid-meetings-recordings/**"
+                                },
+                                {
+                                    "path": "$AUDIO/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$AUDIO/aid-meetings-recordings/**"
+                                },
+                                {
+                                    "path": "$DOCUMENT/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$DOCUMENT/aid-meetings-recordings/**"
                                 }
                             ]
                         }

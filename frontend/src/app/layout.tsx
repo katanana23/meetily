@@ -32,6 +32,8 @@ import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 import { AidToaster } from '@/aid/components/AidToaster'
 import { RecordDock } from '@/aid/components/RecordDock'
+import { TitleBar } from '@/aid/components/TitleBar'
+import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
@@ -62,11 +64,13 @@ if (isAidUI) {
   void syncWindowTheme()
 }
 
-// Оба шрифта пишут в одну переменную --font-ui, на body ставится класс только одного
+// Aid: SF Pro (системный шрифт macOS) через стек -apple-system в .aid-font
+// (globals.css); Inter запасной для Windows и Linux, в переменной --font-inter.
+// Оригинал: Source Sans 3 в --font-ui
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
   weight: ['400', '500', '600'],
-  variable: '--font-ui',
+  variable: '--font-inter',
   display: 'swap',
 })
 
@@ -95,6 +99,10 @@ function ConditionalImportDialog({
     return null;
   }
 
+  // Aid: своё окно импорта в бенто на тех же хуках оригинала (aid/components/ImportDialog)
+  if (isAidUI) {
+    return <AidImportDialog open={showImportDialog} onOpenChange={handleImportDialogClose} preselectedFile={importFilePath} />;
+  }
   return (
     <ImportAudioDialog
       open={showImportDialog}
@@ -279,7 +287,7 @@ export default function RootLayout({
         {isAidUI && <title>ShadeNotes</title>}
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
-      <body className={`${isAidUI ? inter.variable : sourceSans3.variable} font-sans antialiased`}>
+      <body className={`${isAidUI ? `${inter.variable} aid-font` : sourceSans3.variable} font-sans antialiased`}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -310,14 +318,18 @@ export default function RootLayout({
                                   <AidTooltipProvider delayDuration={300}>
                                     {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
                                     <AidRecordingControls>
-                                      {/* data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
-                                      <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
+                                      {/* Сверху полоса окна (кнопки окна, знак, название), ниже две плитки.
+                                          data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
+                                      <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
+                                      <TitleBar />
+                                      <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
                                         <AidSidebar />
                                         {/* Правая часть одной серой плиткой, как сайдбар (.aid-main в globals.css) */}
                                         <div className="aid-main relative flex min-w-0 flex-1 overflow-hidden rounded-tile">
                                           {children}
                                           <RecordDock />
                                         </div>
+                                      </div>
                                       </div>
                                     </AidRecordingControls>
                                   </AidTooltipProvider>

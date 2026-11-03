@@ -8,7 +8,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { Check, MicrophoneSlash, SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
+import Link from 'next/link';
+import { Check, MicrophoneSlash, SpeakerHigh, Stop, Warning, Waveform } from '@phosphor-icons/react';
+import { useConfig } from '@/contexts/ConfigContext';
+import { LANGUAGES } from '@/constants/languages';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
@@ -42,10 +45,38 @@ export const NO_SPEECH_HINT_SEC = 20;
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается. */
 export const LONG_SILENCE_SEC = 120;
 
-/** «Не слышу речи»: 20 с без единой осмысленной реплики (шум и галлюцинации не в счёт). */
-function NoSpeechHint() {
+/**
+ * «Не слышу речи»: 20 с без единой осмысленной реплики (шум и галлюцинации не в счёт).
+ * Две разные беды: детектор речь слышит, а распознавание текста не даёт (модель,
+ * язык), или речь вообще не доходит (микрофон, системный звук). Показываем, какая.
+ */
+function NoSpeechHint({ heard }: { heard: boolean }) {
   const [open, setOpen] = useState(false);
   const sound = useSoundState(true);
+  const { transcriptModelConfig, selectedLanguage } = useConfig();
+  if (heard) {
+    const model = [transcriptModelConfig?.provider, transcriptModelConfig?.model].filter(Boolean).join(' · ') || t('unknownModel');
+    const code = selectedLanguage || 'auto';
+    const language =
+      code === 'auto' ? t('languageAuto') : code === 'auto-translate' ? t('languageAutoTranslate') : (LANGUAGES.find((l) => l.code === code)?.name ?? code);
+    return (
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
+        <Warning className="size-5 shrink-0 text-destructive" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{t('heardNoTextTitle')}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {t('heardNoTextHint')} {t('recognitionModel')}: {model}. {t('recognitionLanguage')}: {language}.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="main">
+          <Link href="/settings?tab=transcription">
+            <Waveform />
+            {t('openTranscriptionSettings')}
+          </Link>
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
       <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
@@ -213,7 +244,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   return (
     <Page width="max-w-[840px]" header={header}>
       {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
-      {!showLongSilence && showNoSpeech && <NoSpeechHint />}
+      {!showLongSilence && showNoSpeech && <NoSpeechHint heard={live.vadSegments > 0} />}
 
       <ConsentNotice />
 

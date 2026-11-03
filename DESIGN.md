@@ -23,29 +23,29 @@ colors:
   danger-dark: "#F97066"
 typography:
   headline:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "-apple-system, \"SF Pro Display\", \"SF Pro Text\", Inter, system-ui, sans-serif"
     fontSize: "30px"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "-apple-system, \"SF Pro Display\", \"SF Pro Text\", Inter, system-ui, sans-serif"
     fontSize: "20px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   body:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "-apple-system, \"SF Pro Display\", \"SF Pro Text\", Inter, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.75
   label:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "-apple-system, \"SF Pro Display\", \"SF Pro Text\", Inter, system-ui, sans-serif"
     fontSize: "14px"
     fontWeight: 500
     lineHeight: 1.4
   caption:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "-apple-system, \"SF Pro Display\", \"SF Pro Text\", Inter, system-ui, sans-serif"
     fontSize: "12px"
     fontWeight: 500
     lineHeight: 1.4
@@ -150,8 +150,8 @@ components:
 
 ## Typography
 
-**Display Font:** Inter (с system-ui)
-**Body Font:** Inter (с system-ui), латиница и кириллица через next/font
+**Display Font:** SF Pro Display (системный шрифт macOS через `-apple-system`)
+**Body Font:** SF Pro Text (тот же стек); запасной Inter для Windows и Linux
 
 **Character:** одна гарнитура, иерархия держится размером и насыщенностью; табличные цифры у таймера и времени реплик.
 

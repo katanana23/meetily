@@ -266,13 +266,14 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         // Громче порога или не удалось измерить: «Не распознано» (audio-level.ts)
         let levelNote = 'не измерялся (есть текст)';
         // Пара фраз (меньше 15 слов). Короткая запись (меньше SHORT_RECORDING_SECONDS)
-        // это случайный старт и стоп: в корзину, её можно достать оттуда 7 дней.
+        // это случайный старт и стоп: не сохраняется и в корзину не идёт, файл звука
+        // остаётся в папке записей, как у оригинала при «не сохранять».
         // Длинная с парой фраз в общий список не идёт: «Не распознано»
         let trashShort = false;
         if (verdict === 'too-little') {
           if (liveRef.current.tracking && seconds.current > 0 && seconds.current < SHORT_RECORDING_SECONDS) {
             trashShort = true;
-            reason = `${reason}; запись короче ${SHORT_RECORDING_SECONDS} с, удаляем (папка в корзину)`;
+            reason = `${reason}; запись короче ${SHORT_RECORDING_SECONDS} с, не сохраняем (без корзины)`;
           } else {
             verdict = 'unrecognized';
             reason = `${reason}; запись длинная, сохраняем в «Не распознано»`;
@@ -352,7 +353,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         setFinishing('discarding');
         await handle(false);
         void purgeDiscarded();
-        const trashed = await moveRecordingToTrash(folder, name);
+        // В корзину только тишина; пара фраз просто не сохраняется
+        const trashed = trashShort ? null : await moveRecordingToTrash(folder, name);
         console.info(trashed ? `[aid] Папка пустой записи перенесена в корзину: ${trashed}` : `[aid] Папка пустой записи осталась на месте: ${folder}`);
         showNotice(verdict as DiscardNotice['verdict']);
         // Окно за другим приложением: системное уведомление, иначе карточку никто не увидит.

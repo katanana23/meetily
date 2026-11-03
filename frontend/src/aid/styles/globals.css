@@ -2,9 +2,14 @@
  * Токены ShadeNotes: одна светлая и одна тёмная тема, один акцент (кобальт).
  * Плоские поверхности без градиентов, стекла и свечений. Кнопка записи и
  * капсула монохромные (.aid-record) с красной точкой записи (--record).
- * Шрифт Inter (latin + cyrillic) подключается через next/font в app/layout.tsx
- * и попадает сюда переменной --font-inter.
+ * Шрифт SF Pro: системный шрифт macOS (-apple-system выбирает SF Pro Text или
+ * Display по размеру). В приложение он не встраивается (лицензия Apple), на Mac
+ * он и так есть. Запасной для Windows и Linux Inter из next/font (--font-inter).
  */
+
+.aid-font {
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', var(--font-inter), 'Helvetica Neue', system-ui;
+}
 
 @tailwind base;
 @tailwind components;
@@ -473,6 +478,19 @@ html body[data-scroll-locked] {
   .aid-pulse-now {
     animation: none;
   }
+}
+
+/* Иконка в кнопке с текстом на своей подложке: 4 px вокруг знака, скругление
+   вложенного элемента. На кобальтовой и красной заливке подложка светлая. */
+.aid-btn:not(.aid-btn-icon) > svg:not(.aid-spinner) {
+  box-sizing: content-box;
+  padding: 4px;
+  border-radius: var(--nested-radius);
+  background: hsl(var(--foreground) / 0.08);
+}
+
+.aid-btn-solid:not(.aid-btn-icon) > svg:not(.aid-spinner) {
+  background: hsl(0 0% 100% / 0.18);
 }
 
 /* Курсор печатной машинки в конце живого транскрипта (TranscriptList, live) */

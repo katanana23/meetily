@@ -19,6 +19,7 @@
 
     /* Плитка */
     --card: 240 9% 96%;
+    --tile-bg: var(--card);
     --card-foreground: 240 8% 5%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 8% 5%;
@@ -76,6 +77,7 @@
     --foreground: 240 4% 95%;
 
     --card: 240 5% 8%;
+    --tile-bg: var(--card);
     --card-foreground: 240 4% 95%;
     --popover: 240 5% 12%;
     --popover-foreground: 240 4% 95%;
@@ -432,6 +434,44 @@ html body[data-scroll-locked] {
   }
   .aid-dock-speech {
     opacity: 0;
+  }
+}
+
+/* Правая часть окна: одна серая плитка, как сайдбар (app/layout.tsx). Внутри неё
+   свои ступени тона: блоки (итоги, настройки, карточки) на ступень светлее плитки,
+   наведение и поля ещё на ступень. Поэтому здесь переопределены --card и --muted:
+   компоненты внутри берут bg-card и bg-muted как обычно. Фон самой плитки берёт
+   значение --tile-bg, вычисленное на :root (до переопределения). */
+.aid-main {
+  background: hsl(var(--tile-bg));
+  --card: 240 10% 92%;
+  --muted: 240 9% 88%;
+  --secondary: 240 9% 88%;
+  --accent: 240 9% 88%;
+}
+
+.dark .aid-main {
+  --card: 240 5% 12%;
+  --muted: 240 6% 16%;
+  --secondary: 240 6% 16%;
+  --accent: 240 6% 16%;
+  --input: 240 6% 21%;
+}
+
+/* Текущая полоса «Пульса разговора» (LivePulse): мерцает, пока идёт запись */
+.aid-pulse-now {
+  animation: aid-pulse-now 1.4s ease-in-out infinite;
+}
+
+@keyframes aid-pulse-now {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-pulse-now {
+    animation: none;
   }
 }
 

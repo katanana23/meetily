@@ -19,6 +19,7 @@ import { Page } from '@/aid/components/Page';
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
+import { LivePulse } from '@/aid/components/LivePulse';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
@@ -233,6 +234,8 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
           {t('transcriptionLagging')}
         </p>
       )}
+
+      <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
       <section className="pt-2" aria-label={t('liveTranscript')}>
         {segments.length === 0 ? (

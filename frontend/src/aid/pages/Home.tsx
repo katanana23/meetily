@@ -192,7 +192,7 @@ function UnrecognizedSection({
   const { betaFeatures } = useConfig();
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
   return (
-    <section className="mt-2 rounded-tile bg-card p-2" aria-label={t('unrecognizedSection')}>
+    <section className="mt-4" aria-label={t('unrecognizedSection')}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -453,18 +453,19 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Alert>
       ) : (
         <div className={blocker || startError ? 'mt-2' : ''}>
-          {/* Плитка списка: поиск и строки встреч внутри, отступ 8 px, вложенный радиус */}
-          <section aria-label={t('meetingsList')} className="rounded-tile bg-card p-2">
+          {/* Список прямо на серой плитке правой части: поиск и строки встреч */}
+          <section aria-label={t('meetingsList')}>
           {showSearch && (
             <div className="relative mb-2">
-              <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              {/* Лупа контуром (bold): залитая рисуется сплошным диском и выглядит грубо */}
+              <MagnifyingGlass weight="bold" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('searchMeetings')}
                 aria-label={t('searchMeetings')}
-                className="bg-muted pl-12"
+                className="rounded-tile bg-muted pl-12"
                 disabled={state.kind !== 'ready'}
               />
             </div>
@@ -495,7 +496,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
           {state.kind === 'ready' && search && groups.main.length > 0 && filtered.length === 0 && search.pending === 0 && (
             <div className="flex flex-col items-center px-6 py-10 text-center">
-              <MagnifyingGlass className="size-5 text-muted-foreground" aria-hidden />
+              <MagnifyingGlass weight="bold" className="size-5 text-muted-foreground" aria-hidden />
               <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
               <p className="mt-1 text-[15px] text-muted-foreground">{t('nothingFoundHint')}</p>
             </div>

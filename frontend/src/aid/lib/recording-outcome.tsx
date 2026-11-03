@@ -35,6 +35,27 @@ import { t } from '@/aid/strings';
  */
 export const NOTICE_MS = 8_000;
 export const NOTICE_MAX_MS = 30_000;
+/**
+ * Ключ sessionStorage: запись сохранена в «Не распознано», открывать её не нужно.
+ * Оригинальный useRecordingStop через 2 с после сохранения сам переходит на страницу
+ * встречи (?source=recording); страница встречи Aid по этой пометке сразу
+ * возвращает туда, где был пользователь, а не показывает «Речь не распознана».
+ */
+export const STAY_KEY = 'aid.stayAfterSave';
+
+/** Пометка «не открывать встречу» свежая (поставлена в последние 15 с): куда вернуться или null. */
+export function takeStayPath(): string | null {
+  try {
+    const raw = sessionStorage.getItem(STAY_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(STAY_KEY);
+    const value = JSON.parse(raw) as { at: number; path: string };
+    return Date.now() - value.at < 15_000 ? value.path || '/' : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Запись короче этого с парой фраз (меньше 15 слов) считается случайной и уходит в корзину. */
 export const SHORT_RECORDING_SECONDS = 30;
 /** Ключ sessionStorage: итог последней записи для страницы встречи (только Aid). */
@@ -50,6 +71,8 @@ export interface LiveSpeech {
   /** Секунда записи (без пауз), когда последний раз была речь. */
   lastSpeechAt: number | null;
   recognitionFailed: boolean;
+  /** Секунды записи, когда детектор или распознавание слышали речь (для «Пульса разговора»). */
+  speechTimes: number[];
 }
 
 export interface StoredOutcome {
@@ -63,7 +86,8 @@ type StopHandler = (save: boolean) => Promise<void>;
 
 /** Запись не сохранена: короткая карточка у кнопки записи вместо тоста, с крестиком. */
 export interface DiscardNotice {
-  verdict: 'no-speech' | 'too-little';
+  /** no-speech и too-little: запись не сохранена; unrecognized: сохранена в «Не распознано». */
+  verdict: 'no-speech' | 'too-little' | 'unrecognized';
   /** Причина задержать карточку: 'hover', 'focus', 'dialog'. */
   hold: (reason: string, on: boolean) => void;
   dismiss: () => void;
@@ -75,9 +99,11 @@ interface Ctx {
   finishing: 'judging' | 'checking-sound' | 'discarding' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
   notice: DiscardNotice | null;
+  /** Запись тихо сохраняется в «Не распознано»: экран «Сохранено» не показывается. */
+  quiet: boolean;
 }
 
-const EMPTY: LiveSpeech = { tracking: false, vadSegments: 0, textSegments: 0, lastSpeechAt: null, recognitionFailed: false };
+const EMPTY: LiveSpeech = { tracking: false, vadSegments: 0, textSegments: 0, lastSpeechAt: null, recognitionFailed: false, speechTimes: [] };
 const RecordingOutcomeContext = createContext<Ctx | null>(null);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -129,6 +155,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const seconds = useRef(0);
   const busy = useRef(false);
   const [notice, setNotice] = useState<DiscardNotice | null>(null);
+  const [quiet, setQuiet] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Время показа карточки: остаток, момент запуска (null на паузе) и жёсткий срок. */
   const countdown = useRef<{ remaining: number; startedAt: number | null; hardStop: number } | null>(null);
@@ -292,8 +319,24 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         }
 
         if (!isDiscarded(verdict) && !trashShort) {
-          // «Не распознано»: встреча сохраняется, но в общий список не попадает (раздел внизу)
-          if (verdict === 'unrecognized') markUnrecognized(folder);
+          if (verdict === 'unrecognized') {
+            // «Не распознано»: встреча сохраняется, но в общий список не попадает
+            // (раздел внизу). Промежуточных экранов нет: ни «Сохранено», ни страницы
+            // встречи с «Речь не распознана»; пользователь остаётся, где был, и видит
+            // короткую карточку с крестиком
+            markUnrecognized(folder);
+            setQuiet(true);
+            try {
+              sessionStorage.setItem(STAY_KEY, JSON.stringify({ at: Date.now(), path: window.location.pathname + window.location.search }));
+            } catch {
+              /* без пометки откроется страница встречи, как раньше */
+            }
+            setFinishing(null);
+            await handle(true);
+            showNotice('unrecognized');
+            setTimeout(() => setQuiet(false), 4000);
+            return verdict;
+          }
           setFinishing(null);
           await handle(true);
           return verdict;
@@ -337,6 +380,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       subscribe('recording-started', () => {
         // Новая запись: карточка о прошлой закрывается
         closeNotice();
+        setQuiet(false);
         segs.current = [];
         vadDurations.current = [];
         queueTotal.current = null;
@@ -347,7 +391,11 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       subscribe<{ chunks_queued?: number; duration?: number }>('transcription-progress', (e) => {
         const queued = Number(e.payload?.chunks_queued ?? 0);
         if (typeof e.payload?.duration === 'number') vadDurations.current = [...vadDurations.current, e.payload.duration];
-        update({ vadSegments: Math.max(liveRef.current.vadSegments, queued), lastSpeechAt: seconds.current });
+        update({
+          vadSegments: Math.max(liveRef.current.vadSegments, queued),
+          lastSpeechAt: seconds.current,
+          speechTimes: [...liveRef.current.speechTimes.slice(-2000), seconds.current],
+        });
       }),
       subscribe<{ text?: string; duration?: number }>('transcript-update', (e) => {
         // Для подсчёта слов исходный текст: ядро не подписывает спикеров, а эвристика
@@ -357,7 +405,11 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const duration = typeof e.payload?.duration === 'number' ? e.payload.duration : null;
         segs.current = [...segs.current, { text: raw, duration }];
         if (/\p{L}/u.test(text) && !isHallucination(text)) {
-          update({ textSegments: liveRef.current.textSegments + 1, lastSpeechAt: seconds.current });
+          update({
+            textSegments: liveRef.current.textSegments + 1,
+            lastSpeechAt: seconds.current,
+            speechTimes: [...liveRef.current.speechTimes.slice(-2000), seconds.current],
+          });
         }
       }),
       subscribe<{ total_chunks?: number }>('transcription-queue-complete', (e) => {
@@ -378,7 +430,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     return () => offs.forEach((off) => off());
   }, [update, closeNotice]);
 
-  const value = useMemo(() => ({ live, finishing, finish, notice }), [live, finishing, finish, notice]);
+  const value = useMemo(() => ({ live, finishing, finish, notice, quiet }), [live, finishing, finish, notice, quiet]);
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;
 }
 

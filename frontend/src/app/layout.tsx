@@ -313,7 +313,8 @@ export default function RootLayout({
                                       {/* data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
                                       <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
                                         <AidSidebar />
-                                        <div className="relative flex min-w-0 flex-1">
+                                        {/* Правая часть одной серой плиткой, как сайдбар (.aid-main в globals.css) */}
+                                        <div className="aid-main relative flex min-w-0 flex-1 overflow-hidden rounded-tile">
                                           {children}
                                           <RecordDock />
                                         </div>

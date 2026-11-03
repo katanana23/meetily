@@ -6,13 +6,14 @@
 
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ArrowClockwise,
+  Check,
   CaretDown,
   ClipboardText,
   FolderOpen,
@@ -35,7 +36,7 @@ import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
-import { readStoredOutcome } from '@/aid/lib/recording-outcome';
+import { readStoredOutcome, takeStayPath } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
   summaryForPage,
@@ -291,43 +292,67 @@ function SummaryBlock({
 /** Копирование и экспорт в одном месте: транскрипт и итоги, текстом или Markdown. */
 /**
  * «Копировать» одним нажатием, без меню: текстом итоги (если есть) и транскрипт
- * целиком. Раньше нужно было выбрать формат в меню, это лишний шаг.
+ * целиком. Отклик на самой кнопке: на 1,5 с она становится «Скопировано» с
+ * галочкой, тост не нужен. То же по ⌘⇧C (Ctrl+Shift+C не на Mac) на странице встречи.
  */
 function CopyButton({ disabled, getText }: { disabled: boolean; getText: () => Promise<string> }) {
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    setBusy(true);
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [hotkey, setHotkey] = useState('⌘⇧C');
+  useEffect(() => {
+    if (!/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setHotkey('Ctrl+Shift+C');
+  }, []);
+  const run = useCallback(async () => {
+    if (disabled) return;
+    setState('busy');
     try {
       const ok = await copyToClipboard(await getText());
-      if (ok) aidToast.success(t('copied'));
-      else aidToast.error(t('copyFailed'));
+      if (!ok) throw new Error('copy');
+      setState('done');
+      setTimeout(() => setState('idle'), 1500);
     } catch {
+      setState('idle');
       aidToast.error(t('copyFailed'));
-    } finally {
-      setBusy(false);
     }
-  };
+  }, [disabled, getText]);
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey || e.code !== 'KeyC') return;
+      // Выделенный текст копируется как обычно, сочетание без выделения копирует всё
+      if (window.getSelection()?.toString()) return;
+      e.preventDefault();
+      void runRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const button = (
     <Button
       variant="outline"
       size="main"
-      disabled={disabled || busy}
+      disabled={disabled || state === 'busy'}
       onClick={() => void run()}
+      aria-keyshortcuts="Meta+Shift+C Control+Shift+C"
       aria-label={disabled ? `${t('copy')}: ${t('nothingToCopy')}` : undefined}
+      className="min-w-[180px]"
     >
-      {busy ? <Spinner tone="inherit" /> : <ClipboardText />}
-      {t('copy')}
+      {state === 'busy' ? <Spinner tone="inherit" /> : state === 'done' ? <Check weight="bold" /> : <ClipboardText />}
+      <span aria-live="polite">{state === 'done' ? t('copiedShort') : t('copy')}</span>
     </Button>
   );
-  if (!disabled) return button;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {button}
-        </span>
+        {disabled ? (
+          <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {button}
+          </span>
+        ) : (
+          button
+        )}
       </TooltipTrigger>
-      <TooltipContent>{t('nothingToCopy')}</TooltipContent>
+      <TooltipContent>{disabled ? t('nothingToCopy') : `${t('copyAllHint')} · ${hotkey}`}</TooltipContent>
     </Tooltip>
   );
 }
@@ -394,11 +419,18 @@ function MeetingDetailsContent() {
   const shownTitle = meta ? titleForDisplay(meta.title, fromContent) : '';
   const segmentsLabel = useMemo(() => `${formatNumber(m.total)} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
 
+  // Запись тихо сохранена в «Не распознано»: оригинальный хук всё равно открыл её
+  // страницу. Возвращаем пользователя туда, где он был (recording-outcome.tsx)
+  const [stayPath] = useState(() => (params.get('source') === 'recording' && typeof window !== 'undefined' ? takeStayPath() : null));
+  useEffect(() => {
+    if (stayPath) router.replace(stayPath, { scroll: false });
+  }, [stayPath, router]);
+
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
   useEffect(() => {
-    if (meetingId && params.get('source')) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
-  }, [meetingId, params, router]);
+    if (!stayPath && meetingId && params.get('source')) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
+  }, [meetingId, params, router, stayPath]);
 
   useEffect(() => {
     if (shownTitle) document.title = `${shownTitle} · ${t('appName')}`;
@@ -407,6 +439,8 @@ function MeetingDetailsContent() {
     };
   }, [shownTitle]);
 
+  // Уходим обратно, страницу встречи не показываем даже на мгновение
+  if (stayPath) return null;
   if (m.meeting.kind === 'loading') return <LoadingState />;
 
   if (m.meeting.kind === 'not-found') {
@@ -485,8 +519,8 @@ function MeetingDetailsContent() {
         <BackLink />
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
-            // Главное действие страницы: 56 px, плоский кобальт
-            <Button size="main" onClick={() => void m.generateSummary()}>
+            // 56 px, серая, как «Копировать»: на странице встречи главный транскрипт
+            <Button variant="outline" size="main" onClick={() => void m.generateSummary()}>
               <Sparkle />
               {t('generateSummary')}
             </Button>
@@ -527,9 +561,9 @@ function MeetingDetailsContent() {
       ) : (
         <>
           {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
-          {/* Транскрипт одной плиткой. Сверху 10 px: строка 28 px сама даёт ~6 px над
-              буквами, вместе это те же 16 px, что слева от времени */}
-          <section aria-label={t('transcript')} className="rounded-tile bg-card px-4 py-2.5">
+          {/* Транскрипт прямо на серой плитке правой части: время на одной линии с
+              названием и кнопкой «Назад» (16 px от края плитки) */}
+          <section aria-label={t('transcript')} className="pt-2">
             <TranscriptList segments={m.segments} />
             {m.hasMore && (
               <div className="flex justify-center pt-6">

@@ -1,6 +1,6 @@
-// Главная кнопка записи: всегда под рукой. На главной внизу по центру области
-// контента, на остальных страницах в правом нижнем углу: там колонка текста
-// прижата влево, и кнопка не закрывает реплики и таблицы итогов.
+// Главная кнопка записи: всегда под рукой, внизу по центру серой плитки правой
+// части на всех страницах. Последние строки страницы не закрывает: у страницы
+// запас снизу 128 px (Page, pb-32).
 // Состояния:
 // - покой: круглая кнопка 72 px, монохром с красной точкой, кольцо мягко «дышит»;
 // - запись: капсула того же цвета с точкой записи, таймером, паузой и «Остановить»;
@@ -40,9 +40,14 @@ function ActivityRing({ pulse, paused }: { pulse: number; paused: boolean }) {
   );
 }
 
+const COPY = {
+  'no-speech': { title: 'noSpeechNoticeTitle', hint: 'noSpeechNoticeHint' },
+  'too-little': { title: 'tooLittleNoticeTitle', hint: 'tooLittleNoticeHint' },
+  unrecognized: { title: 'unrecognizedNoticeTitle', hint: 'unrecognizedNoticeHint' },
+} as const;
+
 function NoticeCard({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
-  const silent = notice.verdict === 'no-speech';
   const { hold } = notice;
   // Esc закрывает (если не открыт диалог проверки звука)
   useEffect(() => {
@@ -82,9 +87,9 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
       >
         <X weight="bold" />
       </Button>
-      <p className="text-[15px] font-semibold">{silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle')}</p>
-      <p className="mt-0.5 text-sm text-muted-foreground">{silent ? t('noSpeechNoticeHint') : t('tooLittleNoticeHint')}</p>
-      {silent && (
+      <p className="text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>
+      <p className="mt-0.5 text-sm text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
+      {notice.verdict !== 'too-little' && (
         <Button variant="outline" className="mt-3 h-10 rounded-full px-4" onClick={() => setSoundCheck(true)}>
           <SpeakerHigh />
           {t('soundCheck')}
@@ -108,7 +113,7 @@ export function RecordDock() {
   };
 
   return (
-    <div className={cn('pointer-events-none absolute inset-x-0 bottom-6 z-30 flex px-4', pathname === '/' ? 'justify-center' : 'justify-end pr-6')}>
+    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-4">
       <div key={state} className="aid-dock-in pointer-events-auto">
         {state === 'idle' && <RecordButton />}
 

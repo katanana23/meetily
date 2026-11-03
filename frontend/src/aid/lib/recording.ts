@@ -127,7 +127,10 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  const phase: FinishPhase | null = outcome.finishing === 'discarding'
+  // Тихое сохранение в «Не распознано»: ни «Сохраняем», ни «Сохранено», сразу список
+  const phase: FinishPhase | null = outcome.quiet && (status === RecordingStatus.SAVING || status === RecordingStatus.COMPLETED)
+    ? null
+    : outcome.finishing === 'discarding'
     ? 'discarding'
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS
       ? 'transcribing'

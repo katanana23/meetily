@@ -43,7 +43,7 @@ interface PageProps {
 export function Page({ header, children, width = 'max-w-[1120px]', className }: PageProps) {
   const { ref, scrolled } = useScrollActivity<HTMLDivElement>();
   return (
-    <main className={cn('flex h-full min-w-0 flex-1 flex-col bg-background', className)}>
+    <main className={cn('flex h-full min-w-0 flex-1 flex-col', className)}>
       {header && (
         // Бенто: шапка на фоне окна без линии; под прокрученным контентом лёгкая тень вместо рамки
         // data-tauri-drag-region: поля шапки перетаскивают окно (кнопки и текст внутри нет),
@@ -58,9 +58,9 @@ export function Page({ header, children, width = 'max-w-[1120px]', className }: 
         </header>
       )}
       <div ref={ref} className="aid-scroll min-h-0 flex-1 overflow-y-auto">
-        {/* Бенто: плитки в 8 px от сайдбара (отступ каркаса), колонка прижата влево.
+        {/* Страница внутри серой плитки (.aid-main): 16 px от её края, как у шапки.
             pb-32: кнопка записи плавает над контентом и не закрывает последнюю строку */}
-        <div className={cn('w-full pb-32', header ? 'pt-1' : 'pt-2', width)}>{children}</div>
+        <div className={cn('w-full px-4 pb-32', header ? 'pt-1' : 'pt-4', width)}>{children}</div>
       </div>
     </main>
   );

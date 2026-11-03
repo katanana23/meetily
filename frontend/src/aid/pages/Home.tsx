@@ -20,6 +20,7 @@ import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
+import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
@@ -357,7 +358,11 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     if (state.kind !== 'ready') return { main: [], unrecognized: [], legacyEmpty: [] };
     // Помечена «не распознано» после стопа (детектор слышал речь, осмысленного текста нет)
     // или старая запись без единой реплики; возвращённые через «Вернуть» остаются в общем списке
-    const aside = (m: MeetingListItem) => !isKept(m) && (isUnrecognized(m) || m.transcriptCount === 0);
+    // Пара фраз (меньше 15 слов по подробностям строки) тоже уходит вниз: из неё не
+    // собрать ни транскрипт для чтения, ни итоги
+    const aside = (m: MeetingListItem) =>
+      !isKept(m) &&
+      (isUnrecognized(m) || m.transcriptCount === 0 || (m.details !== null && m.details.status !== 'unknown' && m.details.words < MIN_MEANINGFUL_WORDS));
     const unrecognized = state.meetings.filter(aside);
     return {
       main: state.meetings.filter((m) => !aside(m)),

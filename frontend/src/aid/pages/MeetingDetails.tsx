@@ -15,12 +15,9 @@ import {
   ArrowClockwise,
   CaretDown,
   ClipboardText,
-  FileMd,
   FolderOpen,
   MicrophoneSlash,
-  PencilSimple,
   Sparkle,
-  TextAlignLeft,
   Trash,
   Warning,
 } from '@phosphor-icons/react';
@@ -32,14 +29,6 @@ import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/aid/components/ui/dropdown-menu';
 import { Page } from '@/aid/components/Page';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { copyToClipboard } from '@/aid/lib/clipboard';
@@ -50,7 +39,6 @@ import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
   summaryForPage,
-  transcriptAsMarkdown,
   transcriptAsText,
   useMeeting,
   type FriendlyError,
@@ -60,7 +48,7 @@ import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
 import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
-import { contentTitle } from '@/aid/lib/speech';
+import { contentTitle, countWords, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -120,20 +108,20 @@ function Title({ shown, editable, onRename }: { shown: string; editable: string;
     );
   }
 
+  // Карандаша нет: само название кликабельно. Наведение подсвечивает его подложкой
+  // колодца, клик или Enter начинают переименование
   return (
-    <div className="flex items-start gap-1">
-      <h1 className="line-clamp-2 min-w-0 text-2xl font-semibold leading-tight tracking-tight" title={shown}>
+    <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight">
+      <button
+        type="button"
+        onClick={begin}
+        title={t('renameHint')}
+        aria-label={`${shown}. ${t('renameHint')}`}
+        className="-mx-2 line-clamp-2 max-w-full cursor-text rounded-nested px-2 py-1 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         {shown}
-      </h1>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={begin} aria-label={t('rename')}>
-            <PencilSimple />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{t('rename')}</TooltipContent>
-      </Tooltip>
-    </div>
+      </button>
+    </h1>
   );
 }
 
@@ -301,79 +289,46 @@ function SummaryBlock({
 }
 
 /** Копирование и экспорт в одном месте: транскрипт и итоги, текстом или Markdown. */
-function CopyMenu({
-  disabled,
-  getTranscriptText,
-  getTranscriptMarkdown,
-  summary,
-  title,
-}: {
-  disabled: boolean;
-  getTranscriptText: () => Promise<string>;
-  getTranscriptMarkdown: () => Promise<string>;
-  summary: string | null;
-  title: string;
-}) {
-  const run = async (get: () => string | Promise<string>) => {
+/**
+ * «Копировать» одним нажатием, без меню: текстом итоги (если есть) и транскрипт
+ * целиком. Раньше нужно было выбрать формат в меню, это лишний шаг.
+ */
+function CopyButton({ disabled, getText }: { disabled: boolean; getText: () => Promise<string> }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
     try {
-      const ok = await copyToClipboard(await get());
+      const ok = await copyToClipboard(await getText());
       if (ok) aidToast.success(t('copied'));
       else aidToast.error(t('copyFailed'));
     } catch {
       aidToast.error(t('copyFailed'));
+    } finally {
+      setBusy(false);
     }
   };
-
-  const trigger = (
-    <Button variant="outline" disabled={disabled} aria-label={disabled ? `${t('copy')}: ${t('nothingToCopy')}` : undefined}>
-      <ClipboardText />
+  const button = (
+    <Button
+      variant="outline"
+      size="main"
+      disabled={disabled || busy}
+      onClick={() => void run()}
+      aria-label={disabled ? `${t('copy')}: ${t('nothingToCopy')}` : undefined}
+    >
+      {busy ? <Spinner tone="inherit" /> : <ClipboardText />}
       {t('copy')}
-      <CaretDown className="!size-4 text-muted-foreground" aria-hidden />
     </Button>
   );
-
-  if (disabled) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {trigger}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{t('nothingToCopy')}</TooltipContent>
-      </Tooltip>
-    );
-  }
-
+  if (!disabled) return button;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuLabel>{t('transcript')}</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => void run(getTranscriptText)}>
-          <TextAlignLeft />
-          {t('copyAsText')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void run(getTranscriptMarkdown)}>
-          <FileMd />
-          {t('copyAsMarkdown')}
-        </DropdownMenuItem>
-        {summary && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t('summary')}</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => void run(() => markdownToPlain(summary))}>
-              <TextAlignLeft />
-              {t('copyAsText')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void run(() => (/^#\s/.test(summary) ? summary : `# ${title}\n\n${summary}`))}>
-              <FileMd />
-              {t('copyAsMarkdown')}
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {button}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{t('nothingToCopy')}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -384,7 +339,7 @@ function IconAction({ label, onClick, children, destructive }: { label: string; 
         <Button
           variant="ghost"
           size="icon"
-          className={cn('text-muted-foreground', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-14 text-muted-foreground', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={label}
         >
@@ -492,9 +447,14 @@ function MeetingDetailsContent() {
   const facts = [date, duration, segmentsLabel].filter(Boolean).join(' · ');
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
   const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
+  // Короткая запись (меньше 15 слов): итоги из неё не собрать, поэтому ни блока
+  // итогов, ни «Сделать итоги», ни «Сделать заново»: модель заполнила бы разделы
+  // заглушками «Ничего не отмечено»
+  const tooShort = !m.hasMore && countWords(m.segments.map((x) => x.text).join(' ')) < MIN_MEANINGFUL_WORDS;
+  const showSummary = !empty && !tooShort;
   // «Сделать итоги» в шапке, только пока итогов нет: ход генерации, ошибка
   // и «Сделать заново» показываются в блоке итогов над транскриптом
-  const showGenerate = !empty && m.summary.kind === 'empty';
+  const showGenerate = showSummary && m.summary.kind === 'empty';
 
   const rename = async (title: string) => {
     await renameMeeting(meta.id, title);
@@ -531,12 +491,13 @@ function MeetingDetailsContent() {
               {t('generateSummary')}
             </Button>
           )}
-          <CopyMenu
+          <CopyButton
             disabled={empty}
-            title={shownTitle}
-            summary={summaryReady}
-            getTranscriptText={async () => transcriptAsText(await m.loadAll())}
-            getTranscriptMarkdown={async () => transcriptAsMarkdown(shownTitle, await m.loadAll())}
+            getText={async () => {
+              const transcript = transcriptAsText(await m.loadAll());
+              const summaryText = showSummary && summaryReady ? markdownToPlain(summaryForPage(summaryReady, shownTitle)) : null;
+              return summaryText ? `${shownTitle}\n\n${t('summary')}\n${summaryText}\n\n${t('transcript')}\n${transcript}` : transcript;
+            }}
           />
           <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
             <FolderOpen />
@@ -565,9 +526,10 @@ function MeetingDetailsContent() {
         />
       ) : (
         <>
-          <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />
-          {/* Транскрипт одной плиткой: 16 px внутри, как у остальных плиток */}
-          <section aria-label={t('transcript')} className="rounded-tile bg-card p-4">
+          {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
+          {/* Транскрипт одной плиткой. Сверху 10 px: строка 28 px сама даёт ~6 px над
+              буквами, вместе это те же 16 px, что слева от времени */}
+          <section aria-label={t('transcript')} className="rounded-tile bg-card px-4 py-2.5">
             <TranscriptList segments={m.segments} />
             {m.hasMore && (
               <div className="flex justify-center pt-6">

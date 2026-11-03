@@ -119,7 +119,11 @@ function blocksToMarkdown(blocks: BlockNoteBlock[], depth = 0): string {
 
 // Заглушки, которые модель пишет в пустой раздел итогов: такой раздел не показываем
 const PLACEHOLDER =
-  /^(?:ничего(?:\s+(?:не\s+)?(?:было\s+)?(?:отмечено|обсуждалось|зафиксировано|принято|решено|назначено|выявлено|упоминалось))?|нет(?:\s+(?:данных|информации|решений|задач|пунктов|вопросов|рисков|блокеров))?|не\s+(?:указано|указаны|отмечено|отмечены|обсуждалось|обсуждались|зафиксировано|выявлено|выявлены|определено|упоминалось|упоминались|назначено|назначены|принято|приняты)|отсутству(?:ет|ют)|пока\s+нет|нет\s+данных|n\/?a|none(?:\s+(?:noted|mentioned|identified|recorded))?|not\s+(?:mentioned|discussed|specified|applicable)|no\s+(?:decisions|action\s+items|items|risks|blockers)(?:\s+(?:noted|recorded|mentioned|identified))?|tbd|[-–—]+)$/i;
+  /^(?:(?:в\s+этом\s+разделе|по\s+этому\s+разделу|здесь|пока)\s+)?(?:ничего(?:\s+(?:не\s+)?(?:было\s+)?(?:отмечено|обсуждалось|зафиксировано|принято|решено|назначено|выявлено|упоминалось))?|нет(?:\s+(?:данных|информации|решений|задач|пунктов|вопросов|рисков|блокеров))?|не\s+(?:указано|указаны|отмечено|отмечены|обсуждалось|обсуждались|зафиксировано|выявлено|выявлены|определено|упоминалось|упоминались|назначено|назначены|принято|приняты)|отсутству(?:ет|ют)|пока\s+нет|нет\s+данных|n\/?a|none(?:\s+(?:noted|mentioned|identified|recorded))?|not\s+(?:mentioned|discussed|specified|applicable)|no\s+(?:decisions|action\s+items|items|risks|blockers)(?:\s+(?:noted|recorded|mentioned|identified))?|tbd|[-–—]+)$/i;
+
+function isTableSeparator(line: string): boolean {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line);
+}
 
 function isPlaceholder(text: string): boolean {
   const core = text
@@ -138,7 +142,22 @@ function isPlaceholder(text: string): boolean {
  * и пустых строк. Раздел с непустым подразделом остаётся. Если пусто всё, null.
  */
 export function pruneEmptySections(md: string): string | null {
-  const lines = md.split('\n');
+  const lines = md
+    .split('\n')
+    // Раздел строкой «**Резюме** В этом разделе ничего не отмечено.»: жирная
+    // подпись и заглушка в одном абзаце, без заголовка. Такая строка убирается
+    .filter((line) => {
+      const m = /^\s*(?:\*\*|__)([^*_]+)(?:\*\*|__)\s*:?\s+(.+)$/.exec(line);
+      return !(m && isPlaceholder(m[2]));
+    })
+    // Строка таблицы, где осмысленна не больше одной ячейки из трёх и более
+    // («Нет данных | Нет данных | Нет данных | цитата | Нет данных»): пустая
+    .filter((line, i, all) => {
+      if (!line.includes('|') || isTableSeparator(line) || (i + 1 < all.length && isTableSeparator(all[i + 1]))) return true;
+      const cells = line.split('|').map((c) => c.trim()).filter(Boolean);
+      if (cells.length < 3) return true;
+      return cells.filter((c) => !isPlaceholder(c)).length > 1;
+    });
   type Node = { level: number; start: number; end: number; children: Node[]; own: number[] };
   const root: Node = { level: 0, start: -1, end: lines.length, children: [], own: [] };
   const stack: Node[] = [root];

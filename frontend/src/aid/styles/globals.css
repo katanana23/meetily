@@ -30,7 +30,6 @@
     --primary-ink: 233 68% 52%;
     /* Точка записи: красный, как у системного индикатора записи */
     --record: 4 77% 53%;
-    --record-hover: 4 72% 47%;
 
     --secondary: 240 10% 92%;
     --secondary-foreground: 240 8% 5%;
@@ -58,7 +57,11 @@
        Плитка стоит в окне с отступом --tile-gap, поэтому её радиус меньше на этот
        отступ; вложенный элемент стоит в плитке с отступом --inner-gap, его радиус
        меньше радиуса плитки на этот отступ. Кнопки и поля круглые (pill). */
-    --window-radius: 30px; /* окно macOS 26: 26 px давали «обрыв» у угла окна, по скриншоту с Mac +4 px */
+    /* Окно macOS 26 по замеру скриншота с Mac: скругление ≈ 17 pt (точка на
+       диагонали угла в 8 px от вершины при масштабе 1,65 px/pt). Плитка 17 − 8 =
+       9 pt: зазор до края окна одинаковый, 8 pt, и по краю, и в углу. С плиткой
+       22 pt зазор в углу вырастал до 14 pt («дыры»). */
+    --window-radius: 17px;
     --tile-gap: 8px;
     --tile-pad: 16px;
     --inner-gap: 8px;
@@ -83,7 +86,6 @@
     --primary-foreground: 0 0% 100%;
     --primary-ink: 233 92% 75%;
     --record: 4 90% 60%;
-    --record-hover: 4 90% 55%;
 
     --secondary: 240 6% 13%;
     --secondary-foreground: 240 4% 95%;
@@ -470,11 +472,10 @@ html body[data-scroll-locked] {
   background: hsl(var(--record));
 }
 
-/* Кнопка записи в покое: сплошной красный записи, белый микрофон. От круга
-   расходятся две волны (transform и opacity); при наведении и фокусе круг
-   раскрывается в капсулу с подписью «Записать ⌘⇧R». */
+/* Кнопка записи в покое: круглая, сплошной кобальт акцента (--primary), белый
+   микрофон, без градиента. От круга расходятся две волны (transform и opacity). */
 .aid-record-button {
-  background: hsl(var(--record));
+  background: hsl(var(--primary));
   color: #fff;
   box-shadow: 0 8px 18px -10px hsl(0 0% 0% / 0.5);
   transition:
@@ -483,39 +484,16 @@ html body[data-scroll-locked] {
 }
 
 .aid-record-button:hover {
-  background: hsl(var(--record-hover));
-}
-
-.aid-record-label {
-  max-width: 0;
-  margin-left: 0;
-  opacity: 0;
-  transition:
-    max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    margin-left 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.2s ease-out;
-}
-
-.group:hover .aid-record-label,
-.aid-record-button:focus-visible .aid-record-label {
-  max-width: 180px;
-  margin-left: 10px;
-  opacity: 1;
+  background: hsl(var(--primary) / 0.9);
 }
 
 .aid-record-wave {
-  background: hsl(var(--record) / 0.35);
+  background: hsl(var(--primary) / 0.3);
   animation: aid-record-wave 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
 .aid-record-wave-late {
   animation-delay: 1.3s;
-}
-
-.group:hover .aid-record-wave,
-.group:focus-within .aid-record-wave {
-  /* opacity здесь не сработает: её перебивает анимация волны */
-  visibility: hidden;
 }
 
 @keyframes aid-record-wave {
@@ -533,7 +511,6 @@ html body[data-scroll-locked] {
   .aid-record-wave {
     display: none;
   }
-  .aid-record-label,
   .aid-record-button {
     transition: none;
   }

@@ -1,5 +1,6 @@
-// Список реплик для чтения: время в узкой приглушённой колонке, выровненной
-// по правому краю; спикер (если есть) строкой над текстом и только когда
+// Список реплик для чтения: время в узкой приглушённой колонке по левому краю,
+// ширина колонки по самой длинной метке (0:00 или 1:02:03), поэтому слева от
+// времени ровно отступ плитки, как сверху; спикер (если есть) строкой над текстом и только когда
 // говорящий меняется; между сменами спикера отступ больше, чем внутри.
 // Ширина текста ограничена колонкой страницы (около 700 px).
 //
@@ -71,6 +72,7 @@ export const TranscriptList = memo(function TranscriptList({ segments, live = fa
   // Реплики, которые были при первом показе, не перепечатываются
   const initial = useRef<ReadonlySet<string> | null>(null);
   if (initial.current === null) initial.current = settledIds ?? new Set(segments.map((s) => s.id));
+  const timeCh = segments.reduce((w, s) => Math.max(w, segmentTime(s).length), 4);
   return (
     <ol className="text-[15px]" aria-live={live ? 'polite' : undefined}>
       {segments.map((s, i) => {
@@ -80,9 +82,10 @@ export const TranscriptList = memo(function TranscriptList({ segments, live = fa
         return (
           <li
             key={s.id}
-            className={cn('grid grid-cols-[3.5rem_1fr] gap-x-4', i === 0 ? '' : newSpeaker ? 'pt-6' : 'pt-2.5')}
+            style={{ gridTemplateColumns: `${timeCh}ch 1fr` }}
+            className={cn('grid items-baseline gap-x-4', i === 0 ? '' : newSpeaker ? 'pt-6' : 'pt-2.5')}
           >
-            <time className="tabular select-none text-right text-[13px] leading-7 text-muted-foreground">{segmentTime(s)}</time>
+            <time className="tabular select-none text-[13px] leading-7 text-muted-foreground">{segmentTime(s)}</time>
             <div className="min-w-0">
               {newSpeaker && <p className="text-[13px] font-semibold leading-7 text-foreground">{s.speaker}</p>}
               <p className="text-pretty leading-7 text-foreground/90">

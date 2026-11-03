@@ -35,6 +35,8 @@ import { t } from '@/aid/strings';
  */
 export const NOTICE_MS = 8_000;
 export const NOTICE_MAX_MS = 30_000;
+/** Запись короче этого с парой фраз (меньше 15 слов) считается случайной и уходит в корзину. */
+export const SHORT_RECORDING_SECONDS = 30;
 /** Ключ sessionStorage: итог последней записи для страницы встречи (только Aid). */
 export const OUTCOME_KEY = 'aid.recordingOutcome';
 
@@ -236,6 +238,19 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         // удаляется только запись, где и звук на уровне тишины, и текста нет.
         // Громче порога или не удалось измерить: «Не распознано» (audio-level.ts)
         let levelNote = 'не измерялся (есть текст)';
+        // Пара фраз (меньше 15 слов). Короткая запись (меньше SHORT_RECORDING_SECONDS)
+        // это случайный старт и стоп: в корзину, её можно достать оттуда 7 дней.
+        // Длинная с парой фраз в общий список не идёт: «Не распознано»
+        let trashShort = false;
+        if (verdict === 'too-little') {
+          if (liveRef.current.tracking && seconds.current > 0 && seconds.current < SHORT_RECORDING_SECONDS) {
+            trashShort = true;
+            reason = `${reason}; запись короче ${SHORT_RECORDING_SECONDS} с, удаляем (папка в корзину)`;
+          } else {
+            verdict = 'unrecognized';
+            reason = `${reason}; запись длинная, сохраняем в «Не распознано»`;
+          }
+        }
         if (isDiscarded(verdict)) {
           setFinishing('checking-sound');
           const measured = await measureRecordingLevel(folder, seconds.current || null);
@@ -276,7 +291,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
           /* страница встречи покажет общую причину */
         }
 
-        if (!isDiscarded(verdict)) {
+        if (!isDiscarded(verdict) && !trashShort) {
           // «Не распознано»: встреча сохраняется, но в общий список не попадает (раздел внизу)
           if (verdict === 'unrecognized') markUnrecognized(folder);
           setFinishing(null);

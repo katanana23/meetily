@@ -31,6 +31,8 @@ import { themeScript } from '@/aid/lib/theme'
 import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 import { AidToaster } from '@/aid/components/AidToaster'
+import { RecordDock } from '@/aid/components/RecordDock'
+import { AidRecordingControls } from '@/aid/lib/recording-controls'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
@@ -302,10 +304,16 @@ export default function RootLayout({
                               ) : isAidUI ? (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
-                                    <div className="flex h-screen overflow-hidden">
-                                      <AidSidebar />
-                                      {children}
-                                    </div>
+                                    {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
+                                    <AidRecordingControls>
+                                      <div className="flex h-screen gap-2 overflow-hidden bg-background p-2">
+                                        <AidSidebar />
+                                        <div className="relative flex min-w-0 flex-1">
+                                          {children}
+                                          <RecordDock />
+                                        </div>
+                                      </div>
+                                    </AidRecordingControls>
                                   </AidTooltipProvider>
                                 </AidIcons>
                               ) : (

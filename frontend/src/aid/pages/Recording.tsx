@@ -8,7 +8,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { CheckCircle, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
+import { CheckCircle, MicrophoneSlash, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
+import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
@@ -19,7 +20,7 @@ import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { toSegment } from '@/aid/lib/meeting';
-import { displayTitle, formatTimer } from '@/aid/lib/format';
+import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
@@ -29,10 +30,10 @@ interface RecordingViewProps {
   isPaused: boolean;
   phase: FinishPhase | null;
   duration: number;
-  busy: 'pause' | 'stop' | 'check' | null;
   live: LiveSpeech;
+  /** К списку встреч: запись продолжается, управление в кнопке записи внизу. */
+  onBack: () => void;
   onStop: () => void;
-  onTogglePause: () => void;
 }
 
 /** Через сколько секунд без единой осмысленной реплики показать «Не слышу речи». */
@@ -45,7 +46,7 @@ function NoSpeechHint() {
   const [open, setOpen] = useState(false);
   const sound = useSoundState(true);
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-border bg-card px-5 py-4" role="status">
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-card p-4" role="status">
       <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
@@ -63,7 +64,7 @@ function NoSpeechHint() {
 /** Долгая тишина после речи: предложить остановить, но не останавливать самим. */
 function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onContinue: () => void }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-border bg-card px-5 py-4" role="alert">
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-card p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
         <Button variant="outline" onClick={onContinue}>
@@ -122,7 +123,7 @@ function ConsentNotice() {
 
   if (!show) return null;
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-muted px-5 py-3">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-card px-4 py-3">
       <p className="text-sm">{t('consentNotice')}</p>
       <div className="flex gap-2">
         <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={() => void never()}>
@@ -151,7 +152,7 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, busy, live, onStop, onTogglePause }: RecordingViewProps) {
+export function RecordingView({ isPaused, phase, duration, live, onBack, onStop }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
@@ -175,9 +176,9 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
     const copy = PHASE[phase];
     return (
       <Page width="max-w-[840px]">
-        <Card className="mt-10 w-full px-8 py-14 text-center" role="status" aria-live="polite">
+        <Card className="mt-6 w-full px-6 py-12 text-center" role="status" aria-live="polite">
           {phase === 'opening' ? (
-            <CheckCircle className="mx-auto size-5 text-primary" aria-hidden />
+            <CheckCircle className="mx-auto size-5 text-primary-ink" aria-hidden />
           ) : (
             <Spinner className="mx-auto" />
           )}
@@ -188,33 +189,19 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
     );
   }
 
-  // Панель записи в неподвижной шапке: таймер и «Остановить» всегда под рукой
+  // Шапка: «Назад» к списку (запись идёт дальше), состояние и название.
+  // Таймер, пауза и «Остановить» в кнопке записи внизу (RecordDock).
   const header = (
-      <Card className="flex flex-wrap items-center justify-between gap-6 p-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5 text-sm font-medium text-muted-foreground">
-            <span
-              className={cn('size-2.5 rounded-full', isPaused ? 'bg-muted-foreground' : 'animate-pulse bg-destructive')}
-              aria-hidden
-            />
-            {isPaused ? t('paused') : t('recording')}
-          </div>
-          <p className="tabular mt-1 text-4xl font-semibold tracking-tight" aria-live="off">
-            {formatTimer(duration)}
-          </p>
-          {meetingTitle && <p className="mt-1 truncate text-sm text-muted-foreground">{displayTitle(meetingTitle)}</p>}
+    <div className="flex items-center gap-3">
+      <BackButton label={t('backFromRecording')} onClick={onBack} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <span className={cn('size-2.5 rounded-full', isPaused ? 'bg-muted-foreground' : 'aid-dock-dot bg-destructive')} aria-hidden />
+          {isPaused ? t('paused') : t('recording')}
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" size="xl" onClick={onTogglePause} disabled={busy !== null}>
-            {isPaused ? <Play /> : <Pause />}
-            {isPaused ? t('resumeRecording') : t('pauseRecording')}
-          </Button>
-          <Button variant="destructive" size="xl" onClick={onStop} disabled={busy !== null}>
-            {busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
-            {t('stopRecording')}
-          </Button>
-        </div>
-      </Card>
+        <h1 className="truncate text-2xl font-semibold tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
+      </div>
+    </div>
   );
 
   return (
@@ -225,7 +212,7 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
       <ConsentNotice />
 
       {problems.error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mb-2">
           <WarningCircle />
           <div>
             <AlertTitle>{problems.error.message}</AlertTitle>
@@ -244,7 +231,7 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
 
       <section className="pt-2" aria-label={t('liveTranscript')}>
         {segments.length === 0 ? (
-          <Card className="flex flex-col items-center px-8 py-12 text-center">
+          <Card className="flex flex-col items-center px-6 py-12 text-center">
             <SpeakerHigh className="size-5 text-muted-foreground" aria-hidden />
             <p className="mt-3 text-lg font-semibold">{t('waitingSpeech')}</p>
             <p className="mx-auto mt-1 max-w-md text-[15px] text-muted-foreground">{t('waitingSpeechHint')}</p>

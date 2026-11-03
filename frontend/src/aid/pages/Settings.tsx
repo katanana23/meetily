@@ -13,6 +13,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Subtitles } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
+import { BackButton } from '@/aid/components/BackButton';
 import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Switch } from '@/aid/components/ui/switch';
@@ -41,7 +42,7 @@ const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
 
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-5">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-medium">{title}</p>
         {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
@@ -140,12 +141,15 @@ function StorageRow() {
 
 function GeneralTab() {
   return (
-    <div className="space-y-6">
-      <Card className="divide-y divide-border">
+    // Бенто: каждая настройка отдельной плиткой, 8 px между плитками
+    <div className="space-y-2">
+      <Card>
         <NotificationsRow />
+      </Card>
+      <Card>
         <StorageRow />
       </Card>
-      <Card className="px-6 py-5">
+      <Card className="p-4">
         <Legacy className="aid-legacy-flat">
           <AnalyticsConsentSwitch />
         </Legacy>
@@ -165,17 +169,21 @@ function AboutTab() {
     invoke('open_external_url', { url }).catch((error) => aidToast.error(t('openLinkFailed'), { description: String(error) }));
 
   return (
-    <Card className="divide-y divide-border">
-      <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
-        {null}
-      </Row>
+    <div className="space-y-2">
+      <Card>
+        <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
+          {null}
+        </Row>
+      </Card>
+      <Card>
       <Row title={t('licenseTitle')} hint={t('licenseHint')}>
         <Button variant="outline" onClick={() => void openUrl(LICENSE_URL)}>
           <ArrowSquareOut />
           {t('license')}
         </Button>
       </Row>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -209,8 +217,11 @@ function SettingsContent() {
 
   const header = (
     <>
-      <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
-      <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1">
+      <div className="flex items-center gap-3">
+        <BackButton label={t('backToSettings')} href="/" />
+        <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
+      </div>
+      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
         <TabsList aria-label={t('navSettings')}>
           {TABS.map((x) => {
             const Icon = x.icon;

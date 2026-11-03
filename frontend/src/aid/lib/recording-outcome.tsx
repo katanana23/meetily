@@ -14,7 +14,6 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
@@ -22,6 +21,7 @@ import { toSegment } from './meeting';
 import { subscribe } from './tauri-events';
 import { isDiscarded, isHallucination, judgeRecording, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
 import { hasTranscriptionModel } from './model-check';
+import { keepRecording, markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
 
 /** Сколько ждать «Вернуть» у несохранённой записи. */
 export const RESTORE_WINDOW_MS = 10_000;
@@ -49,11 +49,21 @@ export interface StoredOutcome {
 
 type StopHandler = (save: boolean) => Promise<void>;
 
+/** Запись не сохранена: живое состояние у кнопки записи на 10 с вместо тоста. */
+export interface DiscardNotice {
+  verdict: 'no-speech' | 'too-little';
+  /** Время (Date.now()), до которого можно вернуть запись. */
+  until: number;
+  restore: () => void;
+  dismiss: () => void;
+}
+
 interface Ctx {
   live: LiveSpeech;
   /** Идёт оценка или запись не сохраняется: экран записи показывает «Завершаем запись». */
   finishing: 'judging' | 'discarding' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
+  notice: DiscardNotice | null;
 }
 
 const EMPTY: LiveSpeech = { tracking: false, vadSegments: 0, textSegments: 0, lastSpeechAt: null, recognitionFailed: false };
@@ -87,8 +97,14 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const queueTotal = useRef<number | null>(null);
   const seconds = useRef(0);
   const busy = useRef(false);
-  const restoreToast = useRef<string | number | null>(null);
+  const [notice, setNotice] = useState<DiscardNotice | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
+
+  // При запуске: удалить пустые записи, у которых окно «Вернуть» истекло, пока приложение было закрыто
+  useEffect(() => {
+    void purgeDiscarded();
+  }, []);
 
   seconds.current = recording.activeDuration ?? seconds.current;
 
@@ -143,6 +159,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         );
 
         const folder = sessionStorage.getItem('last_recording_folder_path');
+        const name = sessionStorage.getItem('last_recording_meeting_name');
         try {
           sessionStorage.setItem(
             OUTCOME_KEY,
@@ -153,26 +170,43 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         }
 
         if (!isDiscarded(verdict)) {
+          // «Не распознано»: встреча сохраняется, но в общий список не попадает (раздел внизу)
+          if (verdict === 'unrecognized') markUnrecognized(folder);
           setFinishing(null);
           await handle(true);
           return verdict;
         }
 
-        // Речи не было или слишком мало: в базу не пишем (оригинальный путь
-        // handleRecordingStop(false)), но 10 секунд можно вернуть встречу тем же
-        // хуком, как при обычном сохранении.
+        // Речи не было или слишком мало: пометка «не сохранять» ставится сразу,
+        // до любой записи в базу, поэтому такая встреча не появится в списке и не
+        // откроется по адресу, даже если попадёт в базу другим путём. В базу не пишем
+        // (оригинальный путь handleRecordingStop(false)); 10 секунд можно вернуть
+        // запись тем же хуком, как при обычном сохранении. Через 10 секунд всё, что
+        // успело попасть в базу с этой папкой, удаляется.
+        markDiscarded(folder, name, RESTORE_WINDOW_MS);
         setFinishing('discarding');
         await handle(false);
         const gen = generation.current;
-        const message = verdict === 'too-little' ? 'Слишком мало речи, запись не сохранена' : 'Речи не было, запись не сохранена';
-        restoreToast.current = toast.info(message, {
-          duration: RESTORE_WINDOW_MS,
-          action: {
-            label: 'Вернуть',
-            onClick: () => {
-              if (gen !== generation.current) return; // уже началась новая запись
-              void handleRecordingStop(true);
-            },
+        const close = () => {
+          if (noticeTimer.current) clearTimeout(noticeTimer.current);
+          noticeTimer.current = null;
+          setNotice(null);
+        };
+        if (noticeTimer.current) clearTimeout(noticeTimer.current);
+        noticeTimer.current = setTimeout(() => {
+          close();
+          void purgeDiscarded();
+        }, RESTORE_WINDOW_MS);
+        setNotice({
+          verdict: verdict as DiscardNotice['verdict'],
+          until: Date.now() + RESTORE_WINDOW_MS,
+          // Закрыли вручную: таймер удаления по сроку продолжает идти
+          dismiss: () => setNotice(null),
+          restore: () => {
+            if (gen !== generation.current) return; // уже началась новая запись
+            close();
+            keepRecording(folder);
+            void handleRecordingStop(true);
           },
         });
         return verdict;
@@ -193,8 +227,10 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     const offs = [
       subscribe('recording-started', () => {
         generation.current++;
-        if (restoreToast.current != null) toast.dismiss(restoreToast.current);
-        restoreToast.current = null;
+        // Новая запись: прошлую не вернуть, состояние «не сохранено» закрывается
+        if (noticeTimer.current) clearTimeout(noticeTimer.current);
+        noticeTimer.current = null;
+        setNotice(null);
         segs.current = [];
         vadDurations.current = [];
         queueTotal.current = null;
@@ -236,7 +272,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     return () => offs.forEach((off) => off());
   }, [update]);
 
-  const value = useMemo(() => ({ live, finishing, finish }), [live, finishing, finish]);
+  const value = useMemo(() => ({ live, finishing, finish, notice }), [live, finishing, finish, notice]);
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;
 }
 

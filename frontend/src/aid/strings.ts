@@ -171,6 +171,26 @@ const ru = {
   privacyHintLocal: 'Звук, транскрипт и итоги не покидают этот компьютер.',
   privacyHintCloud: 'Часть данных отправляется провайдеру в интернете.',
   privacyHintUnknown: 'Не удалось понять, где обрабатываются данные. Проверьте модели в настройках.',
+
+  // Пятый круг: «Назад», кнопка записи, пустые записи
+  backToSettings: 'К встречам',
+  backFromRecording: 'К списку встреч, запись продолжится',
+  openRecording: 'Открыть запись',
+  finishingShort: 'Завершаем запись',
+  savedShort: 'Сохранено',
+  noSpeechNoticeTitle: 'Тишина. Сохранять нечего',
+  noSpeechNoticeHint: 'Если кто-то говорил, проверь микрофон',
+  tooLittleNoticeTitle: 'Пара фраз. Сохранять не стали',
+  tooLittleNoticeHint: 'Встреча начинается от 15 слов. Нужна эта запись? Верни её',
+  restoreRecording: 'Вернуть запись',
+  importShort: 'Импорт',
+  unrecognizedSection: 'Не распознано',
+  unrecognizedHint: 'Голос в этих записях был, но текста нет. Распознайте заново или удалите.',
+  unrecognizedLegacyHint: 'В этих записях нет текста. Если там был разговор, распознайте заново, иначе удалите.',
+  emptyCleanupTitle: 'Удалить пустые записи?',
+  emptyCleanupKeep: 'Оставить',
+  notSavedTitle: 'Эта запись не сохранена',
+  notSavedHint: 'В ней не было речи. Вернуть её можно было в течение 10 секунд после остановки.',
 };
 
 export type StringKey = keyof typeof ru;

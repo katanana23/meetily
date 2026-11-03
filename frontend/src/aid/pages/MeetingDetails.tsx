@@ -13,7 +13,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ArrowClockwise,
-  ArrowLeft,
   CaretDown,
   Check,
   Copy,
@@ -28,6 +27,8 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
+import { BackButton } from '@/aid/components/BackButton';
+import { isDiscarded } from '@/aid/lib/recording-marks';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
@@ -71,14 +72,7 @@ import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDial
 const WIDTH = 'max-w-[840px]'; // колонка текста реплик около 700 px
 
 function BackLink() {
-  return (
-    <Button variant="ghost" asChild className="-ml-3 text-muted-foreground hover:text-foreground">
-      <Link href="/">
-        <ArrowLeft />
-        {t('back')}
-      </Link>
-    </Button>
-  );
+  return <BackButton label={t('back')} href="/" />;
 }
 
 function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyError; onRetry?: () => void }) {
@@ -238,7 +232,7 @@ function SilentRecording({
   const needModel = cause === 'no-model' || cause === 'model-downloading';
 
   return (
-    <Card className="p-6" role="status">
+    <Card className="p-4" role="status">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <MicrophoneSlash className="size-5 text-destructive" aria-hidden />
         {t('silentTitle')}
@@ -293,7 +287,7 @@ function SummaryBlock({
 
   if (summary.kind === 'processing') {
     return (
-      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4" role="status" aria-live="polite">
+      <div className="mb-2 flex items-center gap-3 rounded-[20px] bg-card p-4" role="status" aria-live="polite">
         <Spinner />
         <div className="min-w-0">
           <p className="text-sm font-medium">{t('summaryProcessing')}</p>
@@ -305,7 +299,7 @@ function SummaryBlock({
 
   if (summary.kind === 'failed') {
     return (
-      <div className="mb-8">
+      <div className="mb-2">
         <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />
       </div>
     );
@@ -314,16 +308,16 @@ function SummaryBlock({
   if (summary.kind !== 'ready') return null;
 
   return (
-    <section className="mb-8 rounded-3xl border border-border bg-card" aria-labelledby="summary-title">
-      <div className="flex items-center gap-2 px-3 py-2">
+    <section className="mb-2 rounded-[20px] bg-card" aria-labelledby="summary-title">
+      <div className="flex items-center gap-2 p-2">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="summary-body"
-          className="flex h-11 flex-1 items-center gap-3 rounded-2xl px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-11 flex-1 items-center gap-3 rounded-2xl px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Sparkle className="size-5 text-primary" aria-hidden />
+          <Sparkle className="size-5 text-primary-ink" aria-hidden />
           <span id="summary-title" className="text-base font-semibold">
             {t('summary')}
           </span>
@@ -339,7 +333,7 @@ function SummaryBlock({
       {open && (
         <article
           id="summary-body"
-          className="prose prose-neutral max-w-none border-t border-border px-6 pb-6 pt-5 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-li:my-1 prose-table:text-sm prose-th:text-left"
+          className="prose prose-neutral max-w-none px-4 pb-4 pt-1 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-li:my-1 prose-table:text-sm prose-th:text-left"
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary.markdown}</ReactMarkdown>
         </article>
@@ -450,7 +444,7 @@ function LoadingState() {
       width={WIDTH}
       header={
         <div role="status" aria-busy="true" aria-label={t('loading')}>
-          <Skeleton className="h-11 w-44 rounded-2xl" />
+          <Skeleton className="size-10 rounded-full" />
           <Skeleton className="mt-4 h-9 w-2/3 rounded-xl" />
           <Skeleton className="mt-3 h-5 w-48 rounded-lg" />
         </div>
@@ -505,7 +499,7 @@ function MeetingDetailsContent() {
   if (m.meeting.kind === 'not-found') {
     return (
       <Page width={WIDTH} header={<BackLink />}>
-        <Card className="px-8 py-14 text-center">
+        <Card className="px-6 py-12 text-center">
           <h1 className="text-2xl font-semibold">{t('meetingNotFound')}</h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
         </Card>
@@ -517,6 +511,18 @@ function MeetingDetailsContent() {
     return (
       <Page width={WIDTH} header={<BackLink />}>
         {m.meeting.kind === 'error' && <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />}
+      </Page>
+    );
+  }
+
+  // Запись с пометкой «не сохранять» (решение после стопа) по прямому адресу не открывается
+  if (isDiscarded(meta)) {
+    return (
+      <Page width={WIDTH} header={<BackLink />}>
+        <Card className="px-6 py-12 text-center">
+          <h1 className="text-2xl font-semibold">{t('notSavedTitle')}</h1>
+          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
+        </Card>
       </Page>
     );
   }
@@ -562,7 +568,7 @@ function MeetingDetailsContent() {
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
             <Button variant="outline" onClick={() => void m.generateSummary()}>
-              <Sparkle className="text-primary" />
+              <Sparkle className="text-primary-ink" />
               {t('generateSummary')}
             </Button>
           )}
@@ -601,10 +607,11 @@ function MeetingDetailsContent() {
       ) : (
         <>
           <SummaryBlock summary={m.summary} onRetry={() => void m.generateSummary()} />
-          <section aria-label={t('transcript')}>
+          {/* Транскрипт одной плиткой: 16 px внутри, как у остальных плиток */}
+          <section aria-label={t('transcript')} className="rounded-[20px] bg-card p-4">
             <TranscriptList segments={m.segments} />
             {m.hasMore && (
-              <div className="flex justify-center pt-8">
+              <div className="flex justify-center pt-6">
                 <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>
                   {m.loadingMore && <Spinner tone="inherit" />}
                   {t('loadMore')} ({m.segments.length} из {m.total})

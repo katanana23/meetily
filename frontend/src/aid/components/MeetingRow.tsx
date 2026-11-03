@@ -31,12 +31,16 @@ export interface MeetingListItem {
   id: string;
   title: string;
   created_at?: string;
+  /** Папка записи из метаданных: по ней узнаются пометки Aid (recording-marks.ts). */
+  folder_path?: string | null;
+  /** Число реплик; null, если не удалось узнать. 0: запись без текста. */
+  transcriptCount?: number | null;
   /** Догружается после списка; null, пока не пришло. */
   details: MeetingDetails | null;
 }
 
 const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon | null; label: string; className: string }> = {
-  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary' },
+  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary-ink' },
   // Итоги в работе: общий Spinner вместо иконки (см. ниже)
   summarizing: { icon: null, label: t('statusSummarizing'), className: '' },
   transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
@@ -62,7 +66,7 @@ function IconAction({
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-9 rounded-xl text-muted-foreground [&_svg]:size-4', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-9 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-4', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={ariaLabel}
         >
@@ -126,7 +130,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
 
   if (editing) {
     return (
-      <li className="px-4 py-3">
+      <li className="rounded-[20px] bg-card px-4 py-3">
         <form
           className="flex items-center gap-2"
           onSubmit={(e) => {
@@ -163,10 +167,10 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <li className="group relative flex min-h-[72px] items-center gap-2 pr-4 transition-colors hover:bg-muted/60 has-[:focus-visible]:bg-muted/60 data-[state=open]:bg-muted/60">
+        <li className="group relative flex min-h-[72px] items-center gap-2 rounded-[20px] bg-card pr-4 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted">
           <Link
             href={`/meeting-details?id=${encodeURIComponent(meeting.id)}`}
-            className="flex min-w-0 flex-1 items-center gap-4 self-stretch rounded-2xl py-4 pl-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-[20px] py-3 pl-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {kind === 'summarizing' ? (
               <Spinner />

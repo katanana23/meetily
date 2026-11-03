@@ -14,6 +14,13 @@ rust-version = "1.77"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Исполняемый файл ShadeNotes: под этим именем приложение видно в Dock и в
+# «Мониторинге системы», в том числе при запуске через tauri dev (раньше meetily,
+# по имени пакета). Имя пакета не меняется. В паре с mainBinaryName в tauri.conf.json.
+[[bin]]
+name = "ShadeNotes"
+path = "src/main.rs"
+
 
 # Hardware acceleration features for whisper-rs
 # Cross-platform GPU acceleration with smart defaults

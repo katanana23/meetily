@@ -152,7 +152,10 @@ export async function purgeDiscarded(): Promise<number> {
     console.warn('[aid] Не удалось удалить пустые записи, повторим при следующем запуске:', error);
     return removed;
   }
-  // Пометки держим неделю: если встреча появится в базе позже, она всё равно будет скрыта и удалена
-  write({ ...read(), discarded: read().discarded.filter((d) => now - d.until < TOMBSTONE_TTL_MS) });
+  // Пометки держим неделю: если встреча появится в базе позже, она всё равно будет скрыта и удалена.
+  // Пишем только при изменениях: запись будит список, а лишние перечитывания нагружают ядро
+  const latest = read();
+  const kept = latest.discarded.filter((d) => now - d.until < TOMBSTONE_TTL_MS);
+  if (removed > 0 || kept.length !== latest.discarded.length) write({ ...latest, discarded: kept });
   return removed;
 }

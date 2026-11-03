@@ -41,8 +41,15 @@ type ListState =
 
 function useMeetingsList(refreshKey: unknown) {
   const [state, setState] = useState<ListState>({ kind: 'loading' });
+  // Одна загрузка за раз: новая отменяет предыдущую, уход со страницы отменяет текущую.
+  // Иначе подгрузка подробностей (до 5000 реплик на встречу) копилась бы при каждом
+  // перечитывании и забивала канал к ядру, в том числе запросы перехода к встрече.
+  const current = useRef<{ cancelled: boolean } | null>(null);
 
-  const load = useCallback(async (signal: { cancelled: boolean } = { cancelled: false }) => {
+  const load = useCallback(async () => {
+    if (current.current) current.current.cancelled = true;
+    const signal = { cancelled: false };
+    current.current = signal;
     try {
       const all = await invoke<Array<{ id: string; title: string }>>('api_get_meetings');
       // Дату и папку записи ядро отдаёт только в метаданных; число реплик берём одним
@@ -84,12 +91,15 @@ function useMeetingsList(refreshKey: unknown) {
   }, []);
 
   useEffect(() => {
-    const signal = { cancelled: false };
-    void load(signal);
-    return () => {
-      signal.cancelled = true;
-    };
+    void load();
   }, [load, refreshKey]);
+
+  useEffect(
+    () => () => {
+      if (current.current) current.current.cancelled = true;
+    },
+    [],
+  );
 
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
@@ -132,23 +142,23 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
           <p>{copy.hint}</p>
           <div className="mt-4 flex flex-wrap gap-3">
             {copy.href ? (
-              <Button asChild>
+              <Button asChild size="main">
                 <Link ref={actionRef} href={copy.href}>
                   {copy.action}
                 </Link>
               </Button>
             ) : (
-              <Button ref={actionRef} onClick={() => void grantMic()}>
+              <Button ref={actionRef} size="main" onClick={() => void grantMic()}>
                 {copy.action}
               </Button>
             )}
             {blocker.kind !== 'no-model' && (
-              <Button variant="outline" onClick={onRetry}>
+              <Button variant="outline" size="main" onClick={onRetry}>
                 <ArrowClockwise />
                 {t('checkAgain')}
               </Button>
             )}
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" size="main" onClick={onClose}>
               {t('later')}
             </Button>
           </div>
@@ -273,10 +283,10 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
             : 'В них нет ни одной реплики. Файлы звука останутся в папке записей. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в разделе «Не распознано» внизу списка.'}
         </DialogDescription>
         <DialogFooter>
-          <Button variant="outline" onClick={keep} disabled={busy}>
+          <Button variant="outline" size="main" onClick={keep} disabled={busy}>
             {t('emptyCleanupKeep')}
           </Button>
-          <Button variant="destructive" onClick={() => void remove()} disabled={busy}>
+          <Button variant="destructive" size="main" onClick={() => void remove()} disabled={busy}>
             {busy ? <Spinner tone="inherit" /> : <Trash />}
             {t('delete')}
           </Button>
@@ -412,7 +422,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             <AlertDescription>
               <p>{state.error.message}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button variant="outline" onClick={() => void reload()}>
+                <Button variant="outline" size="main" onClick={() => void reload()}>
                   <ArrowClockwise />
                   {t('retry')}
                 </Button>

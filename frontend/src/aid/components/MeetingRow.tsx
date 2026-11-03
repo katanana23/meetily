@@ -5,6 +5,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
 import {
   CaretRight,
   ChatText,
@@ -86,6 +88,7 @@ interface MeetingRowProps {
 }
 
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: MeetingRowProps) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -167,9 +170,22 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <li className="group relative flex min-h-[72px] items-center gap-2 rounded-[20px] bg-card pr-4 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted">
+        <li
+          // Вся строка открывает встречу: клик по шеврону и полям мимо ссылки тоже.
+          // Кнопки действий и поле переименования не открывают (свои обработчики).
+          onClick={(e) => {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
+            openMeeting(router.push, meeting.id);
+          }}
+          className="group relative flex min-h-[72px] cursor-pointer items-center gap-2 rounded-[20px] bg-card pr-4 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted"
+        >
           <Link
-            href={`/meeting-details?id=${encodeURIComponent(meeting.id)}`}
+            href={meetingHref(meeting.id)}
+            onClick={(e) => {
+              // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
+              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) guardNavigation(meetingHref(meeting.id));
+            }}
             className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-[20px] py-3 pl-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {kind === 'summarizing' ? (

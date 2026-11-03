@@ -1,6 +1,6 @@
 // Сведения для строки списка встреч: состояние итогов, длительность, число слов
 // и название из содержания. Транскрипт читается одним запросом (до 5000 реплик)
-// не больше чем для 4 встреч одновременно; результат кэшируется по id и числу
+// не больше чем для 2 встреч одновременно; результат кэшируется по id и числу
 // реплик, чтобы возврат к списку не перечитывал всё заново.
 'use client';
 
@@ -52,7 +52,7 @@ export function cachedDetails(meetingId: string): MeetingDetails | null {
   return cache.get(meetingId)?.details ?? null;
 }
 
-/** Загружает сведения по очереди, не больше 4 запросов одновременно; onEach вызывается по готовности. */
+/** Загружает сведения по очереди, не больше 2 запросов одновременно; onEach вызывается по готовности. */
 export async function loadDetails(ids: string[], onEach: (id: string, d: MeetingDetails) => void, signal: { cancelled: boolean }) {
   const queue = [...ids];
   const worker = async () => {
@@ -66,7 +66,8 @@ export async function loadDetails(ids: string[], onEach: (id: string, d: Meeting
       }
     }
   };
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  // Два запроса одновременно: подробности второстепенны, канал к ядру нужен и переходам
+  await Promise.all([worker(), worker()]);
 }
 
 /** После переименования или итогов: сбросить кэш встречи. */

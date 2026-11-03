@@ -19,7 +19,8 @@ import { RecordButton } from '@/aid/components/RecordButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
-import { cachedDetails, loadDetails } from '@/aid/lib/meeting-details-cache';
+import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
+import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
@@ -30,7 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 import { cn } from '@/aid/lib/utils';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { displayTitle, formatShortDate, isAutoTitle, plural, shownTitle } from '@/aid/lib/format';
+import { dateGroup, displayTitle, formatShortDate, isAutoTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -298,6 +299,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
   );
 }
 
+const GROUP_LABEL = { today: 'groupToday', yesterday: 'groupYesterday', week: 'groupWeek', earlier: 'groupEarlier' } as const;
+
 interface HomeViewProps {
   onStart: () => void;
   blocker: StartBlocker | null;
@@ -342,7 +345,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const openFolder = (m: MeetingListItem) =>
     void openMeetingFolder(m.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
   const { openImportDialog } = useImportDialog();
-  const { hotkey } = useRecordingControls();
+  const { hotkey, hotkeyScope } = useRecordingControls();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
 
@@ -361,13 +364,32 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     };
   }, [state]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    // ищем и по названию в базе, и по тому, что видно в списке
-    return q
-      ? groups.main.filter((m) => m.title.toLowerCase().includes(q) || shownTitle(m.title, m.details?.contentTitle).toLowerCase().includes(q))
-      : groups.main;
+  // Поиск: по названию в базе, по тому, что видно в списке, и по тексту реплик.
+  // Тексты уже прочитаны для подробностей строк; пока читаются, ищем по тому, что есть
+  const search = useMemo(() => {
+    const q = normalizeForSearch(query.trim());
+    if (!q) return null;
+    const matches = new Map<string, TranscriptMatch>();
+    const found = groups.main.filter((m) => {
+      const inTitle = normalizeForSearch(m.title).includes(q) || normalizeForSearch(shownTitle(m.title, m.details?.contentTitle)).includes(q);
+      const inText = findInTranscript(cachedLines(m.id), query);
+      if (inText) matches.set(m.id, inText);
+      return inTitle || inText !== null;
+    });
+    const pending = groups.main.filter((m) => !m.details).length;
+    return { found, matches, pending, total: groups.main.length };
   }, [groups, query]);
+  const filtered = search ? search.found : groups.main;
+
+  // Без поиска список по группам дат: сегодня, вчера, на этой неделе, раньше
+  const dated = useMemo(() => {
+    const order: DateGroup[] = ['today', 'yesterday', 'week', 'earlier'];
+    const time = (m: MeetingListItem) => (m.created_at ? new Date(m.created_at).getTime() || 0 : 0);
+    const sorted = [...groups.main].sort((a, b) => time(b) - time(a));
+    return order
+      .map((g) => ({ group: g, items: sorted.filter((m) => dateGroup(m.created_at) === g) }))
+      .filter((x) => x.items.length > 0);
+  }, [groups]);
 
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
   const showSearch = state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
@@ -391,7 +413,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             <h2 className="text-xl font-semibold tracking-tight">{t('newRecording')}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t('newRecordingHint')}</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              <kbd className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-medium text-foreground">{hotkey}</kbd>
+              <kbd className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-medium text-foreground">{hotkey}</kbd> {hotkeyScope}
             </p>
           </div>
         </section>
@@ -481,7 +503,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {state.kind === 'ready' && groups.main.length > 0 && filtered.length === 0 && (
+          {state.kind === 'ready' && search && groups.main.length > 0 && filtered.length === 0 && search.pending === 0 && (
             <div className="flex flex-col items-center px-6 py-10 text-center">
               <MagnifyingGlass className="size-5 text-muted-foreground" aria-hidden />
               <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
@@ -489,12 +511,20 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {filtered.length > 0 && (
+          {search && search.pending > 0 && (
+            <p className="px-3 pb-2 text-sm text-muted-foreground" role="status">
+              <Spinner size={16} className="mr-2 inline-block align-[-3px]" />
+              {t('searchProgress')} {search.total - search.pending} из {search.total}
+            </p>
+          )}
+
+          {search && filtered.length > 0 && (
             <ul className="space-y-1" aria-label={t('meetingsList')}>
               {filtered.map((m) => (
                 <MeetingRow
                   key={m.id}
                   meeting={m}
+                  match={search.matches.get(m.id) ?? null}
                   onRename={(title) => rename(m, title)}
                   onDelete={() => setToDelete(m)}
                   onOpenFolder={() => openFolder(m)}
@@ -502,6 +532,27 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
               ))}
             </ul>
           )}
+
+          {!search &&
+            dated.map(({ group, items }) => (
+              <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-1 first:mt-0">
+                <h2 id={`aid-group-${group}`} className="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground">
+                  {t(GROUP_LABEL[group])}
+                </h2>
+                <ul className="space-y-1">
+                  {items.map((m) => (
+                    <MeetingRow
+                      key={m.id}
+                      meeting={m}
+                      timeOnly={group === 'today' || group === 'yesterday'}
+                      onRename={(title) => rename(m, title)}
+                      onDelete={() => setToDelete(m)}
+                      onOpenFolder={() => openFolder(m)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
           </section>
 
           {state.kind === 'ready' && groups.unrecognized.length > 0 && !query.trim() && (

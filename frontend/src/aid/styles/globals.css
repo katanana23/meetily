@@ -1,6 +1,7 @@
 /*
  * Токены ShadeNotes: одна светлая и одна тёмная тема, один акцент (кобальт).
- * Плоские поверхности: без градиентов, свечений и стекла.
+ * Плоские поверхности без градиентов и свечений. Исключение: стекло кобальта
+ * только на элементах записи (.aid-glass-record: кнопка записи и капсула).
  * Шрифт Inter (latin + cyrillic) подключается через next/font в app/layout.tsx
  * и попадает сюда переменной --font-inter.
  */
@@ -415,7 +416,8 @@ html body[data-scroll-locked] {
 }
 
 .aid-dock-in {
-  animation: aid-dock-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  /* ease-out-quint: плавная остановка без перелёта */
+  animation: aid-dock-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   transform-origin: center bottom;
 }
 

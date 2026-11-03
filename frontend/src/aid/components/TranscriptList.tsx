@@ -22,7 +22,7 @@ export const TranscriptList = memo(function TranscriptList({ segments, live = fa
             <time className="tabular select-none text-right text-[13px] leading-7 text-muted-foreground">{segmentTime(s)}</time>
             <div className="min-w-0">
               {newSpeaker && <p className="text-[13px] font-semibold leading-7 text-foreground">{s.speaker}</p>}
-              <p className="leading-7 text-foreground/90">
+              <p className="text-pretty leading-7 text-foreground/90">
                 {s.speaker && !newSpeaker && <span className="sr-only">{s.speaker}: </span>}
                 {s.text}
               </p>

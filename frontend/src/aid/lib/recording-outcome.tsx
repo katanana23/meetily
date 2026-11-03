@@ -21,9 +21,11 @@ import { toSegment } from './meeting';
 import { subscribe } from './tauri-events';
 import { isDiscarded, isHallucination, judgeRecording, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
 import { hasTranscriptionModel } from './model-check';
-import { keepRecording, markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
+import { invoke } from '@tauri-apps/api/core';
+import { expireDiscard, keepRecording, markDiscarded, markUnrecognized, purgeDiscarded, setDiscardLive } from './recording-marks';
+import { t } from '@/aid/strings';
 
-/** Сколько ждать «Вернуть» у несохранённой записи. */
+/** Сколько ждать «Вернуть» у несохранённой записи (чистое время, без пауз отсчёта). */
 export const RESTORE_WINDOW_MS = 10_000;
 /** Ключ sessionStorage: итог последней записи для страницы встречи (только Aid). */
 export const OUTCOME_KEY = 'aid.recordingOutcome';
@@ -49,11 +51,20 @@ export interface StoredOutcome {
 
 type StopHandler = (save: boolean) => Promise<void>;
 
-/** Запись не сохранена: живое состояние у кнопки записи на 10 с вместо тоста. */
+/**
+ * Запись не сохранена: живое состояние у кнопки записи на 10 с вместо тоста.
+ * Отсчёт стоит, пока пользователь на карточке (наведение, фокус, открытая
+ * «Проверить звук») и пока окно приложения не в фокусе: 10 секунд считаются
+ * только тогда, когда карточку видно и её никто не трогает.
+ */
 export interface DiscardNotice {
   verdict: 'no-speech' | 'too-little';
-  /** Время (Date.now()), до которого можно вернуть запись. */
-  until: number;
+  /** Когда (Date.now()) истечёт отсчёт; null, пока отсчёт на паузе. */
+  deadline: number | null;
+  /** Сколько миллисекунд осталось на момент последней паузы или запуска. */
+  remaining: number;
+  /** Причина паузы отсчёта: 'hover', 'focus', 'dialog'. */
+  hold: (reason: string, on: boolean) => void;
   restore: () => void;
   dismiss: () => void;
 }
@@ -70,6 +81,26 @@ const EMPTY: LiveSpeech = { tracking: false, vadSegments: 0, textSegments: 0, la
 const RecordingOutcomeContext = createContext<Ctx | null>(null);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function notifyNotSaved(silent: boolean) {
+  try {
+    await invoke('show_notification', {
+      notification: {
+        id: null,
+        title: silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle'),
+        body: t('notSavedNotificationBody'),
+        notification_type: 'RecordingStopped',
+        priority: 'Normal',
+        timeout: 'Default',
+        icon: null,
+        sound: false,
+        actions: [],
+      },
+    });
+  } catch (error) {
+    console.info('[aid] Уведомление «Запись не сохранена» не показано:', error);
+  }
+}
 
 export function readStoredOutcome(folder: string | null | undefined): StoredOutcome | null {
   try {
@@ -100,6 +131,55 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<DiscardNotice | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
+  /** Отсчёт карточки: остаток и момент запуска (null на паузе). */
+  const countdown = useRef<{ remaining: number; startedAt: number | null; dismissed: boolean } | null>(null);
+  const holds = useRef(new Set<string>());
+  const expire = useRef<() => void>(() => undefined);
+
+  /** Запустить или остановить отсчёт по текущим причинам паузы. */
+  const sync = useCallback(() => {
+    const c = countdown.current;
+    if (!c) return;
+    const now = Date.now();
+    // Закрытую вручную карточку больше никто не видит: отсчёт идёт без пауз
+    const held = !c.dismissed && holds.current.size > 0;
+    if (held && c.startedAt !== null) {
+      c.remaining = Math.max(0, c.remaining - (now - c.startedAt));
+      c.startedAt = null;
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+      noticeTimer.current = null;
+    } else if (!held && c.startedAt === null) {
+      c.startedAt = now;
+      noticeTimer.current = setTimeout(() => expire.current(), c.remaining);
+    } else return;
+    const deadline = c.startedAt === null ? null : c.startedAt + c.remaining;
+    setNotice((prev) => prev && { ...prev, deadline, remaining: c.remaining });
+  }, []);
+
+  const hold = useCallback(
+    (reason: string, on: boolean) => {
+      const had = holds.current.has(reason);
+      if (on === had) return;
+      if (on) holds.current.add(reason);
+      else holds.current.delete(reason);
+      sync();
+    },
+    [sync],
+  );
+
+  // Окно за другим приложением (остановили из трея, пока на экране Zoom): отсчёт ждёт
+  useEffect(() => {
+    const check = () => hold('window', document.visibilityState === 'hidden' || !document.hasFocus());
+    check();
+    window.addEventListener('focus', check);
+    window.addEventListener('blur', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      window.removeEventListener('blur', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [hold]);
 
   // При запуске: удалить пустые записи, у которых окно «Вернуть» истекло, пока приложение было закрыто
   useEffect(() => {
@@ -184,24 +264,37 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         // запись тем же хуком, как при обычном сохранении. Через 10 секунд всё, что
         // успело попасть в базу с этой папкой, удаляется.
         markDiscarded(folder, name, RESTORE_WINDOW_MS);
+        // Пока карточка открыта, срок ведёт её отсчёт: перечитывание списка запись не удалит
+        setDiscardLive(folder, name, true);
         setFinishing('discarding');
         await handle(false);
         const gen = generation.current;
+        expire.current(); // прошлая карточка, если была: её запись удаляется сейчас
         const close = () => {
           if (noticeTimer.current) clearTimeout(noticeTimer.current);
           noticeTimer.current = null;
+          countdown.current = null;
+          expire.current = () => undefined;
+          setDiscardLive(folder, name, false);
           setNotice(null);
         };
-        if (noticeTimer.current) clearTimeout(noticeTimer.current);
-        noticeTimer.current = setTimeout(() => {
+        expire.current = () => {
           close();
+          expireDiscard(folder, name);
           void purgeDiscarded();
-        }, RESTORE_WINDOW_MS);
+        };
+        countdown.current = { remaining: RESTORE_WINDOW_MS, startedAt: null, dismissed: false };
         setNotice({
           verdict: verdict as DiscardNotice['verdict'],
-          until: Date.now() + RESTORE_WINDOW_MS,
-          // Закрыли вручную: таймер удаления по сроку продолжает идти
-          dismiss: () => setNotice(null),
+          deadline: null,
+          remaining: RESTORE_WINDOW_MS,
+          hold,
+          // Закрыли вручную: отсчёт удаления идёт дальше, уже без пауз
+          dismiss: () => {
+            if (countdown.current) countdown.current.dismissed = true;
+            setNotice(null);
+            sync();
+          },
           restore: () => {
             if (gen !== generation.current) return; // уже началась новая запись
             close();
@@ -209,13 +302,18 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
             void handleRecordingStop(true);
           },
         });
+        sync();
+        // Окно не на экране: системное уведомление, иначе карточку никто не увидит.
+        // Через менеджер уведомлений ядра: он учитывает согласие, «Не беспокоить» и
+        // настройку «Уведомлять об остановке записи»
+        if (holds.current.has('window')) void notifyNotSaved(verdict === 'no-speech');
         return verdict;
       } finally {
         busy.current = false;
         setFinishing(null);
       }
     },
-    [transcriptsRef, handleRecordingStop],
+    [transcriptsRef, handleRecordingStop, hold, sync],
   );
 
   // Обработчики из ref: подписки живут всё время работы провайдера и не
@@ -227,10 +325,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     const offs = [
       subscribe('recording-started', () => {
         generation.current++;
-        // Новая запись: прошлую не вернуть, состояние «не сохранено» закрывается
-        if (noticeTimer.current) clearTimeout(noticeTimer.current);
-        noticeTimer.current = null;
-        setNotice(null);
+        // Новая запись: прошлую не вернуть, карточка закрывается, пустая запись удаляется
+        expire.current();
         segs.current = [];
         vadDurations.current = [];
         queueTotal.current = null;

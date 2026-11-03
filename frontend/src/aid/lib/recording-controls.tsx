@@ -9,6 +9,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAidRecording } from './recording';
+import { aidToast } from './toasts';
+import { t } from '@/aid/strings';
+
+/**
+ * Сочетание работает только в окне ShadeNotes: глобальному нужен плагин в ядре
+ * (tauri-plugin-global-shortcut), а ядро не меняем. Подписи говорят об этом прямо.
+ * Остановка тем же сочетанием не раньше чем через 3 с после старта: повторное
+ * нажатие по привычке не обрывает только что начатую встречу.
+ */
+export const HOTKEY_STOP_GUARD_MS = 3000;
 
 type Recording = ReturnType<typeof useAidRecording>;
 
@@ -20,6 +30,8 @@ interface Controls extends Recording {
   startAnywhere: () => Promise<void>;
   toggle: () => void;
   hotkey: string;
+  /** Где работает сочетание: «в окне ShadeNotes». */
+  hotkeyScope: string;
 }
 
 const RecordingControlsContext = createContext<Controls | null>(null);
@@ -51,13 +63,28 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
     await rec.start();
   }, [pathname, router, rec]);
 
+  const startedAt = useRef<number | null>(null);
+  useEffect(() => {
+    startedAt.current = rec.isRecording ? (startedAt.current ?? Date.now()) : null;
+  }, [rec.isRecording]);
+
   const toggle = useCallback(() => {
     if (rec.isRecording) void rec.stop();
     else if (!rec.phase && !rec.isStarting) void startAnywhere();
   }, [rec, startAnywhere]);
 
-  const toggleRef = useRef(toggle);
-  toggleRef.current = toggle;
+  /** Сочетание клавиш: то же, что toggle, но стоп не раньше чем через 3 с после старта. */
+  const onHotkey = useCallback(() => {
+    if (rec.isStarting) return;
+    if (rec.isRecording && startedAt.current !== null && Date.now() - startedAt.current < HOTKEY_STOP_GUARD_MS) {
+      aidToast.info(t('hotkeyStopTooEarly'), { id: 'aid-hotkey-guard' });
+      return;
+    }
+    toggle();
+  }, [rec.isRecording, rec.isStarting, toggle]);
+
+  const toggleRef = useRef(onHotkey);
+  toggleRef.current = onHotkey;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey || e.code !== 'KeyR') return;
@@ -69,7 +96,10 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const value = useMemo(() => ({ ...rec, view, setView, startAnywhere, toggle, hotkey }), [rec, view, startAnywhere, toggle, hotkey]);
+  const value = useMemo(
+    () => ({ ...rec, view, setView, startAnywhere, toggle, hotkey, hotkeyScope: t('hotkeyScope') }),
+    [rec, view, startAnywhere, toggle, hotkey],
+  );
   return <RecordingControlsContext.Provider value={value}>{children}</RecordingControlsContext.Provider>;
 }
 

@@ -33,7 +33,7 @@ export function RecordButton({ size = 72, tooltip = true }: { size?: 72 | 96; to
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent side="top">
-        {t('startRecording')} · {c.hotkey}
+        {t('startRecording')} · {c.hotkey} {c.hotkeyScope}
       </TooltipContent>
     </Tooltip>
   );

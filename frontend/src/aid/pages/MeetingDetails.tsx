@@ -14,7 +14,7 @@ import remarkGfm from 'remark-gfm';
 import {
   ArrowClockwise,
   CaretDown,
-  Copy,
+  ClipboardText,
   FileMd,
   FolderOpen,
   MicrophoneSlash,
@@ -49,6 +49,7 @@ import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeti
 import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
+  summaryForPage,
   transcriptAsMarkdown,
   transcriptAsText,
   useMeeting,
@@ -57,7 +58,7 @@ import {
 } from '@/aid/lib/meeting';
 import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
-import { editableTitle, formatDateTime, formatDuration, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
+import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
 import { contentTitle } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
@@ -222,9 +223,12 @@ function SilentRecording({
 /** Итоги над транскриптом: только когда они есть, готовятся или не получились. */
 function SummaryBlock({
   summary,
+  title,
   onRetry,
 }: {
   summary: SummaryState;
+  /** Название в шапке: заголовок итогов, который его повторяет, не показывается. */
+  title: string;
   onRetry: () => void;
 }) {
   // Свёрнуты по умолчанию: главное на странице транскрипт. Раскрываются сами,
@@ -279,7 +283,7 @@ function SummaryBlock({
           <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
         </button>
-        <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={onRetry}>
+        <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={onRetry}>
           <ArrowClockwise />
           {t('summaryRedo')}
         </Button>
@@ -287,9 +291,9 @@ function SummaryBlock({
       {open && (
         <article
           id="summary-body"
-          className="prose prose-neutral max-w-none px-4 pb-4 pt-1 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-li:my-1 prose-table:text-sm prose-th:text-left"
+          className="prose prose-neutral max-w-none px-4 pb-4 pt-1 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary.markdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryForPage(summary.markdown, title)}</ReactMarkdown>
         </article>
       )}
     </section>
@@ -322,7 +326,7 @@ function CopyMenu({
 
   const trigger = (
     <Button variant="outline" disabled={disabled} aria-label={disabled ? `${t('copy')}: ${t('nothingToCopy')}` : undefined}>
-      <Copy />
+      <ClipboardText />
       {t('copy')}
       <CaretDown className="!size-4 text-muted-foreground" aria-hidden />
     </Button>
@@ -433,7 +437,7 @@ function MeetingDetailsContent() {
   // Автоматическое название показываем началом первой осмысленной реплики
   const fromContent = useMemo(() => contentTitle(m.segments.map((x) => x.text)), [m.segments]);
   const shownTitle = meta ? titleForDisplay(meta.title, fromContent) : '';
-  const segmentsLabel = useMemo(() => `${m.total} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
+  const segmentsLabel = useMemo(() => `${formatNumber(m.total)} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
 
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
@@ -521,7 +525,7 @@ function MeetingDetailsContent() {
         <BackLink />
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
-            // Главное действие страницы: 56 px и акцентный градиент
+            // Главное действие страницы: 56 px, плоский кобальт
             <Button size="main" onClick={() => void m.generateSummary()}>
               <Sparkle />
               {t('generateSummary')}
@@ -561,7 +565,7 @@ function MeetingDetailsContent() {
         />
       ) : (
         <>
-          <SummaryBlock summary={m.summary} onRetry={() => void m.generateSummary()} />
+          <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />
           {/* Транскрипт одной плиткой: 16 px внутри, как у остальных плиток */}
           <section aria-label={t('transcript')} className="rounded-tile bg-card p-4">
             <TranscriptList segments={m.segments} />

@@ -191,6 +191,33 @@ export function pruneEmptySections(md: string): string | null {
  * Приводит данные итогов из api_get_summary к Markdown.
  * Ядро хранит три формата: markdown, summary_json (блоки BlockNote) и старые секции.
  */
+/**
+ * Итоги для показа на странице встречи: без того, что уже есть в шапке. Срезаются
+ * верхний заголовок H1, если он повторяет название встречи (модель начинает итоги
+ * с названия), и строки «Дата:» и «Дата и время:» до первого раздела: дату шапка
+ * берёт из записи, а модель её угадывает. Для копирования итоги остаются целыми.
+ */
+export function summaryForPage(md: string, title: string): string {
+  const norm = (x: string) =>
+    x
+      .toLocaleLowerCase('ru-RU')
+      .replace(/ё/g, 'е')
+      .replace(/[«»"“”„'*_`.,:;!?()…-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const lines = md.split('\n');
+  const firstSection = lines.findIndex((l) => /^#{2,6}\s/.test(l));
+  const top = firstSection === -1 ? lines.length : firstSection;
+  const out = lines.filter((line, i) => {
+    if (i >= top) return true;
+    const h1 = /^#\s+(.+)$/.exec(line);
+    if (h1 && norm(h1[1]) === norm(title)) return false;
+    if (/^\s*(\*\*|__)?Дата( и время)?:?(\*\*|__)?:?\s/i.test(line)) return false;
+    return true;
+  });
+  return out.join('\n').replace(/^\s*\n+/, '');
+}
+
 export function summaryToMarkdown(data: unknown): string | null {
   const md = rawSummaryToMarkdown(data);
   return md ? pruneEmptySections(md) : null;

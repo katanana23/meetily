@@ -1,7 +1,8 @@
 // Сведения для строки списка встреч: состояние итогов, длительность, число слов
 // и название из содержания. Транскрипт читается одним запросом (до 5000 реплик)
 // не больше чем для 2 встреч одновременно; результат кэшируется по id и числу
-// реплик, чтобы возврат к списку не перечитывал всё заново.
+// реплик, чтобы возврат к списку не перечитывал всё заново. Тексты реплик
+// остаются в памяти для поиска по содержанию встреч (lib/transcript-search.ts).
 'use client';
 
 import { invoke } from '@tauri-apps/api/core';
@@ -21,7 +22,20 @@ export interface MeetingDetails {
 }
 
 const SUMMARIZING = ['processing', 'pending', 'started', 'running', 'summarizing', 'regenerating'];
-const cache = new Map<string, { total: number; details: MeetingDetails }>();
+/** Реплика для поиска: текст как есть и нормализованный (нижний регистр, ё → е). */
+export interface SearchableLine {
+  text: string;
+  norm: string;
+  /** Секунда от начала записи. */
+  start: number | null;
+}
+
+const cache = new Map<string, { total: number; details: MeetingDetails; lines: SearchableLine[] }>();
+
+/** Нижний регистр с кириллицей и «ё» как «е»: «Ёлка» находится по «елка». */
+export function normalizeForSearch(text: string): string {
+  return text.toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
+}
 
 async function load(meetingId: string): Promise<MeetingDetails> {
   const [summary, page] = await Promise.allSettled([
@@ -44,8 +58,17 @@ async function load(meetingId: string): Promise<MeetingDetails> {
     words,
     contentTitle: contentTitle(texts),
   };
-  cache.set(meetingId, { total, details });
+  const lines: SearchableLine[] = list
+    .map((t, i) => ({ text: texts[i], start: typeof t.audio_start_time === 'number' ? t.audio_start_time : null }))
+    .filter((l) => l.text && !isHallucination(l.text))
+    .map((l) => ({ ...l, norm: normalizeForSearch(l.text) }));
+  cache.set(meetingId, { total, details, lines });
   return details;
+}
+
+/** Реплики встречи для поиска; null, пока подробности не загружены. */
+export function cachedLines(meetingId: string): SearchableLine[] | null {
+  return cache.get(meetingId)?.lines ?? null;
 }
 
 export function cachedDetails(meetingId: string): MeetingDetails | null {

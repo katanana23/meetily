@@ -218,7 +218,7 @@ function SettingsContent() {
   const header = (
     <>
       <div className="flex items-center gap-3">
-        <BackButton label={t('backToSettings')} href="/" />
+        <BackButton label={t('backToMeetings')} href="/" />
         <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
       </div>
       <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">

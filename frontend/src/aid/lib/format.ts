@@ -63,6 +63,31 @@ export function formatShortDate(value: string | Date | null | undefined): string
     .replace(' г.', '');
 }
 
+export type DateGroup = 'today' | 'yesterday' | 'week' | 'earlier';
+
+/** Группа списка встреч по дате: сегодня, вчера, последние 7 дней, раньше. */
+export function dateGroup(value: string | Date | null | undefined, now = new Date()): DateGroup {
+  const d = toDate(value);
+  if (!d) return 'earlier';
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return 'week';
+  return 'earlier';
+}
+
+/** Время встречи для строки в группе «Сегодня» и «Вчера»: дата уже в заголовке группы. */
+export function formatTime(value: string | Date | null | undefined): string | null {
+  const d = toDate(value);
+  return d ? d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : null;
+}
+
+/** Число с разрядами по-русски: 33 434 (узкий неразрывный пробел). */
+export function formatNumber(n: number): string {
+  return n.toLocaleString('ru-RU');
+}
+
 export function plural(n: number, one: string, few: string, many: string): string {
   const m10 = n % 10;
   const m100 = n % 100;
@@ -119,6 +144,6 @@ export function editableTitle(title: string | null | undefined, fromContent?: st
 
 /** «12 мин · 340 слов» для строки списка. */
 export function formatVolume(durationSec: number | null | undefined, words: number | null | undefined): string | null {
-  const parts = [formatDuration(durationSec), words ? `${words} ${plural(words, 'слово', 'слова', 'слов')}` : null].filter(Boolean);
+  const parts = [formatDuration(durationSec), words ? `${formatNumber(words)} ${plural(words, 'слово', 'слова', 'слов')}` : null].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }

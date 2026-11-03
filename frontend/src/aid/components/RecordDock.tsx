@@ -1,6 +1,9 @@
-// Главная кнопка записи: всегда под рукой, внизу по центру области контента.
+// Главная кнопка записи: всегда под рукой. На главной внизу по центру области
+// контента, на остальных страницах в правом нижнем углу: там колонка текста
+// прижата влево, и кнопка не закрывает реплики и таблицы итогов.
 // Состояния:
-// - покой: круглая кнопка 64 px, кольцо мягко «дышит»;
+// - покой: круглая кнопка 72 px, кольцо мягко «дышит» (на главной её нет: там
+//   кнопка 96 px в плитке «Новая запись»);
 // - запись: капсула с кольцом активности, таймером, паузой и «Остановить»;
 // - завершение: «Завершаем запись» со спиннером;
 // - запись не сохранена: короткая карточка «Тишина. Сохранять нечего» на 10 с
@@ -40,18 +43,28 @@ function ActivityRing({ pulse, paused }: { pulse: number; paused: boolean }) {
   );
 }
 
-function Countdown({ until }: { until: number }) {
-  const [left, setLeft] = useState(() => Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+/** Секунды до удаления; на паузе цифра стоит. Для диктора отсчёт не озвучивается каждую секунду. */
+function Countdown({ deadline, remaining }: { deadline: number | null; remaining: number }) {
+  const secondsLeft = () => Math.max(0, Math.ceil(((deadline ?? Date.now() + remaining) - Date.now()) / 1000));
+  const [left, setLeft] = useState(secondsLeft);
   useEffect(() => {
-    const id = setInterval(() => setLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000))), 250);
+    setLeft(secondsLeft());
+    if (deadline === null) return;
+    const id = setInterval(() => setLeft(secondsLeft()), 250);
     return () => clearInterval(id);
-  }, [until]);
-  return <span className="tabular min-w-[1.5ch] text-right opacity-80">{left}</span>;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadline, remaining]);
+  return (
+    <span aria-hidden className={cn('tabular min-w-[1.5ch] text-right', deadline === null ? 'opacity-60' : 'opacity-80')} title={deadline === null ? t('restoreCountdownPaused') : undefined}>
+      {left}
+    </span>
+  );
 }
 
 function NoticeCard({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
   const silent = notice.verdict === 'no-speech';
+  const { hold } = notice;
   // Карточка уходит сама через 10 с; Esc закрывает раньше (кнопки-крестика нет:
   // залитый X из Phosphor нарисован квадратом)
   useEffect(() => {
@@ -59,22 +72,38 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [notice, soundCheck]);
+  // Пока открыта «Проверить звук», отсчёт стоит: иначе диалог закрылся бы вместе с карточкой
+  useEffect(() => hold('dialog', soundCheck), [hold, soundCheck]);
+  useEffect(
+    () => () => {
+      hold('hover', false);
+      hold('focus', false);
+      hold('dialog', false);
+    },
+    [hold],
+  );
   return (
     <div
       role="status"
       aria-live="polite"
       data-aid-outcome={notice.verdict}
+      data-aid-countdown={notice.deadline === null ? 'paused' : 'running'}
+      onPointerEnter={() => hold('hover', true)}
+      onPointerLeave={() => hold('hover', false)}
+      onFocus={() => hold('focus', true)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
       className="relative w-[min(440px,calc(100vw-2rem))] rounded-tile bg-card p-4 shadow-lg ring-1 ring-border/60"
     >
       <p className="text-[15px] font-semibold">{silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">{silent ? t('noSpeechNoticeHint') : t('tooLittleNoticeHint')}</p>
+      <p className="sr-only">{t('restoreCountdownSr')}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button className="h-14 rounded-full px-6" onClick={notice.restore}>
+        <Button size="main" onClick={notice.restore}>
           {t('restoreRecording')}
-          <Countdown until={notice.until} />
+          <Countdown deadline={notice.deadline} remaining={notice.remaining} />
         </Button>
         {silent && (
-          <Button variant="outline" className="h-14 rounded-full px-6" onClick={() => setSoundCheck(true)}>
+          <Button variant="outline" size="main" onClick={() => setSoundCheck(true)}>
             <SpeakerHigh />
             {t('soundCheck')}
           </Button>
@@ -98,7 +127,7 @@ export function RecordDock() {
   };
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-4">
+    <div className={cn('pointer-events-none absolute inset-x-0 bottom-6 z-30 flex px-4', pathname === '/' ? 'justify-center' : 'justify-end pr-6')}>
       <div key={state} className="aid-dock-in pointer-events-auto">
         {/* На главной в покое кнопка записи стоит в плитке «Новая запись», здесь не дублируется */}
         {state === 'idle' && pathname !== '/' && <RecordButton size={72} />}
@@ -143,13 +172,14 @@ export function RecordDock() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                {t('stopRecording')} · {c.hotkey}
+                {t('stopRecording')} · {c.hotkey} {c.hotkeyScope}
               </TooltipContent>
             </Tooltip>
           </div>
         )}
 
-        {state === 'finishing' && (
+        {/* На экране записи «Завершаем запись» уже крупно в карточке: здесь не дублируется */}
+        {state === 'finishing' && !(pathname === '/' && c.view === 'recording') && (
           <div role="status" aria-live="polite" className="flex h-[72px] items-center gap-3 rounded-full bg-card px-7 text-[15px] font-medium shadow-lg ring-1 ring-border/60">
             <Spinner />
             {c.phase === 'opening' ? t('savedShort') : t('finishingShort')}

@@ -28,7 +28,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
   const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
   return (
     <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
-      <Record className={cn('size-5 text-destructive', !rec.isPaused && 'animate-pulse')} aria-hidden />
+      <Record className={cn('size-5 text-destructive', !rec.isPaused && 'motion-safe:animate-pulse')} aria-hidden />
       <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
       <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
     </Link>
@@ -40,7 +40,7 @@ export function AidSidebar() {
   const { privacy } = usePrivacy();
 
   return (
-    // Плитка бенто: на тон светлее фона, радиус 20 px, без рамки
+    // Плитка бенто: на тон светлее фона, радиус --tile-radius (rounded-tile), без рамки
     <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-tile bg-card">
       {/* Верхняя строка плитки перетаскивает окно. В Tauri на macOS в ней же стоят кнопки
           окна (trafficLightPosition x 24, y 36 в tauri.conf.json: внутренний отступ плитки

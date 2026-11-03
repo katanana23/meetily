@@ -21,7 +21,8 @@ import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/aid/components/ui/context-menu';
-import { editableTitle, formatShortDate, formatVolume, isAutoTitle, shownTitle } from '@/aid/lib/format';
+import { editableTitle, formatNumber, formatOffset, formatShortDate, formatTime, formatVolume, isAutoTitle, plural, shownTitle } from '@/aid/lib/format';
+import type { TranscriptMatch } from '@/aid/lib/transcript-search';
 import { InlineRename } from '@/aid/components/InlineRename';
 import type { MeetingDetails, MeetingStatus } from '@/aid/lib/meeting-details-cache';
 import { cn } from '@/aid/lib/utils';
@@ -83,9 +84,13 @@ interface MeetingRowProps {
   onRename: (title: string) => Promise<void>;
   onDelete: () => void;
   onOpenFolder: () => void;
+  /** В группе «Сегодня» и «Вчера» дата в заголовке группы, в строке только время. */
+  timeOnly?: boolean;
+  /** Совпадение поиска в тексте встречи: фрагмент с подсветкой под названием. */
+  match?: TranscriptMatch | null;
 }
 
-export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: MeetingRowProps) {
+export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly, match }: MeetingRowProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const d = meeting.details;
@@ -94,10 +99,11 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   const status = kind !== 'unknown' ? STATUS[kind] : null;
   // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
   const titleIsDate = isAutoTitle(meeting.title) && !d?.contentTitle;
-  const date = meeting.created_at && !titleIsDate ? formatShortDate(meeting.created_at) : null;
-  // Полезное вместо «Только транскрипт»: длительность и объём; у итогов ещё «Итоги готовы»
+  const date = meeting.created_at && !titleIsDate ? (timeOnly ? formatTime(meeting.created_at) : formatShortDate(meeting.created_at)) : null;
+  // Полезное вместо «Только транскрипт»: длительность и объём. «Итоги готовы» словами
+  // не повторяется в каждой строке: это знак Sparkle, подпись есть у диктора
   const volume = kind === 'transcript' || kind === 'summary' || kind === 'summarizing' ? formatVolume(d?.durationSec, d?.words) : null;
-  const label = kind === 'transcript' ? null : status?.label;
+  const label = kind === 'transcript' || kind === 'summary' ? null : status?.label;
   const meta = [date, volume, label].filter(Boolean).join(' · ');
 
   const begin = () => setEditing(true);
@@ -149,7 +155,24 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
             )}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-medium" title={shown}>{shown}</span>
-              {meta && <span className="mt-0.5 block text-sm text-muted-foreground">{meta}</span>}
+              {/* Разделители для диктора: иначе имя ссылки читается слитно, «НазваниеСегодня, 10:00» */}
+              {kind === 'summary' && <span className="sr-only">, {t('statusSummary')}</span>}
+              {meta && (
+                <span className="mt-0.5 block text-sm text-muted-foreground">
+                  <span className="sr-only">, </span>
+                  {meta}
+                </span>
+              )}
+              {match && (
+                <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground" data-aid-match>
+                  <span className="sr-only">, {t('foundInText')}: </span>
+                  {match.start !== null && <span className="tabular mr-1.5 text-xs">{formatOffset(match.start)}</span>}
+                  {match.before}
+                  <mark className="rounded-[3px] bg-primary/20 text-foreground">{match.hit}</mark>
+                  {match.after}
+                  {match.hits > 1 && <span className="ml-1.5 whitespace-nowrap text-xs">ещё в {formatNumber(match.hits - 1)} {plural(match.hits - 1, 'реплике', 'репликах', 'репликах')}</span>}
+                </span>
+              )}
             </span>
           </Link>
           {/* Только у строки под курсором или с фокусом от клавиатуры: после клика не залипают */}

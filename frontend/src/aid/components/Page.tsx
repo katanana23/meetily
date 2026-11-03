@@ -35,12 +35,12 @@ interface PageProps {
   /** Неподвижная шапка: заголовок, действия, вкладки. */
   header?: ReactNode;
   children: ReactNode;
-  /** Ширина колонки контента (и шапки), Tailwind-класс max-w-*. */
+  /** Ширина колонки контента (и шапки), Tailwind-класс max-w-*; колонка прижата к сайдбару. */
   width?: string;
   className?: string;
 }
 
-export function Page({ header, children, width = 'max-w-[880px]', className }: PageProps) {
+export function Page({ header, children, width = 'max-w-[1120px]', className }: PageProps) {
   const { ref, scrolled } = useScrollActivity<HTMLDivElement>();
   return (
     <main className={cn('flex h-full min-w-0 flex-1 flex-col bg-background', className)}>
@@ -52,14 +52,15 @@ export function Page({ header, children, width = 'max-w-[880px]', className }: P
           data-tauri-drag-region
           className={cn('aid-gutter relative z-10 shrink-0 transition-shadow', scrolled && 'shadow-[0_8px_16px_-12px_hsl(var(--foreground)/0.25)]')}
         >
-          <div data-tauri-drag-region className={cn('mx-auto w-full px-6 pb-4 pt-4', width)}>
+          <div data-tauri-drag-region className={cn('w-full px-4 pb-4 pt-4', width)}>
             {header}
           </div>
         </header>
       )}
       <div ref={ref} className="aid-scroll min-h-0 flex-1 overflow-y-auto">
-        {/* pb-32: кнопка записи плавает над контентом и не закрывает последнюю строку */}
-        <div className={cn('mx-auto w-full px-6 pb-32', header ? 'pt-1' : 'pt-6', width)}>{children}</div>
+        {/* Бенто: плитки в 8 px от сайдбара (отступ каркаса), колонка прижата влево.
+            pb-32: кнопка записи плавает над контентом и не закрывает последнюю строку */}
+        <div className={cn('w-full pb-32', header ? 'pt-1' : 'pt-2', width)}>{children}</div>
       </div>
     </main>
   );

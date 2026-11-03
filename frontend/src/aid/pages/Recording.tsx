@@ -126,10 +126,10 @@ function ConsentNotice() {
     <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-tile bg-card px-4 py-3">
       <p className="text-sm">{t('consentNotice')}</p>
       <div className="flex gap-2">
-        <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={() => void never()}>
+        <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={() => void never()}>
           {t('consentNever')}
         </Button>
-        <Button variant="outline" className="h-9 px-3" onClick={() => setShow(false)}>
+        <Button variant="outline" className="h-10 px-4" onClick={() => setShow(false)}>
           {t('consentDone')}
         </Button>
       </div>

@@ -1,11 +1,17 @@
 // Оценка содержания записи: была ли осмысленная речь.
-// Решение не зависит от длительности: короткая запись с одной внятной фразой
-// сохраняется, а длинная тишина с «галлюцинациями» распознавания нет.
+// Решение не зависит от длительности записи: считаем слова после чистки
+// галлюцинаций и, если ядро сообщило длительность речевых сегментов, секунды речи.
 
-/** Реплика считается осмысленной, если в ней не меньше 3 слов («созвон переносим на пятницу»). */
-export const MIN_WORDS_IN_SEGMENT = 3;
-/** Или если в сумме набралось 5 слов: несколько коротких ответов («да», «согласен»…) тоже разговор. */
-export const MIN_TOTAL_WORDS = 5;
+/**
+ * Не меньше 15 слов после чистки: пара фраз («да, хорошо, давай», «релиз в четверг»)
+ * встречей не считается, а короткий созвон на полминуты уже набирает 15 слов.
+ */
+export const MIN_MEANINGFUL_WORDS = 15;
+/**
+ * И не меньше 10 секунд речи, если длительность известна: у каждого сегмента
+ * с текстом ядро присылает duration (длину речевого сегмента после VAD).
+ */
+export const MIN_SPEECH_SECONDS = 10;
 /** Короткая фраза: столько слов и меньше. Повтор такой фразы подряд считается сбоем распознавания. */
 const SHORT_PHRASE_WORDS = 3;
 
@@ -58,45 +64,65 @@ export function isHallucination(text: string): boolean {
   return HALLUCINATIONS.some((re) => re.test(n));
 }
 
+export interface SpeechSegment {
+  text: string;
+  /** Длина речевого сегмента в секундах (transcript-update.duration), если известна. */
+  duration?: number | null;
+}
+
 /**
  * Чистка реплик после записи:
  * - без букв («...», «♪», цифры шума) выбрасываются;
  * - галлюцинации из списка выше выбрасываются;
  * - одна и та же короткая фраза подряд («угу», «угу», «угу») остаётся один раз.
  */
-export function cleanSegments(texts: string[]): string[] {
-  const out: string[] = [];
+export function cleanSegments<T extends SpeechSegment>(segments: T[]): T[] {
+  const out: T[] = [];
   let prev = '';
-  for (const raw of texts) {
-    const text = raw.trim();
+  for (const seg of segments) {
+    const text = seg.text.trim();
     if (!LETTER.test(text)) continue;
     if (isHallucination(text)) continue;
     const n = normalize(text);
     if (n === prev && words(text).length <= SHORT_PHRASE_WORDS) continue;
     prev = n;
-    out.push(text);
+    out.push(seg);
   }
   return out;
 }
 
-export function hasMeaningfulSpeech(texts: string[]): boolean {
-  const clean = cleanSegments(texts);
-  const counts = clean.map((t) => words(t).length);
-  const total = counts.reduce((a, b) => a + b, 0);
-  return counts.some((c) => c >= MIN_WORDS_IN_SEGMENT) || total >= MIN_TOTAL_WORDS;
+export interface SpeechAmount {
+  words: number;
+  /** Секунды речи; null, если хотя бы у одного сегмента нет длительности. */
+  seconds: number | null;
+}
+
+export function measureSpeech(segments: SpeechSegment[]): SpeechAmount {
+  const clean = cleanSegments(segments);
+  const count = clean.reduce((sum, s) => sum + words(s.text).length, 0);
+  const known = clean.every((s) => typeof s.duration === 'number' && Number.isFinite(s.duration));
+  const seconds = known ? clean.reduce((sum, s) => sum + (s.duration as number), 0) : null;
+  return { words: count, seconds };
+}
+
+export function hasMeaningfulSpeech(segments: SpeechSegment[]): boolean {
+  const { words: count, seconds } = measureSpeech(segments);
+  return count >= MIN_MEANINGFUL_WORDS && (seconds === null || seconds >= MIN_SPEECH_SECONDS);
 }
 
 export type RecordingVerdict =
   /** Есть осмысленная речь: обычная встреча. */
   | 'speech'
-  /** Речи не было: встреча не сохраняется (с возможностью вернуть). */
+  /** Речь была, но меньше порога: не сохраняется (с возможностью вернуть). */
+  | 'too-little'
+  /** Речи не было: не сохраняется (с возможностью вернуть). */
   | 'no-speech'
   /** Детектор речи слышал голос, но текста нет: сохранить как «Речь не распознана». */
   | 'unrecognized';
 
 export interface RecordingEvidence {
-  /** Тексты реплик (без подписи спикера). */
-  texts: string[];
+  /** Реплики (текст без подписи спикера и длительность сегмента). */
+  segments: SpeechSegment[];
   /** Речевых сегментов по VAD ядра (transcription-progress, transcription-queue-complete). */
   vadSegments: number;
   /** Были ошибки или предупреждения распознавания. */
@@ -105,15 +131,21 @@ export interface RecordingEvidence {
 
 /**
  * Итог записи:
- * - осмысленная речь есть → 'speech';
+ * - осмысленная речь (15+ слов и 10+ секунд речи, если известно) → 'speech';
  * - VAD слышал речь, а распознавание не дало ни одной реплики или сбоило → 'unrecognized'
  *   (звук ценен, такие записи не удаляются);
+ * - после чистки остались слова, но меньше порога → 'too-little';
  * - иначе → 'no-speech': VAD молчал, или модель выдала только мусор на шум.
  */
 export function judgeRecording(e: RecordingEvidence): RecordingVerdict {
-  if (hasMeaningfulSpeech(e.texts)) return 'speech';
+  if (hasMeaningfulSpeech(e.segments)) return 'speech';
   const heard = e.vadSegments > 0;
-  const noTextAtAll = e.texts.every((t) => !LETTER.test(t));
+  const noTextAtAll = e.segments.every((s) => !LETTER.test(s.text));
   if (heard && (noTextAtAll || e.recognitionFailed)) return 'unrecognized';
-  return 'no-speech';
+  return measureSpeech(e.segments).words > 0 ? 'too-little' : 'no-speech';
+}
+
+/** Не сохраняем: «Вернуть» доступно 10 секунд. */
+export function isDiscarded(v: RecordingVerdict): boolean {
+  return v === 'no-speech' || v === 'too-little';
 }

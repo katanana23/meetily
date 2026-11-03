@@ -20,7 +20,7 @@ import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { toSegment } from './meeting';
-import { isHallucination, judgeRecording, type RecordingVerdict } from './speech';
+import { isDiscarded, isHallucination, judgeRecording, type RecordingVerdict, type SpeechSegment } from './speech';
 
 /** Сколько ждать «Вернуть» у несохранённой записи. */
 export const RESTORE_WINDOW_MS = 10_000;
@@ -80,7 +80,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const [live, setLive] = useState<LiveSpeech>(EMPTY);
   const [finishing, setFinishing] = useState<Ctx['finishing']>(null);
   const liveRef = useRef<LiveSpeech>(EMPTY);
-  const texts = useRef<string[]>([]);
+  const segs = useRef<SpeechSegment[]>([]);
   const queueTotal = useRef<number | null>(null);
   const seconds = useRef(0);
   const busy = useRef(false);
@@ -102,16 +102,19 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       try {
         // В ядре очередь закрывается до recording-stopped; при остановке из трея событие уже пришло
         for (let i = 0; i < 30 && queueTotal.current === null && liveRef.current.tracking; i++) await sleep(100);
-        const own = texts.current;
-        const fromContext = transcriptsRef.current.map((t) => toSegment(t).text);
+        const own = segs.current;
+        const fromContext: SpeechSegment[] = transcriptsRef.current.map((t) => ({
+          text: toSegment(t).text,
+          duration: typeof t.duration === 'number' ? t.duration : null,
+        }));
         const evidence = {
-          texts: own.length >= fromContext.length ? own : fromContext,
+          segments: own.length >= fromContext.length ? own : fromContext,
           vadSegments: Math.max(liveRef.current.vadSegments, queueTotal.current ?? 0),
           recognitionFailed: liveRef.current.recognitionFailed,
         };
         let verdict = judgeRecording(evidence);
         // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
-        if (verdict === 'no-speech' && !liveRef.current.tracking) verdict = 'unrecognized';
+        if (isDiscarded(verdict) && !liveRef.current.tracking) verdict = verdict === 'too-little' ? 'speech' : 'unrecognized';
 
         const folder = sessionStorage.getItem('last_recording_folder_path');
         try {
@@ -123,18 +126,20 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
           /* страница встречи покажет общую причину */
         }
 
-        if (verdict !== 'no-speech') {
+        if (!isDiscarded(verdict)) {
           setFinishing(null);
           await handle(true);
           return verdict;
         }
 
-        // Речи не было: в базу не пишем (оригинальный путь handleRecordingStop(false)),
-        // но 10 секунд можно вернуть встречу тем же хуком, как при обычном сохранении.
+        // Речи не было или слишком мало: в базу не пишем (оригинальный путь
+        // handleRecordingStop(false)), но 10 секунд можно вернуть встречу тем же
+        // хуком, как при обычном сохранении.
         setFinishing('discarding');
         await handle(false);
         const gen = generation.current;
-        restoreToast.current = toast.info('Речи не было, запись не сохранена', {
+        const message = verdict === 'too-little' ? 'Слишком мало речи, запись не сохранена' : 'Речи не было, запись не сохранена';
+        restoreToast.current = toast.info(message, {
           duration: RESTORE_WINDOW_MS,
           action: {
             label: 'Вернуть',
@@ -159,7 +164,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         generation.current++;
         if (restoreToast.current != null) toast.dismiss(restoreToast.current);
         restoreToast.current = null;
-        texts.current = [];
+        segs.current = [];
         queueTotal.current = null;
         seconds.current = 0;
         liveRef.current = { ...EMPTY, tracking: true };
@@ -169,9 +174,10 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const queued = Number(e.payload?.chunks_queued ?? 0);
         update({ vadSegments: Math.max(liveRef.current.vadSegments, queued), lastSpeechAt: seconds.current });
       }),
-      listen<{ text?: string }>('transcript-update', (e) => {
+      listen<{ text?: string; duration?: number }>('transcript-update', (e) => {
         const text = toSegment({ text: e.payload?.text ?? '' } as never).text;
-        texts.current = [...texts.current, text];
+        const duration = typeof e.payload?.duration === 'number' ? e.payload.duration : null;
+        segs.current = [...segs.current, { text, duration }];
         if (/\p{L}/u.test(text) && !isHallucination(text)) {
           update({ textSegments: liveRef.current.textSegments + 1, lastSpeechAt: seconds.current });
         }

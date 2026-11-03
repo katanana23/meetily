@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, CaretDown, ChatsCircle, FileAudio, FolderOpen, MagnifyingGlass, Trash, WarningCircle } from '@phosphor-icons/react';
+import { ArrowClockwise, CaretDown, Chats, UploadSimple, FolderOpen, MagnifyingGlass, Trash, Warning } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
@@ -15,6 +15,8 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
+import { RecordButton } from '@/aid/components/RecordButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { cachedDetails, loadDetails } from '@/aid/lib/meeting-details-cache';
@@ -135,7 +137,7 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
 
   return (
     <Alert aria-live="polite">
-      <WarningCircle />
+      <Warning />
       <div>
         <AlertTitle>{copy.title}</AlertTitle>
         <AlertDescription>
@@ -185,12 +187,12 @@ function UnrecognizedSection({
   const { betaFeatures } = useConfig();
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
   return (
-    <section className="mt-6" aria-label={t('unrecognizedSection')}>
+    <section className="mt-2 rounded-tile bg-card p-2" aria-label={t('unrecognizedSection')}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-[20px] px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full items-center gap-2 rounded-nested px-3 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {t('unrecognizedSection')} · {meetings.length}
         {/* Вниз, когда свёрнуто, вверх, когда раскрыто */}
@@ -198,13 +200,13 @@ function UnrecognizedSection({
       </button>
       {open && (
         <div className="mt-2 space-y-2">
-          <p className="px-4 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
+          <p className="px-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
           <ul className="space-y-2">
             {meetings.map((m) => (
-              <li key={m.id} className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-[20px] bg-card py-2 pl-4 pr-2">
+              <li key={m.id} className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-nested py-2 pl-3 pr-1 hover:bg-muted">
                 <Link
                   href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-                  className="min-w-0 flex-1 rounded-xl py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="min-w-0 flex-1 rounded-nested py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="block truncate text-[15px] font-medium" title={displayTitle(m.title)}>
                     {displayTitle(m.title)}
@@ -340,6 +342,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const openFolder = (m: MeetingListItem) =>
     void openMeetingFolder(m.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
   const { openImportDialog } = useImportDialog();
+  const { hotkey } = useRecordingControls();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
 
@@ -371,39 +374,44 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
   const header = (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
-        {/* Импорт второстепенный: небольшая кнопка; запись начинается кнопкой внизу */}
-        {betaFeatures.importAndRetranscribe && (
-          <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => openImportDialog()}>
-            <FileAudio />
-            {t('importAudio')}
-          </Button>
-        )}
-      </div>
-      {showSearch && (
-        <div className="relative mt-4">
-          <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('searchMeetings')}
-            aria-label={t('searchMeetings')}
-            className="rounded-[20px] pl-12"
-            disabled={state.kind !== 'ready'}
-          />
-        </div>
-      )}
+      <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
     </>
   );
 
   return (
     <Page header={header}>
+      {/* Бенто: крупная плитка «Новая запись» (2/3), рядом малая плитка импорта */}
+      <div className="mb-2 grid grid-cols-3 gap-2">
+        <section
+          aria-label={t('newRecording')}
+          className={cn('flex min-h-[128px] items-center gap-5 rounded-tile bg-card p-4', betaFeatures.importAndRetranscribe ? 'col-span-2' : 'col-span-3')}
+        >
+          <RecordButton size={96} />
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight">{t('newRecording')}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t('newRecordingHint')}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <kbd className="rounded-full bg-muted px-2 py-0.5 font-sans text-xs font-medium text-foreground">{hotkey}</kbd>
+            </p>
+          </div>
+        </section>
+        {betaFeatures.importAndRetranscribe && (
+          <section aria-label={t('importAudio')} className="flex items-center justify-center rounded-tile bg-card p-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="size-14 [&_svg]:size-5" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
+                  <UploadSimple />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('importAudio')}</TooltipContent>
+            </Tooltip>
+          </section>
+        )}
+      </div>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">
-          <WarningCircle />
+          <Warning />
           <div>
             <AlertTitle>{t('startFailed')}</AlertTitle>
             <AlertDescription>
@@ -416,7 +424,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
       {state.kind === 'error' ? (
         <Alert variant="destructive" className={blocker || startError ? 'mt-2' : ''}>
-          <WarningCircle />
+          <Warning />
           <div>
             <AlertTitle>{t('meetingsError')}</AlertTitle>
             <AlertDescription>
@@ -433,11 +441,27 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Alert>
       ) : (
         <div className={blocker || startError ? 'mt-2' : ''}>
+          {/* Плитка списка: поиск и строки встреч внутри, отступ 8 px, вложенный радиус */}
+          <section aria-label={t('meetingsList')} className="rounded-tile bg-card p-2">
+          {showSearch && (
+            <div className="relative mb-2">
+              <MagnifyingGlass className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('searchMeetings')}
+                aria-label={t('searchMeetings')}
+                className="bg-muted pl-12"
+                disabled={state.kind !== 'ready'}
+              />
+            </div>
+          )}
           {state.kind === 'loading' && (
-            <div className="space-y-2" role="status" aria-busy="true" aria-label={t('loading')}>
-              {/* Та же геометрия, что у MeetingRow: плитка, иконка 20 px, две строки, шеврон; без скачка */}
+            <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>
+              {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка */}
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex min-h-[72px] items-center gap-3 rounded-[20px] bg-card py-3 pl-4 pr-3">
+                <div key={i} className="flex min-h-[64px] items-center gap-3 rounded-nested py-3 pl-3 pr-3">
                   <Skeleton className="size-5 shrink-0 rounded-full" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-2/3 rounded-lg" />
@@ -450,23 +474,23 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
 
           {state.kind === 'ready' && groups.main.length === 0 && (
-            <Card className="flex flex-col items-center px-6 py-14 text-center">
-              <ChatsCircle className="size-5 text-muted-foreground" aria-hidden />
+            <div className="flex flex-col items-center px-6 py-12 text-center">
+              <Chats className="size-5 text-muted-foreground" aria-hidden />
               <h2 className="mt-3 text-xl font-semibold">{t('noMeetings')}</h2>
               <p className="mt-2 max-w-sm text-[15px] text-muted-foreground">{t('noMeetingsHint')}</p>
-            </Card>
+            </div>
           )}
 
           {state.kind === 'ready' && groups.main.length > 0 && filtered.length === 0 && (
-            <Card className="flex flex-col items-center px-6 py-12 text-center">
+            <div className="flex flex-col items-center px-6 py-10 text-center">
               <MagnifyingGlass className="size-5 text-muted-foreground" aria-hidden />
               <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
               <p className="mt-1 text-[15px] text-muted-foreground">{t('nothingFoundHint')}</p>
-            </Card>
+            </div>
           )}
 
           {filtered.length > 0 && (
-            <ul className="space-y-2" aria-label={t('meetingsList')}>
+            <ul className="space-y-1" aria-label={t('meetingsList')}>
               {filtered.map((m) => (
                 <MeetingRow
                   key={m.id}
@@ -478,6 +502,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
               ))}
             </ul>
           )}
+          </section>
 
           {state.kind === 'ready' && groups.unrecognized.length > 0 && !query.trim() && (
             <UnrecognizedSection

@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle, GearSix, WarningCircle } from '@phosphor-icons/react';
+import { Check, GearSix, Warning } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { cn } from '@/aid/lib/utils';
@@ -61,7 +61,7 @@ export function silenceCause(s: SoundState | null): string {
 }
 
 function Row({ ok, title, value }: { ok: boolean; title: string; value: string }) {
-  const Icon = ok ? CheckCircle : WarningCircle;
+  const Icon = ok ? Check : Warning;
   return (
     <li className="flex items-start gap-3 py-3">
       <Icon className={cn('mt-0.5 size-5 shrink-0', ok ? 'text-primary-ink' : 'text-destructive')} aria-hidden />

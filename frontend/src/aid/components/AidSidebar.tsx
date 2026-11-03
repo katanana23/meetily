@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChatsCircle, GearSix, Record } from '@phosphor-icons/react';
+import { Chats, GearSix, Record } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { BrandMark } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';
@@ -14,12 +14,12 @@ import { t } from '@/aid/strings';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 
 const NAV = [
-  { label: t('navMeetings'), href: '/', icon: ChatsCircle, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
+  { label: t('navMeetings'), href: '/', icon: Chats, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
   { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p: string) => p.startsWith('/settings') },
 ];
 
 const ITEM =
-  'flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'flex h-11 items-center gap-3 rounded-nested px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 /** Запись идёт, а пользователь ушёл с главной: напоминание и путь обратно к кнопке «Остановить». */
 function RecordingLink({ pathname }: { pathname: string }) {
@@ -41,10 +41,12 @@ export function AidSidebar() {
 
   return (
     // Плитка бенто: на тон светлее фона, радиус 20 px, без рамки
-    <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-[20px] bg-card">
-      {/* Верх сайдбара перетаскивает окно; в Tauri на macOS здесь место под кнопки окна (28 px) */}
-      <div data-tauri-drag-region className="h-0 shrink-0 [.aid-titlebar-overlay_&]:h-7" />
-      <div data-tauri-drag-region className="flex h-14 items-center gap-3 px-4">
+    <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-tile bg-card">
+      {/* Верхняя строка плитки перетаскивает окно. В Tauri на macOS в ней же стоят кнопки
+          окна (trafficLightPosition x 24, y 36 в tauri.conf.json: внутренний отступ плитки
+          16 px от её края и центр этой строки высотой 56 px), поэтому знак и название
+          сдвинуты вправо за кнопки: 84 px от края плитки. */}
+      <div data-tauri-drag-region className="flex h-14 shrink-0 items-center gap-3 px-4 [.aid-titlebar-overlay_&]:pl-[84px]">
         {/* Место под маскота 28 px: пока нейтральный знак (BrandMark) */}
         <BrandMark />
         <span className="text-[15px] font-semibold">{t('appName')}</span>

@@ -15,9 +15,10 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Microphone, Pause, Play, SpeakerHigh, Stop } from '@phosphor-icons/react';
+import { Pause, Play, SpeakerHigh, Stop } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
+import { RecordButton } from '@/aid/components/RecordButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { SoundCheckDialog } from '@/aid/components/SoundCheck';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
@@ -63,7 +64,7 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
       role="status"
       aria-live="polite"
       data-aid-outcome={notice.verdict}
-      className="relative w-[min(440px,calc(100vw-2rem))] rounded-[20px] bg-card p-4 shadow-lg ring-1 ring-border/60"
+      className="relative w-[min(440px,calc(100vw-2rem))] rounded-tile bg-card p-4 shadow-lg ring-1 ring-border/60"
     >
       <p className="text-[15px] font-semibold">{silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle')}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">{silent ? t('noSpeechNoticeHint') : t('tooLittleNoticeHint')}</p>
@@ -99,31 +100,12 @@ export function RecordDock() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-4">
       <div key={state} className="aid-dock-in pointer-events-auto">
-        {state === 'idle' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => void c.startAnywhere()}
-                disabled={c.isStarting}
-                aria-label={t('startRecording')}
-                aria-keyshortcuts="Meta+Shift+R Control+Shift+R"
-                className="aid-accent-fill relative flex size-[72px] items-center justify-center rounded-full text-primary-foreground shadow-lg transition-transform hover:scale-[1.04] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-70"
-              >
-                {!c.isStarting && <span className="aid-dock-breathe absolute inset-0 rounded-full border-2 border-primary" aria-hidden />}
-                {/* 28 px: единственная иконка крупнее 20 px (CLAUDE.md) */}
-                {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-7" />}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {t('startRecording')} · {c.hotkey}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {/* На главной в покое кнопка записи стоит в плитке «Новая запись», здесь не дублируется */}
+        {state === 'idle' && pathname !== '/' && <RecordButton size={72} />}
 
         {state === 'recording' && (
-          // Активное состояние записи: капсула на акцентном градиенте, белый текст
-          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-accent-fill flex items-center gap-2 rounded-full p-2 text-primary-foreground shadow-lg">
+          // Активное состояние записи: капсула в стекле кобальта (.aid-glass-record), белый текст
+          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-glass-record flex items-center gap-2 rounded-full p-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

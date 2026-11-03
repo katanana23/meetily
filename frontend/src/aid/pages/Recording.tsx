@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { CheckCircle, MicrophoneSlash, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
+import { Check, MicrophoneSlash, SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
@@ -46,7 +46,7 @@ function NoSpeechHint() {
   const [open, setOpen] = useState(false);
   const sound = useSoundState(true);
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-card p-4" role="status">
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
       <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
@@ -64,7 +64,7 @@ function NoSpeechHint() {
 /** Долгая тишина после речи: предложить остановить, но не останавливать самим. */
 function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onContinue: () => void }) {
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-card p-4" role="alert">
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
         <Button variant="outline" size="main" onClick={onContinue}>
@@ -123,7 +123,7 @@ function ConsentNotice() {
 
   if (!show) return null;
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-card px-4 py-3">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-tile bg-card px-4 py-3">
       <p className="text-sm">{t('consentNotice')}</p>
       <div className="flex gap-2">
         <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={() => void never()}>
@@ -178,7 +178,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
       <Page width="max-w-[840px]">
         <Card className="mt-6 w-full px-6 py-12 text-center" role="status" aria-live="polite">
           {phase === 'opening' ? (
-            <CheckCircle className="mx-auto size-5 text-primary-ink" aria-hidden />
+            <Check weight="bold" className="mx-auto size-5 text-primary-ink" aria-hidden />
           ) : (
             <Spinner className="mx-auto" />
           )}
@@ -213,7 +213,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
 
       {problems.error && (
         <Alert variant="destructive" className="mb-2">
-          <WarningCircle />
+          <Warning />
           <div>
             <AlertTitle>{problems.error.message}</AlertTitle>
             <AlertDescription>

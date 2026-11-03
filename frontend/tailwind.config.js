@@ -62,6 +62,10 @@ module.exports = {
   			}
   		},
   		borderRadius: {
+  			// Aid: концентричные радиусы (globals.css): окно → плитка → вложенный элемент
+  			window: 'var(--window-radius, 26px)',
+  			tile: 'var(--tile-radius, 18px)',
+  			nested: 'var(--nested-radius, 10px)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'

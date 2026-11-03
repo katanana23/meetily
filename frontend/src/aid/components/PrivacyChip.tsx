@@ -2,7 +2,7 @@
 // Смысл передают текст и иконка, цвет только поддерживает.
 'use client';
 
-import { Cloud, Question, ShieldCheck } from '@phosphor-icons/react';
+import { Cloud, ShieldCheck, ShieldWarning } from '@phosphor-icons/react';
 import { Badge } from '@/aid/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import type { PrivacyInfo, PrivacyLevel, ProviderPrivacy } from '@/aid/lib/privacy';
@@ -12,7 +12,7 @@ import { cn } from '@/aid/lib/utils';
 const LEVEL = {
   local: { icon: ShieldCheck, label: t('privacyLocal'), hint: t('privacyHintLocal'), variant: 'accent' as const },
   cloud: { icon: Cloud, label: t('privacyCloud'), hint: t('privacyHintCloud'), variant: 'outline' as const },
-  unknown: { icon: Question, label: t('privacyUnknown'), hint: t('privacyHintUnknown'), variant: 'secondary' as const },
+  unknown: { icon: ShieldWarning, label: t('privacyUnknown'), hint: t('privacyHintUnknown'), variant: 'secondary' as const },
 } satisfies Record<PrivacyLevel, unknown>;
 
 const WHERE: Record<PrivacyLevel, string> = {

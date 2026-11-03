@@ -22,7 +22,7 @@ const ContextMenuContent = React.forwardRef<
       // data-aid: меню Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'z-50 min-w-[220px] overflow-hidden rounded-2xl border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0',
+        'z-50 min-w-[220px] overflow-hidden rounded-tile border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0',
         className,
       )}
       {...props}
@@ -38,7 +38,7 @@ const ContextMenuItem = React.forwardRef<
   <ContextMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex h-10 cursor-default select-none items-center gap-3 rounded-xl px-3 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted [&_svg]:size-4 [&_svg]:shrink-0',
+      'relative flex h-10 cursor-default select-none items-center gap-3 rounded-[calc(var(--tile-radius)-6px)] px-3 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted [&_svg]:size-4 [&_svg]:shrink-0',
       destructive ? 'text-destructive' : 'text-foreground',
       className,
     )}

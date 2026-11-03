@@ -14,7 +14,6 @@ import remarkGfm from 'remark-gfm';
 import {
   ArrowClockwise,
   CaretDown,
-  Check,
   Copy,
   FileMd,
   FolderOpen,
@@ -23,15 +22,13 @@ import {
   Sparkle,
   TextAlignLeft,
   Trash,
-  WarningCircle,
-  X,
+  Warning,
 } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
-import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -60,7 +57,8 @@ import {
 } from '@/aid/lib/meeting';
 import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
-import { formatDateTime, formatDuration, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
+import { editableTitle, formatDateTime, formatDuration, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
+import { InlineRename } from '@/aid/components/InlineRename';
 import { contentTitle } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
@@ -78,7 +76,7 @@ function BackLink() {
 function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyError; onRetry?: () => void }) {
   return (
     <Alert variant="destructive">
-      <WarningCircle />
+      <Warning />
       <div>
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
@@ -99,69 +97,25 @@ function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyE
 }
 
 /** Название встречи с переименованием на месте. В базе хранится то, что ввёл человек. */
-function Title({ title, shown, onRename }: { title: string; shown: string; onRename: (next: string) => Promise<void> }) {
+function Title({ shown, editable, onRename }: { shown: string; editable: string; onRename: (next: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.select();
-  }, [editing]);
-
-  const begin = () => {
-    // автоматическое название предлагаем в человеческом виде
-    setValue(shown);
-    setEditing(true);
-  };
-
-  const save = async () => {
-    const next = value.trim();
-    if (!next) {
-      aidToast.error(t('titleEmpty'));
-      return;
-    }
-    if (next === shown || next === title) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      await onRename(next);
-      setEditing(false);
-    } catch (error) {
-      aidToast.error(t('renameFailed'), { description: String(error) });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const begin = () => setEditing(true);
 
   if (editing) {
     return (
-      <form
-        className="flex flex-wrap items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
+      <InlineRename
+        initial={editable}
+        onSave={async (next) => {
+          try {
+            await onRename(next);
+          } catch (error) {
+            aidToast.error(t('renameFailed'), { description: String(error) });
+            throw error;
+          }
         }}
-      >
-        <Input
-          ref={inputRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
-          aria-label={t('meetingTitle')}
-          className="h-12 min-w-0 flex-1 text-xl font-semibold"
-          maxLength={200}
-          disabled={saving}
-        />
-        <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-          {saving ? <Spinner tone="inherit" /> : <Check />}
-        </Button>
-        <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
-          <X />
-        </Button>
-      </form>
+        onClose={() => setEditing(false)}
+        inputClassName="h-12 text-xl font-semibold"
+      />
     );
   }
 
@@ -287,7 +241,7 @@ function SummaryBlock({
 
   if (summary.kind === 'processing') {
     return (
-      <div className="mb-2 flex items-center gap-3 rounded-[20px] bg-card p-4" role="status" aria-live="polite">
+      <div className="mb-2 flex items-center gap-3 rounded-tile bg-card p-4" role="status" aria-live="polite">
         <Spinner />
         <div className="min-w-0">
           <p className="text-sm font-medium">{t('summaryProcessing')}</p>
@@ -308,14 +262,14 @@ function SummaryBlock({
   if (summary.kind !== 'ready') return null;
 
   return (
-    <section className="mb-2 rounded-[20px] bg-card" aria-labelledby="summary-title">
+    <section className="mb-2 rounded-tile bg-card" aria-labelledby="summary-title">
       <div className="flex items-center gap-2 p-2">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="summary-body"
-          className="flex h-11 flex-1 items-center gap-3 rounded-2xl px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-11 flex-1 items-center gap-3 rounded-nested px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Sparkle className="size-5 text-primary-ink" aria-hidden />
           <span id="summary-title" className="text-base font-semibold">
@@ -378,7 +332,7 @@ function CopyMenu({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span tabIndex={0} className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {trigger}
           </span>
         </TooltipTrigger>
@@ -589,7 +543,7 @@ function MeetingDetailsContent() {
         </div>
       </div>
       <div className="mt-3 min-w-0">
-        <Title title={meta.title} shown={shownTitle} onRename={rename} />
+        <Title shown={shownTitle} editable={editableTitle(meta.title, fromContent)} onRename={rename} />
         <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
       </div>
     </>
@@ -609,7 +563,7 @@ function MeetingDetailsContent() {
         <>
           <SummaryBlock summary={m.summary} onRetry={() => void m.generateSummary()} />
           {/* Транскрипт одной плиткой: 16 px внутри, как у остальных плиток */}
-          <section aria-label={t('transcript')} className="rounded-[20px] bg-card p-4">
+          <section aria-label={t('transcript')} className="rounded-tile bg-card p-4">
             <TranscriptList segments={m.segments} />
             {m.hasMore && (
               <div className="flex justify-center pt-6">

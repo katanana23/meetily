@@ -27,7 +27,7 @@
     --primary: 233 68% 52%;
     --primary-foreground: 0 0% 100%;
     --primary-ink: 233 68% 52%;
-    /* Сдержанный градиент акцента (.aid-accent-fill): свет сверху и глубокий кобальт */
+    /* Стекло кнопки записи (.aid-glass-record): свет сверху и глубокий кобальт */
     --primary-light: 233 72% 62%;
     --primary-deep: 233 72% 38%;
 
@@ -53,10 +53,17 @@
     --skeleton: 240 9% 91%;
     --loader-speed: 0.9s;
 
-    /* Ритм бенто */
+    /* Ритм бенто и концентричные радиусы: всё считается от радиуса окна macOS.
+       Плитка стоит в окне с отступом --tile-gap, поэтому её радиус меньше на этот
+       отступ; вложенный элемент стоит в плитке с отступом --inner-gap, его радиус
+       меньше радиуса плитки на этот отступ. Кнопки и поля круглые (pill). */
+    --window-radius: 26px; /* окно macOS 26 с боковой панелью; уточнить замером */
     --tile-gap: 8px;
     --tile-pad: 16px;
-    --radius: 1.25rem;
+    --inner-gap: 8px;
+    --tile-radius: calc(var(--window-radius) - var(--tile-gap));
+    --nested-radius: max(calc(var(--tile-radius) - var(--inner-gap)), 6px);
+    --radius: var(--tile-radius);
   }
 
   .dark {
@@ -153,7 +160,7 @@
   --normal-bg: hsl(var(--popover));
   --normal-border: hsl(var(--border));
   --normal-text: hsl(var(--popover-foreground));
-  --border-radius: 16px;
+  --border-radius: var(--tile-radius);
   --width: 380px;
   font-family: var(--font-ui), system-ui, sans-serif;
 }
@@ -224,7 +231,7 @@
 /* :root и data-styled: правило sonner для кнопки действия специфичнее нашего */
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-button] {
   height: 32px;
-  border-radius: 10px;
+  border-radius: 9999px;
   padding: 0 12px;
   font-weight: 500;
   background: hsl(var(--primary));
@@ -424,25 +431,94 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Градиент только на акцентных элементах: главная кнопка (вариант default у Button),
-   кнопка записи и капсула идущей записи. Радиальный свет сверху переходит в кобальт
-   и глубокий кобальт к низу, тонкий внутренний блик по верхнему краю. Без свечений
-   наружу и без фиолетово-розовых переходов. Текст стоит в средней части, где цвет
-   равен --primary (контраст белого 7:1 в светлой теме и 5:1 в тёмной). */
-.aid-accent-fill {
-  background-color: hsl(var(--primary));
-  background-image:
-    radial-gradient(120% 70% at 50% 0%, hsl(var(--primary-light) / 0.9) 0%, hsl(var(--primary-light) / 0) 60%),
-    linear-gradient(180deg, hsl(var(--primary)) 40%, hsl(var(--primary-deep)) 100%);
+/* Стекло и градиент только на элементах записи: кнопка записи (плитка «Новая
+   запись» и плавающая кнопка) и капсула идущей записи. Полупрозрачная основа
+   в одном кобальте: свет сверху (радиальный, --primary-light), глубина снизу
+   (--primary-deep); размытие и насыщенность того, что под кнопкой
+   (backdrop-filter, для WebKit с префиксом); тонкий светлый блик по верхнему
+   краю и внутренняя тень снизу; тонкая обводка градиентом (::before с маской);
+   блик пробегает при наведении (::after, только transform). Без фиолетово-
+   розовых переходов и неоновых свечений: наружу только мягкая тень.
+   Остальной интерфейс плоский монохром. */
+.aid-glass-record {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(120% 85% at 50% 0%, hsl(var(--primary-light) / 0.9) 0%, hsl(var(--primary-light) / 0) 58%),
+    linear-gradient(180deg, hsl(var(--primary) / 0.82) 0%, hsl(var(--primary-deep) / 0.94) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
   box-shadow:
-    inset 0 1px 0 hsl(0 0% 100% / 0.22),
-    inset 0 -1px 0 hsl(var(--primary-deep) / 0.6);
+    inset 0 1px 0 hsl(0 0% 100% / 0.5),
+    inset 0 -12px 20px -12px hsl(var(--primary-deep) / 0.95),
+    0 6px 14px -8px hsl(0 0% 0% / 0.35); /* нейтральная тень, не цветное свечение */
 }
 
-.aid-accent-fill:hover {
-  filter: brightness(1.06);
+.aid-glass-record::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.7), hsl(var(--primary-light) / 0.15) 50%, hsl(var(--primary-deep) / 0.7));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+  z-index: 0;
 }
 
-.aid-accent-fill:active {
-  filter: brightness(0.96);
+.aid-glass-record::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 55%;
+  background: linear-gradient(105deg, transparent 0%, hsl(0 0% 100% / 0.28) 50%, transparent 100%);
+  transform: translateX(-130%) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aid-glass-record > * {
+  position: relative;
+  z-index: 1;
+}
+
+.aid-glass-record:hover::after {
+  opacity: 1;
+  animation: aid-glass-shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes aid-glass-shimmer {
+  from {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-glass-record:hover::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Десктопное приложение: ссылки и картинки не перетаскиваются. В WebKit на macOS
+   ссылку можно потянуть, и лёгкое движение мыши или трекпада при нажатии начинает
+   перетаскивание вместо клика; в Tauri такое перетаскивание ещё и перехватывает
+   обработчик файлов (dragDropEnabled), и клик теряется. */
+.aid-app a,
+.aid-app img {
+  -webkit-user-drag: none;
 }

@@ -3150,7 +3150,7 @@
 .aid-legacy :where(div, section).bg-white.rounded-lg,
 .aid-legacy :where(div, section).bg-white.rounded-xl,
 .aid-legacy :where(div, section).bg-white.rounded-2xl {
-  border-radius: 20px;
+  border-radius: var(--tile-radius);
   border-color: transparent;
 }
 

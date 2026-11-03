@@ -107,6 +107,16 @@ export function shownTitle(title: string | null | undefined, fromContent?: strin
   return displayTitle(title);
 }
 
+/**
+ * Текст для поля переименования: полное название без многоточия. Своё название
+ * человека как есть; автоматическое: начало первой реплики целиком (без «…»
+ * от сокращения в списке), без текста дата.
+ */
+export function editableTitle(title: string | null | undefined, fromContent?: string | null): string {
+  if (isAutoTitle(title) && fromContent) return fromContent.replace(/…$/u, '').trim();
+  return displayTitle(title);
+}
+
 /** «12 мин · 340 слов» для строки списка. */
 export function formatVolume(durationSec: number | null | undefined, words: number | null | undefined): string | null {
   const parts = [formatDuration(durationSec), words ? `${words} ${plural(words, 'слово', 'слова', 'слов')}` : null].filter(Boolean);

@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
-import { CheckCircle, Info, Warning, WarningCircle } from '@phosphor-icons/react';
+import { Bell, Check, Warning } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { getStoredTheme, onThemeChange, type ThemeMode } from '@/aid/lib/theme';
 import { installAidToasts } from '@/aid/lib/toasts';
@@ -14,10 +14,11 @@ installAidToasts();
 // Иконки уведомлений из того же набора и размера, что во всём Aid (fill, 20 px),
 // ожидание тем же Spinner; встроенные иконки sonner другого начертания.
 const ICONS = {
-  success: <CheckCircle weight="fill" className="size-5" />,
-  info: <Info weight="fill" className="size-5" />,
+  // Без иконок со встроенной подложкой (*Circle, *Square): знак без кружка
+  success: <Check weight="bold" className="size-5" />,
+  info: <Bell weight="fill" className="size-5" />,
   warning: <Warning weight="fill" className="size-5" />,
-  error: <WarningCircle weight="fill" className="size-5" />,
+  error: <Warning weight="fill" className="size-5" />,
   loading: <Spinner />,
   // Крестик закрытия остаётся тонким из sonner: залитый X в Phosphor нарисован квадратом
 };

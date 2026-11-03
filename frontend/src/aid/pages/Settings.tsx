@@ -10,7 +10,7 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Subtitles } from '@phosphor-icons/react';
+import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Waveform } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
@@ -30,10 +30,10 @@ import AnalyticsConsentSwitch from '@/components/AnalyticsConsentSwitch';
 const TABS = [
   { value: 'general', label: t('settingsGeneral'), icon: SlidersHorizontal },
   { value: 'recording', label: t('settingsRecording'), icon: Microphone },
-  { value: 'transcription', label: t('settingsTranscription'), icon: Subtitles },
+  { value: 'transcription', label: t('settingsTranscription'), icon: Waveform },
   { value: 'summary', label: t('settingsSummary'), icon: Sparkle },
   { value: 'beta', label: t('settingsBeta'), icon: Flask },
-  { value: 'about', label: t('settingsAbout'), icon: Info },
+  { value: 'about', label: t('settingsAbout'), icon: BookOpen },
 ] as const;
 type TabValue = (typeof TABS)[number]['value'];
 
@@ -178,7 +178,7 @@ function AboutTab() {
       <Card>
       <Row title={t('licenseTitle')} hint={t('licenseHint')}>
         <Button variant="outline" onClick={() => void openUrl(LICENSE_URL)}>
-          <ArrowSquareOut />
+          <ArrowUpRight />
           {t('license')}
         </Button>
       </Row>
@@ -194,7 +194,7 @@ function AboutTab() {
 function Legacy({ children, className }: { children: ReactNode; className?: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-3xl" />}</div>;
+  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-tile" />}</div>;
 }
 
 function SettingsContent() {
@@ -281,7 +281,7 @@ export default function Settings() {
     <Suspense
       fallback={
         <Page header={<h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>}>
-          <Skeleton className="h-40 w-full rounded-3xl" />
+          <Skeleton className="h-40 w-full rounded-tile" />
         </Page>
       }
     >

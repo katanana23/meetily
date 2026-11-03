@@ -34,6 +34,7 @@ import { AidToaster } from '@/aid/components/AidToaster'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
+import { installTauriEventGuard } from '@/aid/lib/tauri-events'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -47,6 +48,8 @@ if (process.env.NEXT_PUBLIC_UI === 'original') {
 }
 const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
 const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingProvider
+// Aid: страховка от падения unregisterListener при ранней отписке в оригинальных хуках
+if (isAidUI) installTauriEventGuard()
 
 // Оба шрифта пишут в одну переменную --font-ui, на body ставится класс только одного
 const inter = Inter({

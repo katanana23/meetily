@@ -6,7 +6,9 @@
 import dynamic from 'next/dynamic';
 import AidSettings from '@/aid/pages/Settings';
 
-const OriginalSettings = dynamic(() => import('./page-original'), { ssr: false });
+// В интерфейсе Aid условие постоянно (next.config.js env), и ветка оригинала не компилируется
+const OriginalSettings =
+  process.env.NEXT_PUBLIC_UI === 'original' ? dynamic(() => import('./page-original'), { ssr: false }) : () => null;
 
 export default function SettingsPage() {
   return process.env.NEXT_PUBLIC_UI === 'original' ? <OriginalSettings /> : <AidSettings />;

@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { subscribe } from './tauri-events';
 
 export type PrivacyLevel = 'local' | 'cloud' | 'unknown';
 
@@ -113,21 +113,11 @@ export function usePrivacy(): { privacy: PrivacyInfo; loading: boolean } {
 
   useEffect(() => {
     void load();
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    listen('model-config-updated', () => void load())
-      .then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      })
-      .catch(() => {
-        /* без событий обновимся при возврате фокуса */
-      });
+    const off = subscribe('model-config-updated', () => void load());
     const onFocus = () => void load();
     window.addEventListener('focus', onFocus);
     return () => {
-      cancelled = true;
-      unlisten?.();
+      off();
       window.removeEventListener('focus', onFocus);
     };
   }, [load]);

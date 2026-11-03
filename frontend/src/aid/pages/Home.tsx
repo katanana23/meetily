@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, ChatsCircle, SpinnerGap, FileAudio, MagnifyingGlass, Microphone, WarningCircle } from '@phosphor-icons/react';
+import { ArrowClockwise, ChatsCircle, FileAudio, MagnifyingGlass, Microphone, WarningCircle } from '@phosphor-icons/react';
+import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
@@ -15,13 +16,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, type MeetingListItem, type MeetingStatus } from '@/aid/components/MeetingRow';
+import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { cachedDetails, loadDetails } from '@/aid/lib/meeting-details-cache';
 import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import { useAidRecording, type StartBlocker } from '@/aid/lib/recording';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { displayTitle } from '@/aid/lib/format';
+import { shownTitle } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -32,49 +34,51 @@ type ListState =
   | { kind: 'error'; error: FriendlyError }
   | { kind: 'ready'; meetings: MeetingListItem[] };
 
-const SUMMARIZING = ['processing', 'pending', 'started', 'running', 'summarizing', 'regenerating'];
-
-/** Состояние встречи для строки списка: итоги, только транскрипт, речь не распознана. */
-async function loadStatus(meetingId: string): Promise<MeetingStatus> {
-  const [summary, page] = await Promise.allSettled([
-    invoke<{ status?: string; data?: unknown } | null>('api_get_summary', { meetingId }),
-    invoke<{ total_count?: number }>('api_get_meeting_transcripts', { meetingId, limit: 1, offset: 0 }),
-  ]);
-  const st = summary.status === 'fulfilled' ? (summary.value?.status ?? '').toLowerCase() : '';
-  if (SUMMARIZING.includes(st)) return 'summarizing';
-  if (st === 'completed' && summary.status === 'fulfilled' && summary.value?.data) return 'summary';
-  if (page.status !== 'fulfilled') return 'unknown';
-  return (page.value?.total_count ?? 0) > 0 ? 'transcript' : 'silent';
-}
-
 function useMeetingsList(refreshKey: unknown) {
   const [state, setState] = useState<ListState>({ kind: 'loading' });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: { cancelled: boolean } = { cancelled: false }) => {
     try {
       const list = await invoke<Array<{ id: string; title: string }>>('api_get_meetings');
-      // Дату ядро отдаёт только в метаданных встречи, состояние собираем из итогов и транскрипта
-      const [metas, statuses] = await Promise.all([
-        Promise.allSettled(list.map((m) => invoke<{ created_at?: string }>('api_get_meeting_metadata', { meetingId: m.id }))),
-        Promise.all(list.map((m) => loadStatus(m.id).catch((): MeetingStatus => 'unknown'))),
-      ]);
+      // Дату ядро отдаёт только в метаданных встречи
+      const metas = await Promise.allSettled(
+        list.map((m) => invoke<{ created_at?: string }>('api_get_meeting_metadata', { meetingId: m.id })),
+      );
+      if (signal.cancelled) return;
       setState({
         kind: 'ready',
         meetings: list.map((m, i) => {
           const meta = metas[i];
-          return { ...m, created_at: meta.status === 'fulfilled' ? meta.value?.created_at : undefined, status: statuses[i] };
+          return {
+            ...m,
+            created_at: meta.status === 'fulfilled' ? meta.value?.created_at : undefined,
+            details: cachedDetails(m.id),
+          };
         }),
       });
+      // Состояние итогов, длительность, слова и название из содержания догружаются по очереди
+      void loadDetails(
+        list.map((m) => m.id),
+        (id, details) =>
+          setState((prev) =>
+            prev.kind === 'ready' ? { kind: 'ready', meetings: prev.meetings.map((x) => (x.id === id ? { ...x, details } : x)) } : prev,
+          ),
+        signal,
+      );
     } catch (error) {
-      setState({ kind: 'error', error: friendlyError(error, 'Проверьте, что приложение запущено, и попробуйте ещё раз.') });
+      if (!signal.cancelled) setState({ kind: 'error', error: friendlyError(error, 'Проверьте, что приложение запущено, и попробуйте ещё раз.') });
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    const signal = { cancelled: false };
+    void load(signal);
+    return () => {
+      signal.cancelled = true;
+    };
   }, [load, refreshKey]);
 
-  return { state, setState, reload: load };
+  return { state, setState, reload: () => load() };
 }
 
 const BLOCKER: Record<Exclude<StartBlocker['kind'], 'check-failed'>, { title: string; hint: string; action: string; href: string }> = {
@@ -190,7 +194,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
     const q = query.trim().toLowerCase();
     // ищем и по названию в базе, и по тому, что видно в списке
     return q
-      ? state.meetings.filter((m) => m.title.toLowerCase().includes(q) || displayTitle(m.title).toLowerCase().includes(q))
+      ? state.meetings.filter((m) => m.title.toLowerCase().includes(q) || shownTitle(m.title, m.details?.contentTitle).toLowerCase().includes(q))
       : state.meetings;
   }, [state, query]);
 
@@ -208,7 +212,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
             </Button>
           )}
           <Button size="xl" onClick={onStart} disabled={isStarting}>
-            {isStarting ? <SpinnerGap className="animate-spin" /> : <Microphone />}
+            {isStarting ? <Spinner tone="inherit" /> : <Microphone />}
             {t('startRecording')}
           </Button>
         </div>
@@ -268,12 +272,15 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
           <div className={blocker || startError ? 'mt-6' : ''}>
             {state.kind === 'loading' && (
               <Card className="divide-y divide-border overflow-hidden" role="status" aria-busy="true" aria-label={t('loading')}>
+                {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка при загрузке */}
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4 px-6 py-5">
+                  <div key={i} className="flex min-h-[72px] items-center gap-4 py-4 pl-6 pr-4">
+                    <Skeleton className="size-5 shrink-0 rounded-full" />
                     <div className="flex-1 space-y-2">
                       <Skeleton className="h-4 w-2/3 rounded-lg" />
-                      <Skeleton className="h-3 w-1/4 rounded-lg" />
+                      <Skeleton className="h-3.5 w-1/3 rounded-lg" />
                     </div>
+                    <span className="size-4 shrink-0" />
                   </div>
                 ))}
               </Card>
@@ -316,7 +323,7 @@ function HomeView({ onStart, isStarting, blocker, onDismissBlocker, startError }
       <DeleteMeetingDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}
-        title={toDelete ? displayTitle(toDelete.title) : undefined}
+        title={toDelete ? shownTitle(toDelete.title, toDelete.details?.contentTitle) : undefined}
         onConfirm={remove}
       />
     </Page>

@@ -14,13 +14,14 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { toSegment } from './meeting';
-import { isDiscarded, isHallucination, judgeRecording, type RecordingVerdict, type SpeechSegment } from './speech';
+import { subscribe } from './tauri-events';
+import { isDiscarded, isHallucination, judgeRecording, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
+import { hasTranscriptionModel } from './model-check';
 
 /** Сколько ждать «Вернуть» у несохранённой записи. */
 export const RESTORE_WINDOW_MS = 10_000;
@@ -81,6 +82,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const [finishing, setFinishing] = useState<Ctx['finishing']>(null);
   const liveRef = useRef<LiveSpeech>(EMPTY);
   const segs = useRef<SpeechSegment[]>([]);
+  /** Длины речевых сегментов без текста, если ядро когда-нибудь начнёт их присылать. */
+  const vadDurations = useRef<number[]>([]);
   const queueTotal = useRef<number | null>(null);
   const seconds = useRef(0);
   const busy = useRef(false);
@@ -104,23 +107,46 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         for (let i = 0; i < 30 && queueTotal.current === null && liveRef.current.tracking; i++) await sleep(100);
         const own = segs.current;
         const fromContext: SpeechSegment[] = transcriptsRef.current.map((t) => ({
-          text: toSegment(t).text,
+          text: (t.text ?? '').trim(),
           duration: typeof t.duration === 'number' ? t.duration : null,
         }));
-        const evidence = {
-          segments: own.length >= fromContext.length ? own : fromContext,
-          vadSegments: Math.max(liveRef.current.vadSegments, queueTotal.current ?? 0),
-          recognitionFailed: liveRef.current.recognitionFailed,
-        };
-        let verdict = judgeRecording(evidence);
+        const segments = own.length >= fromContext.length ? own : fromContext;
+        const vadSegments = Math.max(liveRef.current.vadSegments, queueTotal.current ?? 0);
+        // Секунды речи по детектору: длины речевых сегментов, о которых ядро сообщило
+        // (duration у transcript-update; у сегментов без текста ядро длину не присылает)
+        const known = [...segments.map((x) => x.duration), ...vadDurations.current].filter(
+          (d): d is number => typeof d === 'number' && Number.isFinite(d),
+        );
+        const detectorSeconds = known.length ? known.reduce((a, b) => a + b, 0) : null;
+        const model = await hasTranscriptionModel();
+        const noTextReason: NoTextReason | null =
+          model === false ? 'no-model' : liveRef.current.recognitionFailed ? 'recognition-error' : null;
+
+        const judgement = judgeRecording({ segments, vadSegments, detectorSeconds, noTextReason });
+        let verdict = judgement.verdict;
+        let reason = judgement.reason;
         // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
-        if (isDiscarded(verdict) && !liveRef.current.tracking) verdict = verdict === 'too-little' ? 'speech' : 'unrecognized';
+        if (isDiscarded(verdict) && !liveRef.current.tracking) {
+          verdict = verdict === 'too-little' ? 'speech' : 'unrecognized';
+          reason = 'начало записи не отслежено, сохраняем как есть';
+        }
+
+        // Журнал решения: одна строка на каждую остановку (консоль окна; логгер
+        // приложения tauri-plugin-log в ядре не подключён, из интерфейса недоступен)
+        const fmt = (n: number | null) => (n === null ? 'нет данных' : `${n.toFixed(1)} с`);
+        console.info(
+          `[aid] Итог записи: длительность ${fmt(seconds.current)}, речь по детектору ${fmt(detectorSeconds)} ` +
+            `(${vadSegments} сегм.), реплик ${judgement.segmentsBefore} → ${judgement.segmentsAfter} после чистки, ` +
+            `слов ${judgement.words}, речь в репликах ${fmt(judgement.speechSeconds)}, ` +
+            `модель ${model === null ? 'не проверена' : model ? 'есть' : 'нет'}, ` +
+            `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'} → ${verdict}: ${reason}`,
+        );
 
         const folder = sessionStorage.getItem('last_recording_folder_path');
         try {
           sessionStorage.setItem(
             OUTCOME_KEY,
-            JSON.stringify({ folder, verdict, vadSegments: evidence.vadSegments, recognitionFailed: evidence.recognitionFailed } satisfies StoredOutcome),
+            JSON.stringify({ folder, verdict, vadSegments, recognitionFailed: liveRef.current.recognitionFailed } satisfies StoredOutcome),
           );
         } catch {
           /* страница встречи покажет общую причину */
@@ -158,46 +184,57 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [transcriptsRef, handleRecordingStop],
   );
 
+  // Обработчики из ref: подписки живут всё время работы провайдера и не
+  // переподписываются, когда меняются finish и handleRecordingStop.
+  const stopRef = useRef({ finish, handleRecordingStop });
+  stopRef.current = { finish, handleRecordingStop };
+
   useEffect(() => {
     const offs = [
-      listen('recording-started', () => {
+      subscribe('recording-started', () => {
         generation.current++;
         if (restoreToast.current != null) toast.dismiss(restoreToast.current);
         restoreToast.current = null;
         segs.current = [];
+        vadDurations.current = [];
         queueTotal.current = null;
         seconds.current = 0;
         liveRef.current = { ...EMPTY, tracking: true };
         setLive(liveRef.current);
       }),
-      listen<{ chunks_queued?: number }>('transcription-progress', (e) => {
+      subscribe<{ chunks_queued?: number; duration?: number }>('transcription-progress', (e) => {
         const queued = Number(e.payload?.chunks_queued ?? 0);
+        if (typeof e.payload?.duration === 'number') vadDurations.current = [...vadDurations.current, e.payload.duration];
         update({ vadSegments: Math.max(liveRef.current.vadSegments, queued), lastSpeechAt: seconds.current });
       }),
-      listen<{ text?: string; duration?: number }>('transcript-update', (e) => {
-        const text = toSegment({ text: e.payload?.text ?? '' } as never).text;
+      subscribe<{ text?: string; duration?: number }>('transcript-update', (e) => {
+        // Для подсчёта слов исходный текст: ядро не подписывает спикеров, а эвристика
+        // toSegment приняла бы «Давайте договоримся: …» за имя спикера
+        const raw = (e.payload?.text ?? '').trim();
+        const text = toSegment({ text: raw } as never).text;
         const duration = typeof e.payload?.duration === 'number' ? e.payload.duration : null;
-        segs.current = [...segs.current, { text, duration }];
+        segs.current = [...segs.current, { text: raw, duration }];
         if (/\p{L}/u.test(text) && !isHallucination(text)) {
           update({ textSegments: liveRef.current.textSegments + 1, lastSpeechAt: seconds.current });
         }
       }),
-      listen<{ total_chunks?: number }>('transcription-queue-complete', (e) => {
+      subscribe<{ total_chunks?: number }>('transcription-queue-complete', (e) => {
         queueTotal.current = Number(e.payload?.total_chunks ?? 0);
       }),
-      listen<{ phase?: string }>('transcription-error', (e) => {
+      subscribe<{ phase?: string }>('transcription-error', (e) => {
         if (e.payload?.phase !== 'startup') update({ recognitionFailed: true });
       }),
-      listen('transcript-error', () => update({ recognitionFailed: true })),
-      listen('transcription-warning', () => update({ recognitionFailed: true })),
+      subscribe('transcript-error', () => update({ recognitionFailed: true })),
+      subscribe('transcription-warning', () => update({ recognitionFailed: true })),
       // Остановка из трея: tray.rs шлёт recording-stop-complete после stop_recording
-      listen<boolean>('recording-stop-complete', (e) => {
-        if (e.payload === false) void handleRecordingStop(false);
-        else void finish(handleRecordingStop);
+      subscribe<boolean>('recording-stop-complete', (e) => {
+        const { finish: fin, handleRecordingStop: stop } = stopRef.current;
+        if (e.payload === false) void stop(false);
+        else void fin(stop);
       }),
     ];
-    return () => offs.forEach((p) => void p.then((off) => off()));
-  }, [finish, handleRecordingStop, update]);
+    return () => offs.forEach((off) => off());
+  }, [update]);
 
   const value = useMemo(() => ({ live, finishing, finish }), [live, finishing, finish]);
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;

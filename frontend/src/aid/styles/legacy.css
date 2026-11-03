@@ -3064,3 +3064,83 @@
 .aid-no-autosummary > .flex.flex-col.gap-4 > div:first-child {
   display: none;
 }
+
+/* Лоадеры оригинала: тот же стиль, что у Spinner и Skeleton в Aid (токены
+   --loader, --skeleton, --loader-speed в globals.css). Цвет спиннера нейтральный,
+   в кнопке берётся цвет текста кнопки; размеры 16 и 20 px; без подложек. */
+.aid-legacy .animate-spin,
+[role='dialog'] .animate-spin,
+[role='alertdialog'] .animate-spin,
+[data-sonner-toast] .animate-spin {
+  animation: aid-spin var(--loader-speed) linear infinite;
+  color: hsl(var(--loader));
+}
+.aid-legacy button .animate-spin,
+[role='dialog'] button .animate-spin,
+[role='alertdialog'] button .animate-spin {
+  color: inherit;
+}
+.aid-legacy .animate-spin.h-8,
+[role='dialog'] .animate-spin.h-8,
+.aid-legacy .animate-spin.h-5,
+[role='dialog'] .animate-spin.h-5,
+.aid-legacy .animate-spin.w-5,
+[role='dialog'] .animate-spin.w-5 {
+  width: 20px;
+  height: 20px;
+}
+/* Кольцевой спиннер из рамки (ModelDownloadProgress): только дуга, без кольца-подложки */
+.aid-legacy .animate-spin.rounded-full,
+[role='dialog'] .animate-spin.rounded-full,
+[data-sonner-toast] .animate-spin.rounded-full {
+  border-color: transparent;
+  border-bottom-color: hsl(var(--loader));
+}
+/* Скелетоны оригинала: цвет и пульсация из токенов */
+.aid-legacy .animate-pulse,
+[role='dialog'] .animate-pulse {
+  animation: aid-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.aid-legacy .animate-pulse .bg-gray-100,
+.aid-legacy .animate-pulse .bg-gray-200,
+[role='dialog'] .animate-pulse .bg-gray-100,
+[role='dialog'] .animate-pulse .bg-gray-200 {
+  background-color: hsl(var(--skeleton));
+}
+/* Круглые подложки под иконками состояния (галочка загрузки, крестик ошибки,
+   стрелка загрузки, иконка модели): иконка без кружка, как в Aid */
+.aid-legacy .flex.items-center.justify-center.rounded-full.bg-gray-100,
+.aid-legacy .flex.items-center.justify-center.rounded-full.bg-green-100,
+.aid-legacy .flex.items-center.justify-center.rounded-full.bg-red-100,
+[role='dialog'] .flex.items-center.justify-center.rounded-full.bg-gray-100,
+[role='dialog'] .flex.items-center.justify-center.rounded-full.bg-green-100,
+[role='dialog'] .flex.items-center.justify-center.rounded-full.bg-red-100,
+[data-sonner-toast] .flex.items-center.justify-center.rounded-full.bg-gray-100,
+[data-sonner-toast] .flex.items-center.justify-center.rounded-full.bg-green-100,
+[data-sonner-toast] .flex.items-center.justify-center.rounded-full.bg-red-100 {
+  background-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-legacy .animate-pulse,
+  [role='dialog'] .animate-pulse {
+    animation: none;
+  }
+}
+
+/* Иконки оригинала: только 16 и 20 px, как в Aid (lucide h-12 в зоне импорта,
+   h-[18px] у «Язык итогов») */
+.aid-legacy svg.lucide.h-12,
+[role='dialog'] svg.lucide.h-12,
+.aid-legacy svg.lucide.h-10,
+[role='dialog'] svg.lucide.h-10,
+.aid-legacy svg.lucide.h-8:not(.animate-spin),
+[role='dialog'] svg.lucide.h-8:not(.animate-spin) {
+  width: 20px;
+  height: 20px;
+}
+.aid-legacy svg.lucide[width='18'],
+.aid-legacy svg.lucide.h-\[18px\] {
+  width: 16px;
+  height: 16px;
+}

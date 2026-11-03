@@ -9,7 +9,6 @@ import {
   CaretRight,
   ChatText,
   Check,
-  SpinnerGap,
   FolderOpen,
   MicrophoneSlash,
   PencilSimple,
@@ -18,26 +17,28 @@ import {
   X,
   type Icon,
 } from '@phosphor-icons/react';
+import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Input } from '@/aid/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/aid/components/ui/context-menu';
-import { displayTitle, formatShortDate, isAutoTitle } from '@/aid/lib/format';
+import { formatShortDate, formatVolume, isAutoTitle, shownTitle } from '@/aid/lib/format';
+import type { MeetingDetails, MeetingStatus } from '@/aid/lib/meeting-details-cache';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
-
-export type MeetingStatus = 'summary' | 'summarizing' | 'transcript' | 'silent' | 'unknown';
 
 export interface MeetingListItem {
   id: string;
   title: string;
   created_at?: string;
-  status: MeetingStatus;
+  /** Догружается после списка; null, пока не пришло. */
+  details: MeetingDetails | null;
 }
 
-const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon; label: string; className: string }> = {
+const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon | null; label: string; className: string }> = {
   summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary' },
-  summarizing: { icon: SpinnerGap, label: t('statusSummarizing'), className: 'animate-spin text-primary' },
+  // Итоги в работе: общий Spinner вместо иконки (см. ниже)
+  summarizing: { icon: null, label: t('statusSummarizing'), className: '' },
   transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
   silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive' },
 };
@@ -85,10 +86,17 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const shown = displayTitle(meeting.title);
-  const status = meeting.status !== 'unknown' ? STATUS[meeting.status] : null;
-  const date = meeting.created_at && !isAutoTitle(meeting.title) ? formatShortDate(meeting.created_at) : null;
-  const meta = [date, status?.label].filter(Boolean).join(' · ');
+  const d = meeting.details;
+  const shown = shownTitle(meeting.title, d?.contentTitle);
+  const kind = d?.status ?? 'unknown';
+  const status = kind !== 'unknown' ? STATUS[kind] : null;
+  // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
+  const titleIsDate = isAutoTitle(meeting.title) && !d?.contentTitle;
+  const date = meeting.created_at && !titleIsDate ? formatShortDate(meeting.created_at) : null;
+  // Полезное вместо «Только транскрипт»: длительность и объём; у итогов ещё «Итоги готовы»
+  const volume = kind === 'transcript' || kind === 'summary' || kind === 'summarizing' ? formatVolume(d?.durationSec, d?.words) : null;
+  const label = kind === 'transcript' ? null : status?.label;
+  const meta = [date, volume, label].filter(Boolean).join(' · ');
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -141,7 +149,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
             disabled={saving}
           />
           <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-            {saving ? <SpinnerGap className="animate-spin" /> : <Check />}
+            {saving ? <Spinner tone="inherit" /> : <Check />}
           </Button>
           <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
             <X />
@@ -155,22 +163,25 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <li className="group relative flex min-h-[72px] items-center gap-2 pr-4 transition-colors hover:bg-muted/60 focus-within:bg-muted/60 data-[state=open]:bg-muted/60">
+        <li className="group relative flex min-h-[72px] items-center gap-2 pr-4 transition-colors hover:bg-muted/60 has-[:focus-visible]:bg-muted/60 data-[state=open]:bg-muted/60">
           <Link
             href={`/meeting-details?id=${encodeURIComponent(meeting.id)}`}
             className="flex min-w-0 flex-1 items-center gap-4 self-stretch rounded-2xl py-4 pl-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            {StatusIcon ? (
-              <StatusIcon className={cn('size-5 shrink-0', status.className)} aria-hidden />
+            {kind === 'summarizing' ? (
+              <Spinner />
+            ) : StatusIcon ? (
+              <StatusIcon className={cn('size-5 shrink-0', status?.className)} aria-hidden />
             ) : (
               <span className="size-5 shrink-0" aria-hidden />
             )}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium">{shown}</span>
+              <span className="block truncate text-[15px] font-medium" title={shown}>{shown}</span>
               {meta && <span className="mt-0.5 block text-sm text-muted-foreground">{meta}</span>}
             </span>
           </Link>
-          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100">
+          {/* Только у строки под курсором или с фокусом от клавиатуры: после клика не залипают */}
+          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
             <IconAction label={t('rename')} ariaLabel={`${t('rename')}: ${shown}`} onClick={begin}>
               <PencilSimple />
             </IconAction>
@@ -178,7 +189,8 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
               <Trash />
             </IconAction>
           </div>
-          <CaretRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {/* Шеврон: единственное исключение из правила fill (CLAUDE.md) */}
+          <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </li>
       </ContextMenuTrigger>
       <ContextMenuContent>

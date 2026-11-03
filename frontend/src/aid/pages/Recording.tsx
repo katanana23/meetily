@@ -7,8 +7,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { CheckCircle, SpinnerGap, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
+import { useTauriEvent } from '@/aid/lib/tauri-events';
+import { CheckCircle, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, WarningCircle } from '@phosphor-icons/react';
+import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
@@ -34,12 +35,12 @@ interface RecordingViewProps {
   onTogglePause: () => void;
 }
 
-/** Через сколько секунд без единого речевого сегмента показать «Не слышу речи». */
+/** Через сколько секунд без единой осмысленной реплики показать «Не слышу речи». */
 export const NO_SPEECH_HINT_SEC = 20;
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается. */
 export const LONG_SILENCE_SEC = 120;
 
-/** «Не слышу речи»: за первые 20 с VAD не нашёл ни одного речевого сегмента. */
+/** «Не слышу речи»: 20 с без единой осмысленной реплики (шум и галлюцинации не в счёт). */
 function NoSpeechHint() {
   const [open, setOpen] = useState(false);
   const sound = useSoundState(true);
@@ -140,19 +141,12 @@ function useTranscriptionProblems() {
   const [error, setError] = useState<{ message: string; raw: string } | null>(null);
   const [lagging, setLagging] = useState(false);
 
-  useEffect(() => {
-    const offs = [
-      listen<{ error?: string; userMessage?: string; phase?: string }>('transcription-error', (e) => {
-        if (e.payload?.phase === 'startup') return; // ошибку старта показывает главная
-        setError({ message: t('transcriptionStopped'), raw: e.payload?.error || e.payload?.userMessage || '' });
-      }),
-      listen<string>('transcript-error', (e) => setError({ message: t('transcriptionStopped'), raw: String(e.payload ?? '') })),
-      listen('chunk-drop-warning', () => setLagging(true)),
-    ];
-    return () => {
-      offs.forEach((p) => void p.then((off) => off()));
-    };
-  }, []);
+  useTauriEvent<{ error?: string; userMessage?: string; phase?: string }>('transcription-error', (e) => {
+    if (e.payload?.phase === 'startup') return; // ошибку старта показывает главная
+    setError({ message: t('transcriptionStopped'), raw: e.payload?.error || e.payload?.userMessage || '' });
+  });
+  useTauriEvent<string>('transcript-error', (e) => setError({ message: t('transcriptionStopped'), raw: String(e.payload ?? '') }));
+  useTauriEvent('chunk-drop-warning', () => setLagging(true));
 
   return { error, lagging };
 }
@@ -165,7 +159,9 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
   const [silenceDismissedAt, setSilenceDismissedAt] = useState(0);
 
-  const heardNothing = live.vadSegments === 0 && live.textSegments === 0;
+  // То же правило, что после стопа: ложные срабатывания детектора на шум без
+  // осмысленного текста речью не считаются, поэтому подсказка от них не мигает
+  const heardNothing = live.textSegments === 0 && !live.recognitionFailed;
   const showNoSpeech = live.tracking && heardNothing && duration >= NO_SPEECH_HINT_SEC;
   const silentSince = Math.max(live.lastSpeechAt ?? 0, silenceDismissedAt);
   const showLongSilence =
@@ -181,9 +177,9 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
       <Page width="max-w-[840px]">
         <Card className="mt-10 w-full px-8 py-14 text-center" role="status" aria-live="polite">
           {phase === 'opening' ? (
-            <CheckCircle className="mx-auto size-8 text-primary" aria-hidden />
+            <CheckCircle className="mx-auto size-5 text-primary" aria-hidden />
           ) : (
-            <SpinnerGap className="mx-auto size-8 animate-spin text-primary" aria-hidden />
+            <Spinner className="mx-auto" />
           )}
           <h1 className="mt-5 text-2xl font-semibold">{copy.title}</h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{copy.hint}</p>
@@ -214,7 +210,7 @@ export function RecordingView({ isPaused, phase, duration, busy, live, onStop, o
             {isPaused ? t('resumeRecording') : t('pauseRecording')}
           </Button>
           <Button variant="destructive" size="xl" onClick={onStop} disabled={busy !== null}>
-            {busy === 'stop' ? <SpinnerGap className="animate-spin" /> : <Stop />}
+            {busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
             {t('stopRecording')}
           </Button>
         </div>

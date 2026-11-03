@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   CaretDown,
   Check,
-  SpinnerGap,
   Copy,
   FileMd,
   FolderOpen,
@@ -28,6 +27,7 @@ import {
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
+import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
@@ -59,7 +59,8 @@ import {
 } from '@/aid/lib/meeting';
 import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
-import { displayTitle, formatDateTime, formatDuration, isAutoTitle, plural } from '@/aid/lib/format';
+import { formatDateTime, formatDuration, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
+import { contentTitle } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -104,12 +105,11 @@ function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyE
 }
 
 /** Название встречи с переименованием на месте. В базе хранится то, что ввёл человек. */
-function Title({ title, onRename }: { title: string; onRename: (next: string) => Promise<void> }) {
+function Title({ title, shown, onRename }: { title: string; shown: string; onRename: (next: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const shown = displayTitle(title);
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -162,7 +162,7 @@ function Title({ title, onRename }: { title: string; onRename: (next: string) =>
           disabled={saving}
         />
         <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-          {saving ? <SpinnerGap className="animate-spin" /> : <Check />}
+          {saving ? <Spinner tone="inherit" /> : <Check />}
         </Button>
         <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
           <X />
@@ -293,8 +293,8 @@ function SummaryBlock({
 
   if (summary.kind === 'processing') {
     return (
-      <div className="mb-8 flex items-center gap-3 rounded-2xl bg-muted px-5 py-4" role="status" aria-live="polite">
-        <SpinnerGap className="size-5 shrink-0 animate-spin text-primary" aria-hidden />
+      <div className="mb-8 flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4" role="status" aria-live="polite">
+        <Spinner />
         <div className="min-w-0">
           <p className="text-sm font-medium">{t('summaryProcessing')}</p>
           <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
@@ -327,7 +327,8 @@ function SummaryBlock({
           <span id="summary-title" className="text-base font-semibold">
             {t('summary')}
           </span>
-          <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', !open && '-rotate-90')} aria-hidden />
+          {/* Вниз, когда свёрнуто, вверх, когда раскрыто: залитый треугольник вправо читается как «воспроизвести» */}
+          <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
         </button>
         <Button variant="ghost" className="h-9 px-3 text-muted-foreground" onClick={onRetry}>
@@ -481,7 +482,9 @@ function MeetingDetailsContent() {
   const [retranscribe, setRetranscribe] = useState(false);
 
   const meta = m.meeting.kind === 'ready' ? m.meeting.meta : null;
-  const shownTitle = meta ? displayTitle(meta.title) : '';
+  // Автоматическое название показываем началом первой осмысленной реплики
+  const fromContent = useMemo(() => contentTitle(m.segments.map((x) => x.text)), [m.segments]);
+  const shownTitle = meta ? titleForDisplay(meta.title, fromContent) : '';
   const segmentsLabel = useMemo(() => `${m.total} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
 
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
@@ -519,8 +522,8 @@ function MeetingDetailsContent() {
   }
 
   const empty = m.total === 0;
-  // Для автоматического названия дата уже в заголовке: не повторяем её
-  const date = isAutoTitle(meta.title) ? null : formatDateTime(meta.created_at);
+  // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
+  const date = isAutoTitle(meta.title) && !fromContent ? null : formatDateTime(meta.created_at);
   const duration = formatDuration(m.duration);
   const facts = [date, duration, segmentsLabel].filter(Boolean).join(' · ');
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
@@ -553,12 +556,9 @@ function MeetingDetailsContent() {
 
   const header = (
     <>
-      <BackLink />
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <Title title={meta.title} onRename={rename} />
-          <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
-        </div>
+      {/* Действия в одной строке с «Ко всем встречам», чтобы название занимало всю ширину */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <BackLink />
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
             <Button variant="outline" onClick={() => void m.generateSummary()}>
@@ -581,6 +581,10 @@ function MeetingDetailsContent() {
           </IconAction>
         </div>
       </div>
+      <div className="mt-3 min-w-0">
+        <Title title={meta.title} shown={shownTitle} onRename={rename} />
+        <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
+      </div>
     </>
   );
 
@@ -602,7 +606,7 @@ function MeetingDetailsContent() {
             {m.hasMore && (
               <div className="flex justify-center pt-8">
                 <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>
-                  {m.loadingMore && <SpinnerGap className="animate-spin" />}
+                  {m.loadingMore && <Spinner tone="inherit" />}
                   {t('loadMore')} ({m.segments.length} из {m.total})
                 </Button>
               </div>

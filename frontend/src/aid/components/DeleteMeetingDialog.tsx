@@ -2,7 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { SpinnerGap, Trash } from '@phosphor-icons/react';
+import { Trash } from '@phosphor-icons/react';
+import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { t } from '@/aid/strings';
@@ -43,7 +44,7 @@ export function DeleteMeetingDialog({ open, onOpenChange, title, onConfirm }: De
               }
             }}
           >
-            {busy ? <SpinnerGap className="animate-spin" /> : <Trash />}
+            {busy ? <Spinner tone="inherit" /> : <Trash />}
             {t('delete')}
           </Button>
         </DialogFooter>

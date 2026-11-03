@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import Analytics from '@/lib/analytics';
+import { forgetDetails } from './meeting-details-cache';
 
 export async function renameMeeting(meetingId: string, title: string) {
   await invoke('api_save_meeting_title', { meetingId, title });
@@ -12,6 +13,7 @@ export async function renameMeeting(meetingId: string, title: string) {
 
 export async function deleteMeeting(meetingId: string) {
   await invoke('api_delete_meeting', { meetingId });
+  forgetDetails(meetingId);
   void Analytics.trackMeetingDeleted(meetingId);
 }
 

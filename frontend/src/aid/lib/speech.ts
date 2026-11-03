@@ -117,35 +117,92 @@ export type RecordingVerdict =
   | 'too-little'
   /** Речи не было: не сохраняется (с возможностью вернуть). */
   | 'no-speech'
-  /** Детектор речи слышал голос, но текста нет: сохранить как «Речь не распознана». */
+  /** Детектор насчитал 10+ с речи, а текста нет по явной причине: «Речь не распознана». */
   | 'unrecognized';
+
+/** Явная причина, почему у услышанной речи нет текста. */
+export type NoTextReason = 'no-model' | 'recognition-error' | 'recognition-cancelled';
+
+/** «Речь не распознана» сохраняется, только если детектор насчитал столько секунд речи. */
+export const MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED = 10;
 
 export interface RecordingEvidence {
   /** Реплики (текст без подписи спикера и длительность сегмента). */
   segments: SpeechSegment[];
   /** Речевых сегментов по VAD ядра (transcription-progress, transcription-queue-complete). */
   vadSegments: number;
-  /** Были ошибки или предупреждения распознавания. */
-  recognitionFailed: boolean;
+  /**
+   * Секунды речи по детектору: сумма длительностей речевых сегментов, о которых
+   * ядро сообщило длину. null, если длительности не пришли совсем.
+   */
+  detectorSeconds: number | null;
+  /** Явная причина отсутствия текста или null. */
+  noTextReason: NoTextReason | null;
+}
+
+export interface RecordingJudgement {
+  verdict: RecordingVerdict;
+  /** Почему так: одна фраза для журнала. */
+  reason: string;
+  words: number;
+  speechSeconds: number | null;
+  segmentsBefore: number;
+  segmentsAfter: number;
 }
 
 /**
  * Итог записи:
  * - осмысленная речь (15+ слов и 10+ секунд речи, если известно) → 'speech';
- * - VAD слышал речь, а распознавание не дало ни одной реплики или сбоило → 'unrecognized'
- *   (звук ценен, такие записи не удаляются);
+ * - детектор насчитал 10+ с речи и есть явная причина отсутствия текста
+ *   (нет модели, ошибка или отмена распознавания) → 'unrecognized';
  * - после чистки остались слова, но меньше порога → 'too-little';
- * - иначе → 'no-speech': VAD молчал, или модель выдала только мусор на шум.
+ * - иначе → 'no-speech'. Нет событий детектора от ядра значит речи не было.
  */
-export function judgeRecording(e: RecordingEvidence): RecordingVerdict {
-  if (hasMeaningfulSpeech(e.segments)) return 'speech';
-  const heard = e.vadSegments > 0;
-  const noTextAtAll = e.segments.every((s) => !LETTER.test(s.text));
-  if (heard && (noTextAtAll || e.recognitionFailed)) return 'unrecognized';
-  return measureSpeech(e.segments).words > 0 ? 'too-little' : 'no-speech';
+export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
+  const { words: count, seconds } = measureSpeech(e.segments);
+  const clean = cleanSegments(e.segments);
+  const base = { words: count, speechSeconds: seconds, segmentsBefore: e.segments.length, segmentsAfter: clean.length };
+
+  if (count >= MIN_MEANINGFUL_WORDS && (seconds === null || seconds >= MIN_SPEECH_SECONDS)) {
+    return { ...base, verdict: 'speech', reason: `осмысленная речь: ${count} слов` };
+  }
+  const detector = e.vadSegments > 0 ? (e.detectorSeconds ?? 0) : 0;
+  if (detector >= MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED && e.noTextReason) {
+    return { ...base, verdict: 'unrecognized', reason: `детектор слышал ${detector.toFixed(1)} с речи, осмысленного текста нет: ${e.noTextReason}` };
+  }
+  if (count > 0) {
+    const why = count < MIN_MEANINGFUL_WORDS ? `${count} слов меньше ${MIN_MEANINGFUL_WORDS}` : `речи ${seconds?.toFixed(1)} с меньше ${MIN_SPEECH_SECONDS}`;
+    return { ...base, verdict: 'too-little', reason: why };
+  }
+  if (e.vadSegments === 0) return { ...base, verdict: 'no-speech', reason: 'детектор речи не сработал' };
+  // Ядро присылает длину только у сегментов с текстом; без неё секунды неизвестны
+  const heard = e.detectorSeconds === null ? `${e.vadSegments} сегм., длительность неизвестна` : `${detector.toFixed(1)} с`;
+  if (!e.noTextReason) return { ...base, verdict: 'no-speech', reason: `детектор сработал (${heard}), текста нет, причины сбоя нет` };
+  return { ...base, verdict: 'no-speech', reason: `детектор слышал только ${heard}, меньше ${MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED} с` };
 }
 
 /** Не сохраняем: «Вернуть» доступно 10 секунд. */
 export function isDiscarded(v: RecordingVerdict): boolean {
   return v === 'no-speech' || v === 'too-little';
+}
+
+export function countWords(text: string): number {
+  return words(text).length;
+}
+
+/** Сколько слов брать в название из содержания. */
+const TITLE_WORDS = 6;
+
+/**
+ * Название из содержания для встречи с автоматическим названием: первые слова
+ * первой осмысленной реплики (3+ слова после чистки галлюцинаций).
+ * null, если такой реплики нет. Хранимое название не меняется.
+ */
+export function contentTitle(texts: string[]): string | null {
+  const first = cleanSegments(texts.map((text) => ({ text }))).find((s) => words(s.text).length >= 3);
+  if (!first) return null;
+  const parts = first.text.trim().split(/\s+/);
+  const picked = parts.slice(0, TITLE_WORDS).join(' ').replace(/[\s,.;:!?…–-]+$/u, '');
+  const title = picked.charAt(0).toUpperCase() + picked.slice(1);
+  return parts.length > TITLE_WORDS ? `${title}…` : title;
 }

@@ -33,7 +33,11 @@ const SPEAKER_PREFIX = /^([A-ZА-ЯЁ][^:\n]{0,39}):\s+([\s\S]+)$/;
 export function toSegment(t: Transcript): Segment {
   const raw = (t.text ?? '').trim();
   const match = raw.match(SPEAKER_PREFIX);
-  const looksLikeName = match && match[1].split(/\s+/).length <= 4 && !/[.!?]/.test(match[1]);
+  // Имя: до 4 слов, каждое с заглавной буквы или число («Глеб Сомов», «Спикер 2»).
+  // «Давайте договоримся: …» и «Предлагаю так: …» остаются текстом реплики.
+  const parts = match ? match[1].trim().split(/\s+/) : [];
+  const looksLikeName =
+    match && parts.length <= 4 && !/[.!?,]/.test(match[1]) && parts.every((w) => /^[A-ZА-ЯЁ]/.test(w) || /^\d+$/.test(w));
   return {
     id: t.id,
     speaker: looksLikeName ? match![1].trim() : null,

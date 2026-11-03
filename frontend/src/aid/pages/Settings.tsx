@@ -10,7 +10,7 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Ear } from '@phosphor-icons/react';
+import { ArrowSquareOut, Flask, FolderOpen, Info, Microphone, SlidersHorizontal, Sparkle, Subtitles } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
 import { Card } from '@/aid/components/ui/card';
@@ -29,7 +29,7 @@ import AnalyticsConsentSwitch from '@/components/AnalyticsConsentSwitch';
 const TABS = [
   { value: 'general', label: t('settingsGeneral'), icon: SlidersHorizontal },
   { value: 'recording', label: t('settingsRecording'), icon: Microphone },
-  { value: 'transcription', label: t('settingsTranscription'), icon: Ear },
+  { value: 'transcription', label: t('settingsTranscription'), icon: Subtitles },
   { value: 'summary', label: t('settingsSummary'), icon: Sparkle },
   { value: 'beta', label: t('settingsBeta'), icon: Flask },
   { value: 'about', label: t('settingsAbout'), icon: Info },

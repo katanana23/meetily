@@ -96,3 +96,19 @@ export function displayTitle(title: string | null | undefined, now = new Date())
 export function isAutoTitle(title: string | null | undefined): boolean {
   return AUTO_TITLE.test((title ?? '').trim());
 }
+
+/**
+ * Название для показа: своё название человека как есть; автоматическое
+ * заменяется началом первой осмысленной реплики, а без текста датой
+ * («Встреча 3 ноября, 11:37»). Хранимое название не меняется.
+ */
+export function shownTitle(title: string | null | undefined, fromContent?: string | null): string {
+  if (isAutoTitle(title) && fromContent) return fromContent;
+  return displayTitle(title);
+}
+
+/** «12 мин · 340 слов» для строки списка. */
+export function formatVolume(durationSec: number | null | undefined, words: number | null | undefined): string | null {
+  const parts = [formatDuration(durationSec), words ? `${words} ${plural(words, 'слово', 'слова', 'слов')}` : null].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}

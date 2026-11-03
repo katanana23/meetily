@@ -40,6 +40,11 @@
     --input: 240 6% 86%;
     --ring: 239 68% 56%;
 
+    /* Лоадеры: один стиль на всё приложение (Spinner, Skeleton и мост оригинала) */
+    --loader: 240 4% 40%;
+    --skeleton: 240 6% 92%;
+    --loader-speed: 0.9s;
+
     --radius: 1rem;
   }
 
@@ -69,6 +74,9 @@
     --border: 240 5% 18%;
     --input: 240 5% 22%;
     --ring: 236 85% 74%;
+
+    --loader: 240 5% 66%;
+    --skeleton: 240 5% 16%;
   }
 }
 
@@ -172,7 +180,16 @@
 }
 
 .aid-toaster [data-sonner-toast] [data-icon] {
-  margin-top: 1px;
+  margin-top: 0;
+  width: 20px;
+  height: 20px;
+  color: hsl(var(--muted-foreground));
+}
+
+.aid-toaster [data-sonner-toast] [data-icon] > svg {
+  width: 20px;
+  height: 20px;
+  margin: 0;
 }
 
 .aid-toaster [data-sonner-toast][data-type='success'] [data-icon] {
@@ -187,7 +204,8 @@
   color: hsl(32 95% 44%);
 }
 
-.aid-toaster [data-sonner-toast] [data-button] {
+/* :root и data-styled: правило sonner для кнопки действия специфичнее нашего */
+:root .aid-toaster [data-sonner-toast][data-styled='true'] [data-button] {
   height: 32px;
   border-radius: 10px;
   padding: 0 12px;
@@ -269,4 +287,37 @@ body {
 .aid-scroll::-webkit-scrollbar-thumb:hover,
 .aid-scroll::-webkit-scrollbar-thumb:active {
   background-color: hsl(var(--foreground) / 0.4);
+}
+
+/* Лоадеры. Вращение без подложки и без цвета акцента: в кнопке спиннер берёт
+   цвет текста кнопки, вне кнопки цвет --loader. Скелетон без рамок и теней. */
+.aid-spinner {
+  animation: aid-spin var(--loader-speed) linear infinite;
+  flex-shrink: 0;
+}
+
+.aid-skeleton {
+  background: hsl(var(--skeleton));
+  animation: aid-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes aid-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes aid-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-spinner {
+    animation-duration: calc(var(--loader-speed) * 3);
+  }
+  .aid-skeleton {
+    animation: none;
+  }
 }

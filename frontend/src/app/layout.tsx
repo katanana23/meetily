@@ -38,6 +38,7 @@ import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
 import { installTauriEventGuard } from '@/aid/lib/tauri-events'
 import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
+import { installNavDebug } from '@/aid/lib/nav-debug'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -56,6 +57,8 @@ const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingP
 if (isAidUI) {
   installTauriEventGuard()
   if (typeof window !== 'undefined') markTitlebarOverlay()
+  // ВРЕМЕННО: журнал кликов по списку встреч для проверки на Mac (nav-debug.ts)
+  if (typeof window !== 'undefined') installNavDebug()
   void syncWindowTheme()
 }
 
@@ -308,7 +311,7 @@ export default function RootLayout({
                                     {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
                                     <AidRecordingControls>
                                       {/* data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
-                                      <div data-tauri-drag-region className="flex h-screen gap-2 overflow-hidden bg-background p-2">
+                                      <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
                                         <AidSidebar />
                                         <div className="relative flex min-w-0 flex-1">
                                           {children}

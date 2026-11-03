@@ -3,28 +3,26 @@
 // и при фокусе с клавиатуры; те же действия есть в меню по правому клику.
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
 import {
   CaretRight,
   ChatText,
-  Check,
   FolderOpen,
   MicrophoneSlash,
   PencilSimple,
   Sparkle,
   Trash,
-  X,
   type Icon,
 } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Input } from '@/aid/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/aid/components/ui/context-menu';
-import { formatShortDate, formatVolume, isAutoTitle, shownTitle } from '@/aid/lib/format';
+import { editableTitle, formatShortDate, formatVolume, isAutoTitle, shownTitle } from '@/aid/lib/format';
+import { InlineRename } from '@/aid/components/InlineRename';
 import type { MeetingDetails, MeetingStatus } from '@/aid/lib/meeting-details-cache';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
@@ -90,9 +88,6 @@ interface MeetingRowProps {
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: MeetingRowProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const d = meeting.details;
   const shown = shownTitle(meeting.title, d?.contentTitle);
   const kind = d?.status ?? 'unknown';
@@ -105,63 +100,17 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
   const label = kind === 'transcript' ? null : status?.label;
   const meta = [date, volume, label].filter(Boolean).join(' · ');
 
-  useEffect(() => {
-    if (editing) inputRef.current?.select();
-  }, [editing]);
-
-  const begin = () => {
-    setValue(shown);
-    setEditing(true);
-  };
-
-  const save = async () => {
-    const next = value.trim();
-    if (!next || next === shown || next === meeting.title) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      await onRename(next);
-      setEditing(false);
-    } catch {
-      /* тост уже показан, поле остаётся открытым */
-    } finally {
-      setSaving(false);
-    }
-  };
+  const begin = () => setEditing(true);
 
   if (editing) {
     return (
-      <li className="rounded-[20px] bg-card px-4 py-3">
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save();
-          }}
-        >
-          <Input
-            ref={inputRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
-            onBlur={(e) => {
-              // уход фокуса на кнопки формы не отменяет правку
-              if (!e.currentTarget.form?.contains(e.relatedTarget as Node)) setEditing(false);
-            }}
-            aria-label={t('meetingTitle')}
-            className="h-11 flex-1 text-[15px] font-medium"
-            maxLength={200}
-            disabled={saving}
-          />
-          <Button type="submit" size="icon" aria-label={t('save')} disabled={saving}>
-            {saving ? <Spinner tone="inherit" /> : <Check />}
-          </Button>
-          <Button type="button" variant="ghost" size="icon" aria-label={t('cancel')} onClick={() => setEditing(false)}>
-            <X />
-          </Button>
-        </form>
+      <li className="rounded-nested bg-muted p-1">
+        <InlineRename
+          initial={editableTitle(meeting.title, d?.contentTitle)}
+          onSave={onRename}
+          onClose={() => setEditing(false)}
+          inputClassName="h-11 text-[15px] font-medium"
+        />
       </li>
     );
   }
@@ -178,15 +127,18 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder }: Meetin
             if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
             openMeeting(router.push, meeting.id);
           }}
-          className="group relative flex min-h-[72px] cursor-pointer items-center gap-2 rounded-[20px] bg-card pr-4 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted"
+          className="group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted"
         >
           <Link
             href={meetingHref(meeting.id)}
+            // WebKit на macOS даёт тянуть ссылку: лёгкое движение при нажатии начинает
+            // перетаскивание вместо клика (в Tauri его ещё перехватывает обработчик файлов)
+            draggable={false}
             onClick={(e) => {
               // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
               if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) guardNavigation(meetingHref(meeting.id));
             }}
-            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-[20px] py-3 pl-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {kind === 'summarizing' ? (
               <Spinner />

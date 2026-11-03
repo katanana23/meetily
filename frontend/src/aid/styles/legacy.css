@@ -2173,7 +2173,7 @@
 [data-radix-popper-content-wrapper].text-blue-400,
 [data-sonner-toast] .text-blue-400,
 [data-sonner-toast].text-blue-400 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .text-blue-500,
@@ -2186,7 +2186,7 @@
 [data-radix-popper-content-wrapper].text-blue-500,
 [data-sonner-toast] .text-blue-500,
 [data-sonner-toast].text-blue-500 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .text-blue-600,
@@ -2199,7 +2199,7 @@
 [data-radix-popper-content-wrapper].text-blue-600,
 [data-sonner-toast] .text-blue-600,
 [data-sonner-toast].text-blue-600 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .text-blue-700,
@@ -2212,7 +2212,7 @@
 [data-radix-popper-content-wrapper].text-blue-700,
 [data-sonner-toast] .text-blue-700,
 [data-sonner-toast].text-blue-700 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .text-blue-800,
@@ -2225,7 +2225,7 @@
 [data-radix-popper-content-wrapper].text-blue-800,
 [data-sonner-toast] .text-blue-800,
 [data-sonner-toast].text-blue-800 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .text-blue-900,
@@ -2238,7 +2238,7 @@
 [data-radix-popper-content-wrapper].text-blue-900,
 [data-sonner-toast] .text-blue-900,
 [data-sonner-toast].text-blue-900 {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .hover\:text-blue-700:hover,
@@ -2251,7 +2251,7 @@
 [data-radix-popper-content-wrapper].hover\:text-blue-700:hover,
 [data-sonner-toast] .hover\:text-blue-700:hover,
 [data-sonner-toast].hover\:text-blue-700:hover {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .hover\:text-blue-800:hover,
@@ -2264,7 +2264,7 @@
 [data-radix-popper-content-wrapper].hover\:text-blue-800:hover,
 [data-sonner-toast] .hover\:text-blue-800:hover,
 [data-sonner-toast].hover\:text-blue-800:hover {
-  color: hsl(var(--primary));
+  color: hsl(var(--primary-ink, var(--primary)));
 }
 
 .aid-legacy .border-blue-100,
@@ -3143,4 +3143,29 @@
 .aid-legacy svg.lucide.h-\[18px\] {
   width: 16px;
   height: 16px;
+}
+
+/* Бенто: карточки оригинала в настройках и мастере как плитки Aid, радиус 20 px
+   и без рамки (поля ввода и кнопки не затрагиваются: только div и section) */
+.aid-legacy :where(div, section).bg-white.rounded-lg,
+.aid-legacy :where(div, section).bg-white.rounded-xl,
+.aid-legacy :where(div, section).bg-white.rounded-2xl {
+  border-radius: 20px;
+  border-color: transparent;
+}
+
+/* Бенто и монохром: голубые подсказки оригинала (bg-blue-50 с рамкой blue-200)
+   становятся нейтральной вложенной плиткой без рамки; акцент остаётся только
+   у выбранного (border-blue-500/600) и у кнопок */
+.aid-legacy .bg-blue-50,
+.aid-legacy .bg-blue-100,
+[role='dialog'] .bg-blue-50,
+[role='dialog'] .bg-blue-100 {
+  background-color: hsl(var(--muted));
+}
+.aid-legacy .border-blue-100,
+.aid-legacy .border-blue-200,
+[role='dialog'] .border-blue-100,
+[role='dialog'] .border-blue-200 {
+  border-color: transparent;
 }

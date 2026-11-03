@@ -39,15 +39,16 @@ export function AidSidebar() {
   const { privacy } = usePrivacy();
 
   return (
-    <aside className="flex h-screen w-[240px] shrink-0 flex-col border-r border-border bg-card">
-      <div className="flex h-16 items-center gap-3 px-5">
+    // Плитка бенто: на тон светлее фона, радиус 20 px, без рамки
+    <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-[20px] bg-card">
+      <div className="flex h-14 items-center gap-3 px-4">
         <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground" aria-hidden>
           A
         </span>
         <span className="text-[15px] font-semibold">{t('appName')}</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Основная навигация">
+      <nav className="flex-1 space-y-1 px-2 py-1" aria-label="Основная навигация">
         {NAV.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
@@ -58,7 +59,7 @@ export function AidSidebar() {
               aria-current={active ? 'page' : undefined}
               className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
             >
-              <Icon className={cn('size-5', active && 'text-primary')} aria-hidden />
+              <Icon className={cn('size-5', active && 'text-primary-ink')} aria-hidden />
               {item.label}
             </Link>
           );
@@ -66,7 +67,7 @@ export function AidSidebar() {
         <RecordingLink pathname={pathname} />
       </nav>
 
-      <div className="space-y-2 border-t border-border p-3">
+      <div className="space-y-2 p-2">
         <div className="px-3 py-1">
           <PrivacyChip privacy={privacy} />
         </div>

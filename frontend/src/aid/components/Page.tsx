@@ -45,17 +45,14 @@ export function Page({ header, children, width = 'max-w-[880px]', className }: P
   return (
     <main className={cn('flex h-full min-w-0 flex-1 flex-col bg-background', className)}>
       {header && (
-        <header
-          className={cn(
-            'aid-gutter shrink-0 border-b transition-colors',
-            scrolled ? 'border-border' : 'border-transparent',
-          )}
-        >
-          <div className={cn('mx-auto w-full px-8 pb-4 pt-6', width)}>{header}</div>
+        // Бенто: шапка на фоне окна без линии; под прокрученным контентом лёгкая тень вместо рамки
+        <header className={cn('aid-gutter relative z-10 shrink-0 transition-shadow', scrolled && 'shadow-[0_8px_16px_-12px_hsl(var(--foreground)/0.25)]')}>
+          <div className={cn('mx-auto w-full px-6 pb-4 pt-4', width)}>{header}</div>
         </header>
       )}
       <div ref={ref} className="aid-scroll min-h-0 flex-1 overflow-y-auto">
-        <div className={cn('mx-auto w-full px-8 pb-16', header ? 'pt-6' : 'pt-10', width)}>{children}</div>
+        {/* pb-32: кнопка записи плавает над контентом и не закрывает последнюю строку */}
+        <div className={cn('mx-auto w-full px-6 pb-32', header ? 'pt-1' : 'pt-6', width)}>{children}</div>
       </div>
     </main>
   );

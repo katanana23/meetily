@@ -21,14 +21,15 @@ const DialogContent = React.forwardRef<
       // data-aid: окно Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-border bg-popover p-6 text-popover-foreground shadow-xl focus-visible:outline-none',
+        'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[20px] bg-popover p-6 text-popover-foreground shadow-xl focus-visible:outline-none',
         className,
       )}
       {...props}
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <X className="size-5" />
+        {/* bold: залитый X в Phosphor нарисован квадратом (исключение в CLAUDE.md) */}
+        <X weight="bold" className="size-4" />
         <span className="sr-only">Закрыть</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>

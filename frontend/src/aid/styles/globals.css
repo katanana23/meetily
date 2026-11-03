@@ -11,72 +11,84 @@
 
 @layer base {
   :root {
-    --background: 240 9% 97%;
-    --foreground: 240 10% 8%;
+    /* Бенто: белый фон окна, плитки светло-серые, один ряд отступов
+       (8 px между плитками, 16 px внутри), радиус плитки 20 px. */
+    --background: 0 0% 100%;
+    --foreground: 240 8% 5%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 8%;
+    /* Плитка */
+    --card: 240 9% 96%;
+    --card-foreground: 240 8% 5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 8%;
+    --popover-foreground: 240 8% 5%;
 
-    /* Единственный акцент: кнопки действия, активные элементы, «Локально» */
-    --primary: 239 68% 56%;
+    /* Единственный акцент: кобальт #3044D8. --primary заливка (кнопки),
+       --primary-ink текст и иконки акцента (контраст AA на фоне и плитке). */
+    --primary: 233 68% 52%;
     --primary-foreground: 0 0% 100%;
+    --primary-ink: 233 68% 52%;
 
-    --secondary: 240 6% 93%;
-    --secondary-foreground: 240 10% 8%;
-    --muted: 240 6% 94%;
-    --muted-foreground: 240 4% 40%;
+    --secondary: 240 10% 92%;
+    --secondary-foreground: 240 8% 5%;
+    /* Подсветка внутри плитки: наведение, вторичные поверхности */
+    --muted: 240 10% 92%;
+    --muted-foreground: 240 5% 38%;
 
-    /* Нейтральная подсветка наведения (как в shadcn), не второй акцент */
-    --accent: 240 6% 94%;
-    --accent-foreground: 240 10% 8%;
+    --accent: 240 10% 92%;
+    --accent-foreground: 240 8% 5%;
 
     /* Семантика ошибок и записи */
-    --destructive: 0 72% 50%;
+    --destructive: 4 77% 43%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 89%;
-    --input: 240 6% 86%;
-    --ring: 239 68% 56%;
+    --border: 240 8% 90%;
+    --input: 240 7% 84%;
+    --ring: 233 68% 52%;
 
     /* Лоадеры: один стиль на всё приложение (Spinner, Skeleton и мост оригинала) */
-    --loader: 240 4% 40%;
-    --skeleton: 240 6% 92%;
+    --loader: 240 5% 38%;
+    --skeleton: 240 9% 91%;
     --loader-speed: 0.9s;
 
-    --radius: 1rem;
+    /* Ритм бенто */
+    --tile-gap: 8px;
+    --tile-pad: 16px;
+    --radius: 1.25rem;
   }
 
   .dark {
-    --background: 240 8% 7%;
-    --foreground: 240 6% 94%;
+    /* Чёрный фон, плитки на тон светлее */
+    --background: 0 0% 0%;
+    --foreground: 240 4% 95%;
 
-    --card: 240 6% 10%;
-    --card-foreground: 240 6% 94%;
-    --popover: 240 6% 11%;
-    --popover-foreground: 240 6% 94%;
+    --card: 240 5% 8%;
+    --card-foreground: 240 4% 95%;
+    --popover: 240 5% 12%;
+    --popover-foreground: 240 4% 95%;
 
-    --primary: 236 85% 74%;
-    --primary-foreground: 240 10% 8%;
+    /* Кобальт чуть светлее: белый текст на кнопке 5.1:1; для текста и иконок
+       акцента светлый кобальт #8391FA: 7.4:1 на чёрном, 6.5:1 на плитке */
+    --primary: 233 85% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-ink: 233 92% 75%;
 
-    --secondary: 240 5% 16%;
-    --secondary-foreground: 240 6% 94%;
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 66%;
+    --secondary: 240 6% 13%;
+    --secondary-foreground: 240 4% 95%;
+    --muted: 240 6% 13%;
+    --muted-foreground: 240 5% 63%;
 
-    --accent: 240 5% 15%;
-    --accent-foreground: 240 6% 94%;
+    --accent: 240 6% 13%;
+    --accent-foreground: 240 4% 95%;
 
-    --destructive: 0 72% 62%;
-    --destructive-foreground: 240 10% 8%;
+    --destructive: 4 92% 69%;
+    --destructive-foreground: 0 0% 0%;
 
-    --border: 240 5% 18%;
-    --input: 240 5% 22%;
-    --ring: 236 85% 74%;
+    --border: 240 6% 16%;
+    --input: 240 6% 19%;
+    --ring: 233 92% 75%;
 
-    --loader: 240 5% 66%;
-    --skeleton: 240 5% 16%;
+    --loader: 240 5% 63%;
+    --skeleton: 240 6% 13%;
   }
 }
 
@@ -319,5 +331,90 @@ body {
   }
   .aid-skeleton {
     animation: none;
+  }
+}
+
+/* Диалоги Radix блокируют прокрутку (react-remove-scroll): body получает
+   overflow hidden и отступ справа на ширину полосы. Прокручивается у нас не body,
+   а .aid-scroll со scrollbar-gutter: stable, поэтому отступ только сдвигал бы
+   раскладку. Меню, контекстные меню и тултипы прокрутку не блокируют (modal={false}). */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* Кнопка записи (RecordDock): только transform и opacity, без скачков раскладки.
+   Покой: кольцо «дышит». Запись: кольцо вспыхивает на сигнал речи, точка мерцает.
+   Смена состояния: появление с лёгким масштабом (морфинг кнопки в капсулу). */
+@keyframes aid-dock-breathe {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  70% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+@keyframes aid-dock-speech {
+  from {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes aid-dock-dot {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes aid-dock-in {
+  from {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.aid-dock-breathe {
+  animation: aid-dock-breathe 2.8s ease-out infinite;
+}
+
+.aid-dock-speech {
+  animation: aid-dock-speech 0.9s ease-out forwards;
+}
+
+.aid-dock-dot {
+  animation: aid-dock-dot 1.6s ease-in-out infinite;
+}
+
+.aid-dock-in {
+  animation: aid-dock-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transform-origin: center bottom;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-dock-breathe,
+  .aid-dock-speech,
+  .aid-dock-dot,
+  .aid-dock-in {
+    animation: none;
+  }
+  .aid-dock-speech {
+    opacity: 0;
   }
 }

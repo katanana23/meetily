@@ -1,7 +1,7 @@
 // Окно Tauri в цвет темы Aid. При растягивании окна WebView не успевает
 // перерисоваться, и по краю видна подложка окна: была белой при тёмной теме.
 // Здесь окну ставятся тема заголовка и цвет фона, равный --background:
-// светлая #F7F7F8 (240 9% 97%), тёмная #101013 (240 8% 7%).
+// светлая #FFFFFF, тёмная #000000 (бенто: белый и чёрный фон окна).
 // Нужны права core:window:allow-set-theme, core:window:allow-set-background-color
 // и core:webview:allow-set-webview-background-color в tauri.conf.json; без них
 // вызовы отклоняются, ошибка пишется в консоль, интерфейс работает как раньше.
@@ -9,7 +9,7 @@
 
 import { getStoredTheme, type ThemeMode } from './theme';
 
-export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#F7F7F8', dark: '#101013' };
+export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#FFFFFF', dark: '#000000' };
 
 function inTauri(): boolean {
   if (typeof window === 'undefined') return false;

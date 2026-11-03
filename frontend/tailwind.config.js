@@ -24,7 +24,9 @@ module.exports = {
   			ring: 'hsl(var(--ring))',
   			primary: {
   				DEFAULT: 'hsl(var(--primary))',
-  				foreground: 'hsl(var(--primary-foreground))'
+  				foreground: 'hsl(var(--primary-foreground))',
+  				// Aid: текст и иконки акцента (в тёмной теме светлее заливки ради контраста AA)
+  				ink: 'hsl(var(--primary-ink, var(--primary)))'
   			},
   			secondary: {
   				DEFAULT: 'hsl(var(--secondary))',

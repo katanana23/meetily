@@ -11,10 +11,11 @@ const buttonVariants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-border bg-card text-foreground hover:bg-muted',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        // Вторичная кнопка бенто: заливка на ступень темнее (светлая) или светлее (тёмная), без рамки
+        outline: 'bg-secondary text-secondary-foreground hover:bg-input',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-input',
         ghost: 'text-foreground hover:bg-muted',
-        link: 'text-primary underline-offset-4 hover:underline',
+        link: 'text-primary-ink underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-11 px-5',

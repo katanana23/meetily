@@ -15,14 +15,15 @@ import { LANGUAGES } from '@/constants/languages';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
+import { H1 } from '@/aid/lib/type';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
+import { SectionHeading } from '@/aid/components/SectionHeading';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
@@ -78,7 +79,7 @@ function NoSpeechHint({ heard }: { heard: boolean }) {
     );
   }
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-row bg-muted p-4" role="status">
       <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
@@ -96,7 +97,7 @@ function NoSpeechHint({ heard }: { heard: boolean }) {
 /** Долгая тишина после речи: предложить остановить, но не останавливать самим. */
 function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onContinue: () => void }) {
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="alert">
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-row bg-muted p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
         <Button variant="outline" size="main" onClick={onContinue}>
@@ -155,7 +156,7 @@ function ConsentNotice() {
 
   if (!show) return null;
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-tile bg-card px-4 py-3">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-row bg-muted px-4 py-3">
       <p className="text-sm">{t('consentNotice')}</p>
       <div className="flex gap-2">
         <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={() => void never()}>
@@ -212,16 +213,12 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   if (phase) {
     const copy = PHASE[phase];
     return (
-      <Page width="max-w-[840px]">
-        <Card className="mt-6 w-full px-6 py-12 text-center" role="status" aria-live="polite">
-          {phase === 'opening' ? (
-            <Check weight="bold" className="mx-auto size-5 text-primary-ink" aria-hidden />
-          ) : (
-            <Spinner className="mx-auto" />
-          )}
-          <h1 className="mt-5 text-2xl font-semibold">{copy.title}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{copy.hint}</p>
-        </Card>
+      <Page width="max-w-[880px]">
+        <div className="pt-4" role="status" aria-live="polite">
+          {phase === 'opening' ? <Check weight="bold" className="size-6 text-foreground" aria-hidden /> : <Spinner />}
+          <h1 className={cn('mt-5', H1)}>{copy.title}</h1>
+          <p className="mt-2 max-w-md text-[15px] leading-6 text-muted-foreground">{copy.hint}</p>
+        </div>
       </Page>
     );
   }
@@ -229,27 +226,27 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   // Шапка: «Назад» к списку (запись идёт дальше), состояние и название.
   // Таймер, пауза и «Остановить» в кнопке записи внизу (RecordDock).
   const header = (
-    <div className="flex items-center gap-3">
+    <>
       <BackButton label={t('backFromRecording')} onClick={onBack} />
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <span className={cn('size-2.5 rounded-full', isPaused ? 'bg-muted-foreground' : 'aid-dock-dot bg-destructive')} aria-hidden />
+      <div className="mt-4 min-w-0">
+        <h1 className={cn('truncate', H1)}>{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
+        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+          <span className={cn('size-2.5 rounded-full', isPaused ? 'bg-muted-foreground' : 'aid-dock-dot bg-record')} aria-hidden />
           {isPaused ? t('paused') : t('recording')}
         </div>
-        <h1 className="truncate text-2xl font-semibold tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
       </div>
-    </div>
+    </>
   );
 
   return (
-    <Page width="max-w-[840px]" header={header}>
+    <Page width="max-w-[880px]" header={header}>
       {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
       {!showLongSilence && showNoSpeech && <NoSpeechHint heard={live.vadSegments > 0} />}
 
       <ConsentNotice />
 
       {problems.error && (
-        <Alert variant="destructive" className="mb-2">
+        <Alert variant="destructive" className="mb-4">
           <Warning />
           <div>
             <AlertTitle>{problems.error.message}</AlertTitle>
@@ -269,12 +266,13 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
       <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
       <section className="pt-2" aria-label={t('liveTranscript')}>
+        <SectionHeading className="mb-3">{t('transcript')}</SectionHeading>
         {segments.length === 0 ? (
-          <Card className="flex flex-col items-center px-6 py-12 text-center">
-            <SpeakerHigh className="size-5 text-muted-foreground" aria-hidden />
-            <p className="mt-3 text-lg font-semibold">{t('waitingSpeech')}</p>
-            <p className="mx-auto mt-1 max-w-md text-[15px] text-muted-foreground">{t('waitingSpeechHint')}</p>
-          </Card>
+          <div className="py-4">
+            <SpeakerHigh className="size-6 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-[15px] font-medium">{t('waitingSpeech')}</p>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">{t('waitingSpeechHint')}</p>
+          </div>
         ) : (
           <>
             <TranscriptList segments={segments} live onTyped={scrollToEnd} settledIds={settledIds} />

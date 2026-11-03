@@ -3169,3 +3169,27 @@
 [role='dialog'] .border-blue-200 {
   border-color: transparent;
 }
+
+/* Тринадцатый круг, типографика вместо коробок: блоки оригинала в настройках
+   остаются колодцами (bg-gray-50 → --muted) без волосяных рамок, как Alert и
+   подсказки Aid. Обводка выбранной модели (border-blue-500/600 → чернила) остаётся:
+   это состояние, а не украшение. Поля ввода и кнопки не затрагиваются. */
+.aid-legacy :where(div, section).border-gray-100,
+.aid-legacy :where(div, section).border-gray-200,
+.aid-legacy :where(div, section).border-gray-300,
+.aid-legacy :where(div, section).border-neutral-200,
+.aid-legacy :where(div, section).border-slate-200,
+.aid-legacy :where(div, section).border-zinc-200,
+.aid-legacy :where(div, section).border-gray-700,
+.aid-legacy :where(div, section).border-gray-800 {
+  border-color: transparent;
+}
+
+/* Блоки оригинала с классом border без цвета (border rounded-lg): рамка тоже убирается,
+   остаётся только тон колодца. Разделители border-t между частями секции остаются. */
+.aid-legacy :where(div, section).border.rounded-lg,
+.aid-legacy :where(div, section).border.rounded-xl,
+.aid-legacy :where(div, section).border.rounded-2xl,
+.aid-legacy :where(div, section).border.rounded-md {
+  border-color: transparent;
+}

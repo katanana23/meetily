@@ -4,12 +4,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/aid/lib/utils';
 
 const alertVariants = cva(
-  'relative w-full rounded-tile p-4 text-sm [&>svg+div]:translate-y-[-2px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:size-5 [&>svg~*]:pl-8',
+  'relative w-full rounded-row p-4 text-sm [&>svg+div]:translate-y-[-2px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:size-5 [&>svg~*]:pl-8',
   {
     variants: {
       variant: {
-        default: 'bg-card text-foreground [&>svg]:text-foreground',
-        destructive: 'bg-card text-foreground [&>svg]:text-destructive',
+        default: 'bg-muted text-foreground [&>svg]:text-foreground',
+        destructive: 'bg-muted text-foreground [&>svg]:text-destructive',
       },
     },
     defaultVariants: { variant: 'default' },

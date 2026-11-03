@@ -1,9 +1,11 @@
-// shadcn/ui Card: плитка бенто. Радиус 20 px, тон на ступень светлее фона, без рамки и тени.
+// shadcn/ui Card: колодец внутри плитки контента (тон наведения, радиус 12 px), без рамки
+// и тени. Для разметки экранов не используется: вложенных карточек в плитке нет;
+// остаётся для редких блоков вроде диалога проверки звука.
 import * as React from 'react';
 import { cn } from '@/aid/lib/utils';
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('rounded-tile bg-card text-card-foreground', className)} {...props} />
+  <div ref={ref} className={cn('rounded-row bg-muted text-foreground', className)} {...props} />
 ));
 Card.displayName = 'Card';
 

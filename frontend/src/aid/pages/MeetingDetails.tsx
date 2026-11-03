@@ -1,7 +1,8 @@
-// Экран «Встреча»: главное здесь транскрипт, он открыт сразу.
-// Итоги вторичны: кнопка «Сделать итоги» в шапке, а готовые итоги показываются
-// сворачиваемым блоком над транскриптом. Пока итогов нет, блоков про них нет.
-// Копирование текста и Markdown собрано в одном меню «Копировать».
+// Экран «Встреча» в той же системе, что главная: крупный заголовок, под ним мета
+// серым, транскрипт единым текстовым потоком без карточек. Итоги, если есть,
+// стоят над транскриптом без рамки: их отделяет только заголовок «Итоги» 22 px
+// и отступ; транскрипт после них подписан заголовком «Транскрипт».
+// «Сделать итоги» в шапке, пока итогов нет. «Копировать» одним нажатием.
 // Встреча без реплик показывает одно сообщение «Речь не распознана» с действиями.
 
 'use client';
@@ -14,7 +15,6 @@ import remarkGfm from 'remark-gfm';
 import {
   ArrowClockwise,
   Check,
-  CaretDown,
   ClipboardText,
   FolderOpen,
   MicrophoneSlash,
@@ -26,8 +26,9 @@ import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
+import { SectionHeading } from '@/aid/components/SectionHeading';
+import { H1, H2, SUB } from '@/aid/lib/type';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { Page } from '@/aid/components/Page';
@@ -57,7 +58,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 
-const WIDTH = 'max-w-[840px]'; // колонка текста реплик около 700 px
+const WIDTH = 'max-w-[880px]'; // колонка текста реплик около 720 px
 
 function BackLink() {
   return <BackButton label={t('back')} href="/" />;
@@ -104,7 +105,7 @@ function Title({ shown, editable, onRename }: { shown: string; editable: string;
           }
         }}
         onClose={() => setEditing(false)}
-        inputClassName="h-12 text-xl font-semibold"
+        inputClassName="h-14 text-2xl font-bold"
       />
     );
   }
@@ -112,13 +113,13 @@ function Title({ shown, editable, onRename }: { shown: string; editable: string;
   // Карандаша нет: само название кликабельно. Наведение подсвечивает его подложкой
   // колодца, клик или Enter начинают переименование
   return (
-    <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight">
+    <h1 className={cn('min-w-0', H1)}>
       <button
         type="button"
         onClick={begin}
         title={t('renameHint')}
         aria-label={`${shown}. ${t('renameHint')}`}
-        className="-mx-2 line-clamp-2 max-w-full cursor-text rounded-nested px-2 py-1 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="-mx-2 line-clamp-2 max-w-full cursor-text rounded-row px-2 py-1 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {shown}
       </button>
@@ -176,12 +177,12 @@ function SilentRecording({
   const needModel = cause === 'no-model' || cause === 'model-downloading';
 
   return (
-    <Card className="p-4" role="status">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <MicrophoneSlash className="size-5 text-destructive" aria-hidden />
+    <div className="py-2" role="status">
+      <h2 className={cn('flex items-center gap-3', H2)}>
+        <MicrophoneSlash className="size-6 text-muted-foreground" aria-hidden />
         {t('silentTitle')}
       </h2>
-      <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
+      <p className="mt-2 max-w-xl text-[15px] leading-6 text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
       <div className="mt-5 flex flex-wrap gap-3">
         {needModel ? (
           <Button asChild size="main">
@@ -204,12 +205,12 @@ function SilentRecording({
           {t('delete')}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
 
-/** Итоги над транскриптом: только когда они есть, готовятся или не получились. */
+/** Итоги над транскриптом без рамки: заголовок «Итоги» 22 px и отступ. Только когда они есть, готовятся или не получились. */
 function SummaryBlock({
   summary,
   title,
@@ -220,71 +221,53 @@ function SummaryBlock({
   title: string;
   onRetry: () => void;
 }) {
-  // Свёрнуты по умолчанию: главное на странице транскрипт. Раскрываются сами,
-  // когда итоги только что сделаны на этой странице.
-  const [open, setOpen] = useState(false);
-  const wasProcessing = useRef(false);
-  useEffect(() => {
-    if (summary.kind === 'processing') wasProcessing.current = true;
-    else if (summary.kind === 'ready' && wasProcessing.current) {
-      wasProcessing.current = false;
-      setOpen(true);
-    }
-  }, [summary.kind]);
-
   if (summary.kind === 'processing') {
     return (
-      <div className="mb-2 flex items-center gap-3 rounded-tile bg-card p-4" role="status" aria-live="polite">
-        <Spinner />
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{t('summaryProcessing')}</p>
-          <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
+      <section aria-labelledby="summary-title" className="mb-10">
+        <SectionHeading id="summary-title">{t('summary')}</SectionHeading>
+        <div className="mt-3 flex items-center gap-3" role="status" aria-live="polite">
+          <Spinner />
+          <div className="min-w-0">
+            <p className="text-[15px] font-medium">{t('summaryProcessing')}</p>
+            <p className={SUB}>{t('summaryProcessingHint')}</p>
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 
   if (summary.kind === 'failed') {
     return (
-      <div className="mb-2">
-        <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />
-      </div>
+      <section aria-labelledby="summary-title" className="mb-10">
+        <SectionHeading id="summary-title">{t('summary')}</SectionHeading>
+        <div className="mt-3">
+          <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />
+        </div>
+      </section>
     );
   }
 
   if (summary.kind !== 'ready') return null;
 
   return (
-    <section className="mb-2 rounded-tile bg-card" aria-labelledby="summary-title">
-      <div className="flex items-center gap-2 p-2">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="summary-body"
-          className="flex h-11 flex-1 items-center gap-3 rounded-nested px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Sparkle className="size-5 text-primary-ink" aria-hidden />
-          <span id="summary-title" className="text-base font-semibold">
-            {t('summary')}
-          </span>
-          {/* Вниз, когда свёрнуто, вверх, когда раскрыто: залитый треугольник вправо читается как «воспроизвести» */}
-          <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden />
-          <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
-        </button>
-        <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={onRetry}>
-          <ArrowClockwise />
-          {t('summaryRedo')}
-        </Button>
-      </div>
-      {open && (
-        <article
-          id="summary-body"
-          className="prose prose-neutral max-w-none px-4 pb-4 pt-1 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryForPage(summary.markdown, title)}</ReactMarkdown>
-        </article>
-      )}
+    <section className="mb-10" aria-labelledby="summary-title">
+      <SectionHeading
+        id="summary-title"
+        action={
+          <Button variant="ghost" className="h-10 px-3 text-muted-foreground hover:text-foreground" onClick={onRetry}>
+            <ArrowClockwise />
+            {t('summaryRedo')}
+          </Button>
+        }
+      >
+        {t('summary')}
+      </SectionHeading>
+      <article
+        id="summary-body"
+        className="prose prose-neutral mt-3 max-w-none dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-[17px] prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left prose-a:text-link"
+      >
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryForPage(summary.markdown, title)}</ReactMarkdown>
+      </article>
     </section>
   );
 }
@@ -382,8 +365,8 @@ function LoadingState() {
       width={WIDTH}
       header={
         <div role="status" aria-busy="true" aria-label={t('loading')}>
-          <Skeleton className="size-10 rounded-full" />
-          <Skeleton className="mt-4 h-9 w-2/3 rounded-xl" />
+          <Skeleton className="size-14 rounded-full" />
+          <Skeleton className="mt-5 h-10 w-2/3 rounded-xl" />
           <Skeleton className="mt-3 h-5 w-48 rounded-lg" />
         </div>
       }
@@ -446,10 +429,8 @@ function MeetingDetailsContent() {
   if (m.meeting.kind === 'not-found') {
     return (
       <Page width={WIDTH} header={<BackLink />}>
-        <Card className="px-6 py-12 text-center">
-          <h1 className="text-2xl font-semibold">{t('meetingNotFound')}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
-        </Card>
+        <h1 className={H1}>{t('meetingNotFound')}</h1>
+        <p className={cn('mt-2 max-w-md', SUB)}>{t('meetingNotFoundHint')}</p>
       </Page>
     );
   }
@@ -466,10 +447,8 @@ function MeetingDetailsContent() {
   if (isDiscarded(meta)) {
     return (
       <Page width={WIDTH} header={<BackLink />}>
-        <Card className="px-6 py-12 text-center">
-          <h1 className="text-2xl font-semibold">{t('notSavedTitle')}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
-        </Card>
+        <h1 className={H1}>{t('notSavedTitle')}</h1>
+        <p className={cn('mt-2 max-w-md', SUB)}>{t('notSavedHint')}</p>
       </Page>
     );
   }
@@ -541,9 +520,9 @@ function MeetingDetailsContent() {
           </IconAction>
         </div>
       </div>
-      <div className="mt-3 min-w-0">
+      <div className="mt-4 min-w-0">
         <Title shown={shownTitle} editable={editableTitle(meta.title, fromContent)} onRename={rename} />
-        <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
+        <p className={cn('mt-2', SUB)}>{facts}</p>
       </div>
     </>
   );
@@ -561,9 +540,10 @@ function MeetingDetailsContent() {
       ) : (
         <>
           {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
-          {/* Транскрипт прямо на серой плитке правой части: время на одной линии с
-              названием и кнопкой «Назад» (16 px от края плитки) */}
-          <section aria-label={t('transcript')} className="pt-2">
+          {/* Транскрипт единым потоком прямо на плитке: время на одной линии с названием
+              и кнопкой «Назад» (16 px от края плитки). Заголовок только после блока итогов */}
+          <section aria-label={t('transcript')} className="pt-1">
+            {showSummary && m.summary.kind !== 'empty' && <SectionHeading className="mb-3">{t('transcript')}</SectionHeading>}
             <TranscriptList segments={m.segments} />
             {m.hasMore && (
               <div className="flex justify-center pt-6">

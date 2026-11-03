@@ -6,18 +6,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, CaretDown, Chats, UploadSimple, FolderOpen, MagnifyingGlass, Trash, Warning } from '@phosphor-icons/react';
+import { ArrowClockwise, Chats, UploadSimple, FolderOpen, MagnifyingGlass, Trash, Warning } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
+import { SectionHeading } from '@/aid/components/SectionHeading';
+import { H1, H2, ROW_META, ROW_TITLE, SUB } from '@/aid/lib/type';
+import { trashCount, openTrash } from '@/aid/lib/recording-trash';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
@@ -175,7 +177,7 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
   );
 }
 
-/** Раздел внизу списка: записи без текста. Свёрнут по умолчанию. */
+/** Раздел внизу списка: записи без текста. Заголовок-ссылка «Не распознано ›», свёрнут по умолчанию. */
 function UnrecognizedSection({
   meetings,
   legacy,
@@ -192,51 +194,49 @@ function UnrecognizedSection({
   const { betaFeatures } = useConfig();
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
   return (
-    <section className="mt-4" aria-label={t('unrecognizedSection')}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-nested px-3 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {t('unrecognizedSection')} · {meetings.length}
-        {/* Вниз, когда свёрнуто, вверх, когда раскрыто */}
-        <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
-      </button>
+    <section className="mt-8" aria-label={t('unrecognizedSection')}>
+      <SectionHeading onClick={() => setOpen((v) => !v)} expanded={open} meta={meetings.length}>
+        {t('unrecognizedSection')}
+      </SectionHeading>
       {open && (
-        <div className="mt-2 space-y-2">
-          <p className="px-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
-          <ul className="space-y-2">
+        <div className="mt-2">
+          <p className={cn('mb-3 px-2', SUB)}>{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
+          <ul>
             {meetings.map((m) => (
-              <li key={m.id} className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-nested py-2 pl-3 pr-1 hover:bg-muted">
+              <li key={m.id} className="group flex min-h-[72px] flex-wrap items-center gap-4 rounded-row p-2 hover:bg-muted">
                 <Link
                   href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-                  className="min-w-0 flex-1 rounded-nested py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-w-0 flex-1 items-center gap-4 rounded-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <span className="block truncate text-[15px] font-medium" title={displayTitle(m.title)}>
-                    {displayTitle(m.title)}
+                  <StatusThumb kind="silent" />
+                  <span className="min-w-0 flex-1">
+                    <span className={cn('block truncate', ROW_TITLE)} title={displayTitle(m.title)}>
+                      {displayTitle(m.title)}
+                    </span>
+                    {m.created_at && !isAutoTitle(m.title) && <span className={cn('block', ROW_META)}>{formatShortDate(m.created_at)}</span>}
                   </span>
-                  {m.created_at && !isAutoTitle(m.title) && <span className="block text-sm text-muted-foreground">{formatShortDate(m.created_at)}</span>}
                 </Link>
-                {canRetranscribe && m.folder_path && (
-                  <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => setRetranscribe(m)}>
-                    <ArrowClockwise />
-                    {t('retranscribe')}
+                <div className="flex shrink-0 items-center gap-1 pr-2 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+                  {canRetranscribe && m.folder_path && (
+                    <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => setRetranscribe(m)}>
+                      <ArrowClockwise />
+                      {t('retranscribe')}
+                    </Button>
+                  )}
+                  <Button variant="ghost" className="h-10 rounded-full px-4 text-muted-foreground hover:text-destructive" onClick={() => onDelete(m)}>
+                    <Trash />
+                    {t('delete')}
                   </Button>
-                )}
-                <Button variant="ghost" className="h-10 rounded-full px-4 text-destructive hover:text-destructive" onClick={() => onDelete(m)}>
-                  <Trash />
-                  {t('delete')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-10 rounded-full text-muted-foreground"
-                  onClick={() => onOpenFolder(m)}
-                  aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
-                >
-                  <FolderOpen />
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-10 rounded-full text-muted-foreground"
+                    onClick={() => onOpenFolder(m)}
+                    aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
+                  >
+                    <FolderOpen />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -251,6 +251,33 @@ function UnrecognizedSection({
           onComplete={() => setRetranscribe(null)}
         />
       )}
+    </section>
+  );
+}
+
+/** Корзина: заголовок-ссылка «Корзина ›» со счётчиком, только если в ней что-то лежит. Открывает папку. */
+function TrashSection() {
+  const { storageLocations, loadPreferences } = useConfig();
+  const root = storageLocations?.recordings ?? null;
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    void loadPreferences();
+  }, [loadPreferences]);
+  useEffect(() => {
+    let alive = true;
+    void trashCount(root).then((n) => alive && setCount(n));
+    return () => {
+      alive = false;
+    };
+  }, [root]);
+  if (!root || count === 0) return null;
+  const open = () => void openTrash(root).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
+  return (
+    <section className="mt-8" aria-label={t('trashSection')}>
+      <SectionHeading onClick={open} meta={count}>
+        {t('trashSection')}
+      </SectionHeading>
+      <p className={cn('mt-1 px-2', SUB)}>{t('trashSectionHint')}</p>
     </section>
   );
 }
@@ -401,10 +428,13 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
   const showSearch = state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
 
-  // Шапка: заголовок и импорт аудио иконкой; кнопка записи плавает внизу по центру (RecordDock)
+  // Шапка: крупный заголовок с подписью и импорт аудио иконкой; запись в полосе внизу (RecordDock)
   const header = (
-    <div className="flex items-center justify-between gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className={H1}>{t('homeTitle')}</h1>
+        <p className={cn('mt-1', SUB)}>{t('homeSubtitle')}</p>
+      </div>
       {betaFeatures.importAndRetranscribe && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -419,7 +449,8 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 
   return (
-    <Page header={header}>
+    // Колонка до 1360 px: от 1100 px ширины контента список идёт в две колонки
+    <Page header={header} width="max-w-[1360px]">
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">
@@ -453,10 +484,10 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Alert>
       ) : (
         <div className={blocker || startError ? 'mt-2' : ''}>
-          {/* Список прямо на серой плитке правой части: поиск и строки встреч */}
-          <section aria-label={t('meetingsList')}>
+          {/* Список прямо на плитке контента: поиск и строки встреч без вложенных карточек */}
+          <section aria-label={t('meetingsList')} className="@container">
           {showSearch && (
-            <div className="relative mb-2">
+            <div className="relative mb-4">
               {/* Лупа контуром (bold): залитая рисуется сплошным диском и выглядит грубо */}
               <MagnifyingGlass weight="bold" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
@@ -465,52 +496,54 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('searchMeetings')}
                 aria-label={t('searchMeetings')}
-                className="rounded-tile bg-muted pl-12"
+                className="pl-12"
                 disabled={state.kind !== 'ready'}
               />
             </div>
           )}
           {state.kind === 'loading' && (
             <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>
-              {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка */}
+              {/* Та же геометрия, что у MeetingRow: миниатюра 56 px, две строки, длительность; без скачка */}
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex min-h-[64px] items-center gap-3 rounded-nested py-3 pl-3 pr-3">
-                  <Skeleton className="size-5 shrink-0 rounded-full" />
+                <div key={i} className="flex min-h-[72px] items-center gap-4 rounded-row p-2">
+                  <Skeleton className="size-14 shrink-0 rounded-thumb" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-2/3 rounded-lg" />
                     <Skeleton className="h-3.5 w-1/3 rounded-lg" />
                   </div>
-                  <span className="size-4 shrink-0" />
+                  <Skeleton className="mr-2 h-3.5 w-10 rounded-lg" />
                 </div>
               ))}
             </div>
           )}
 
           {state.kind === 'ready' && groups.main.length === 0 && (
-            <div className="flex flex-col items-center px-6 py-12 text-center">
-              <Chats className="size-5 text-muted-foreground" aria-hidden />
-              <h2 className="mt-3 text-xl font-semibold">{t('noMeetings')}</h2>
-              <p className="mt-2 max-w-sm text-[15px] text-muted-foreground">{t('noMeetingsHint')}</p>
+            <div className="flex flex-col items-start px-2 py-10">
+              <span className="flex size-14 items-center justify-center rounded-thumb bg-muted" aria-hidden>
+                <Chats className="size-6 text-muted-foreground" />
+              </span>
+              <h2 className={cn('mt-5', H2)}>{t('noMeetings')}</h2>
+              <p className="mt-2 max-w-md text-[15px] leading-6 text-muted-foreground">{t('noMeetingsHint')}</p>
             </div>
           )}
 
           {state.kind === 'ready' && search && groups.main.length > 0 && filtered.length === 0 && search.pending === 0 && (
-            <div className="flex flex-col items-center px-6 py-10 text-center">
-              <MagnifyingGlass weight="bold" className="size-5 text-muted-foreground" aria-hidden />
-              <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
+            <div className="flex flex-col items-start px-2 py-10">
+              <MagnifyingGlass weight="bold" className="size-6 text-muted-foreground" aria-hidden />
+              <h2 className={cn('mt-4', H2)}>{t('nothingFound')}</h2>
               <p className="mt-1 text-[15px] text-muted-foreground">{t('nothingFoundHint')}</p>
             </div>
           )}
 
           {search && search.pending > 0 && (
-            <p className="px-3 pb-2 text-sm text-muted-foreground" role="status">
+            <p className="px-2 pb-2 text-sm text-muted-foreground" role="status">
               <Spinner size={16} className="mr-2 inline-block align-[-3px]" />
               {t('searchProgress')} {search.total - search.pending} из {search.total}
             </p>
           )}
 
           {search && filtered.length > 0 && (
-            <ul className="space-y-1" aria-label={t('meetingsList')}>
+            <ul className="grid grid-cols-1 gap-x-6 @[1100px]:grid-cols-2" aria-label={t('meetingsList')}>
               {filtered.map((m) => (
                 <MeetingRow
                   key={m.id}
@@ -526,11 +559,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
           {!search &&
             dated.map(({ group, items }) => (
-              <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-1 first:mt-0">
-                <h2 id={`aid-group-${group}`} className="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground">
+              <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-6 first:mt-0">
+                <SectionHeading id={`aid-group-${group}`} meta={items.length} className="mb-2 px-2">
                   {t(GROUP_LABEL[group])}
-                </h2>
-                <ul className="space-y-1">
+                </SectionHeading>
+                {/* При ширине контента от 1100 px список в две колонки, как треки */}
+                <ul className="grid grid-cols-1 gap-x-6 @[1100px]:grid-cols-2">
                   {items.map((m) => (
                     <MeetingRow
                       key={m.id}
@@ -554,6 +588,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
               onOpenFolder={openFolder}
             />
           )}
+          {state.kind === 'ready' && !query.trim() && <TrashSection />}
         </div>
       )}
       <DeleteMeetingDialog

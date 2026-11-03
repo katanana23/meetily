@@ -1,18 +1,17 @@
-// Индикатор приватности: локально, облако или неизвестно.
-// Смысл передают текст и иконка, цвет только поддерживает.
+// Индикатор приватности: локально, облако или неизвестно. Тихая строка сайдбара,
+// смысл передают иконка и слово; подробности во всплывающей подсказке.
 'use client';
 
 import { Cloud, ShieldCheck, ShieldWarning } from '@phosphor-icons/react';
-import { Badge } from '@/aid/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import type { PrivacyInfo, PrivacyLevel, ProviderPrivacy } from '@/aid/lib/privacy';
 import { t } from '@/aid/strings';
 import { cn } from '@/aid/lib/utils';
 
 const LEVEL = {
-  local: { icon: ShieldCheck, label: t('privacyLocal'), hint: t('privacyHintLocal'), variant: 'accent' as const },
-  cloud: { icon: Cloud, label: t('privacyCloud'), hint: t('privacyHintCloud'), variant: 'outline' as const },
-  unknown: { icon: ShieldWarning, label: t('privacyUnknown'), hint: t('privacyHintUnknown'), variant: 'secondary' as const },
+  local: { icon: ShieldCheck, label: t('privacyLocal'), hint: t('privacyHintLocal') },
+  cloud: { icon: Cloud, label: t('privacyCloud'), hint: t('privacyHintCloud') },
+  unknown: { icon: ShieldWarning, label: t('privacyUnknown'), hint: t('privacyHintUnknown') },
 } satisfies Record<PrivacyLevel, unknown>;
 
 const WHERE: Record<PrivacyLevel, string> = {
@@ -26,22 +25,24 @@ function line(title: string, p: ProviderPrivacy) {
 }
 
 export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; className?: string }) {
-  const { icon: Icon, label, hint, variant } = LEVEL[privacy.level];
+  const { icon: Icon, label, hint } = LEVEL[privacy.level];
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge
-          variant={variant}
+        <div
           tabIndex={0}
-          className={cn('h-8 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
+          className={cn(
+            'flex h-11 cursor-default items-center gap-3 rounded-row px-3 text-sm font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            className,
+          )}
           aria-label={`${t('privacy')}: ${label}. ${hint}`}
         >
-          <Icon aria-hidden />
+          <Icon className="size-5" aria-hidden />
           {label}
-        </Badge>
+        </div>
       </TooltipTrigger>
-      <TooltipContent side="bottom" align="start">
+      <TooltipContent side="top" align="start">
         <p className="font-medium">{hint}</p>
         <p className="mt-1 opacity-80">{line('Транскрипция', privacy.transcript)}</p>
         <p className="opacity-80">{line('Итоги', privacy.summary)}</p>

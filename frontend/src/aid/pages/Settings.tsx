@@ -1,8 +1,9 @@
-// Настройки Aid. Свой экран: наши токены, вкладки и тексты, без «Назад»
-// (в сайдбаре уже есть навигация). Раздел «Общие» и «О программе» свои,
-// на данных ConfigContext. Сложные секции оригинала (устройства, модели
-// распознавания и итогов, бета) подключены как есть: их логику не дублируем,
-// а цвета и тексты приводит к Aid временный мост (.aid-legacy, LegacyBridge).
+// Настройки Aid. Свой экран: наши токены, вкладки и тексты. Секции разделены
+// заголовками 22 px, а не карточками; переключатели и кнопки справа в одной
+// колонке. Раздел «Общие» и «О программе» свои, на данных ConfigContext.
+// Сложные секции оригинала (устройства, модели распознавания и итогов, бета)
+// подключены как есть: их логику не дублируем, а цвета и тексты приводит к Aid
+// временный мост (.aid-legacy, LegacyBridge).
 
 'use client';
 
@@ -15,7 +16,8 @@ import { openTrash } from '@/aid/lib/recording-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
-import { Card } from '@/aid/components/ui/card';
+import { SectionHeading } from '@/aid/components/SectionHeading';
+import { H1 } from '@/aid/lib/type';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Switch } from '@/aid/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/aid/components/ui/tabs';
@@ -41,15 +43,26 @@ type TabValue = (typeof TABS)[number]['value'];
 const UPSTREAM_URL = 'https://github.com/Zackriya-Solutions/meeting-minutes';
 const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
 
+/** Строка настройки: название и подсказка слева, переключатель или кнопка справа в одной колонке. */
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
+    <div className="flex items-center justify-between gap-6 py-4">
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-medium">{title}</p>
-        {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
+        {hint && <div className="mt-1 text-sm leading-5 text-muted-foreground">{hint}</div>}
       </div>
-      {children}
+      <div className="flex w-[200px] shrink-0 justify-end">{children}</div>
     </div>
+  );
+}
+
+/** Секция настроек: заголовок 22 px и строки под ним, без карточки. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="mb-8">
+      <SectionHeading className="mb-1">{title}</SectionHeading>
+      <div className="divide-y divide-border">{children}</div>
+    </section>
   );
 }
 
@@ -164,20 +177,21 @@ function TrashRow() {
 
 function GeneralTab() {
   return (
-    // Бенто: каждая настройка отдельной плиткой, 8 px между плитками
-    <div className="space-y-2">
-      <Card>
+    <div>
+      <Section title={t('sectionNotifications')}>
         <NotificationsRow />
-      </Card>
-      <Card>
+      </Section>
+      <Section title={t('sectionStorage')}>
         <StorageRow />
         <TrashRow />
-      </Card>
-      <Card className="p-4">
-        <Legacy className="aid-legacy-flat">
-          <AnalyticsConsentSwitch />
-        </Legacy>
-      </Card>
+      </Section>
+      <Section title={t('sectionAnalytics')}>
+        <div className="py-2">
+          <Legacy className="aid-legacy-flat">
+            <AnalyticsConsentSwitch />
+          </Legacy>
+        </div>
+      </Section>
     </div>
   );
 }
@@ -193,21 +207,17 @@ function AboutTab() {
     invoke('open_external_url', { url }).catch((error) => aidToast.error(t('openLinkFailed'), { description: String(error) }));
 
   return (
-    <div className="space-y-2">
-      <Card>
-        <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
-          {null}
-        </Row>
-      </Card>
-      <Card>
+    <Section title={t('settingsAbout')}>
+      <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
+        {null}
+      </Row>
       <Row title={t('licenseTitle')} hint={t('licenseHint')}>
         <Button variant="outline" onClick={() => void openUrl(LICENSE_URL)}>
           <ArrowUpRight />
           {t('license')}
         </Button>
       </Row>
-      </Card>
-    </div>
+    </Section>
   );
 }
 
@@ -218,7 +228,7 @@ function AboutTab() {
 function Legacy({ children, className }: { children: ReactNode; className?: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-tile" />}</div>;
+  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-row" />}</div>;
 }
 
 function SettingsContent() {
@@ -241,11 +251,9 @@ function SettingsContent() {
 
   const header = (
     <>
-      <div className="flex items-center gap-3">
-        <BackButton label={t('backToMeetings')} href="/" />
-        <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
-      </div>
-      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+      <BackButton label={t('backToMeetings')} href="/" />
+      <h1 className={`mt-4 ${H1}`}>{t('navSettings')}</h1>
+      <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1">
         <TabsList aria-label={t('navSettings')}>
           {TABS.map((x) => {
             const Icon = x.icon;
@@ -304,8 +312,8 @@ export default function Settings() {
   return (
     <Suspense
       fallback={
-        <Page header={<h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>}>
-          <Skeleton className="h-40 w-full rounded-tile" />
+        <Page header={<h1 className={H1}>{t('navSettings')}</h1>}>
+          <Skeleton className="h-40 w-full rounded-row" />
         </Page>
       }
     >

@@ -18,6 +18,10 @@ const ru = {
 
   // главная
   homeTitle: 'Встречи',
+  homeSubtitle: 'Записи, транскрипты и итоги хранятся на этом компьютере',
+  record: 'Записать',
+  trashSection: 'Корзина',
+  trashSectionHint: 'Записи без речи лежат здесь 7 дней, потом удаляются сами. Нажмите, чтобы открыть папку.',
   startRecording: 'Начать запись',
   importAudio: 'Импортировать аудио',
   searchMeetings: 'Найти по названию или тексту встречи',
@@ -156,6 +160,9 @@ const ru = {
   settingsSummary: 'Итоги',
   settingsBeta: 'Бета',
   settingsAbout: 'О программе',
+  sectionNotifications: 'Уведомления',
+  sectionStorage: 'Хранение',
+  sectionAnalytics: 'Статистика',
   notificationsTitle: 'Уведомления о начале и конце записи',
   notificationsHint: 'Системное уведомление, когда запись началась и когда остановилась.',
   notificationsNoPermission: 'Система запретила уведомления приложению. Разрешите их в системных настройках.',

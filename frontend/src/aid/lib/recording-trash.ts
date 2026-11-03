@@ -102,6 +102,25 @@ export async function purgeTrash(root?: string | null): Promise<number> {
   return removed;
 }
 
+/** Сколько записей лежит в корзине (папки с отметкой о переносе). 0, если папки нет или доступа нет. */
+export async function trashCount(root?: string | null): Promise<number> {
+  const base = root ?? (await recordingsRoot());
+  if (!base) return 0;
+  try {
+    const trash = trashPath(base);
+    if (!(await exists(trash))) return 0;
+    const entries = (await readDir(trash)) ?? [];
+    let n = 0;
+    for (const entry of entries) {
+      if (!entry.isDirectory) continue;
+      if (await exists(joinPath(joinPath(trash, entry.name), MARKER))) n++;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
 /** Открыть корзину в Finder (Проводнике). Папка создаётся, если её ещё нет. */
 export async function openTrash(root: string): Promise<void> {
   const trash = trashPath(root);

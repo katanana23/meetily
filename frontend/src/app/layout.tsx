@@ -69,7 +69,7 @@ if (isAidUI) {
 // Оригинал: Source Sans 3 в --font-ui
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
-  weight: ['400', '500', '600'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-inter',
   display: 'swap',
 })
@@ -99,7 +99,7 @@ function ConditionalImportDialog({
     return null;
   }
 
-  // Aid: своё окно импорта в бенто на тех же хуках оригинала (aid/components/ImportDialog)
+  // Aid: своё окно импорта в стиле Aid на тех же хуках оригинала (aid/components/ImportDialog)
   if (isAidUI) {
     return <AidImportDialog open={showImportDialog} onOpenChange={handleImportDialogClose} preselectedFile={importFilePath} />;
   }
@@ -316,20 +316,22 @@ export default function RootLayout({
                               ) : isAidUI ? (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
-                                    {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
+                                    {/* Сверху полоса окна (кнопки окна, знак, название). Ниже на чёрном (светлая
+                                        тема: белом) фоне сайдбар без плитки и две плитки: контент и полоса записи,
+                                        8 px между всеми и от краёв окна. data-tauri-drag-region: промежутки тоже
+                                        перетаскивают окно */}
                                     <AidRecordingControls>
-                                      {/* Сверху полоса окна (кнопки окна, знак, название), ниже две плитки.
-                                          data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
                                       <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
-                                      <TitleBar />
-                                      <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
-                                        <AidSidebar />
-                                        {/* Правая часть одной серой плиткой, как сайдбар (.aid-main в globals.css) */}
-                                        <div className="aid-main relative flex min-w-0 flex-1 overflow-hidden rounded-tile">
-                                          {children}
-                                          <RecordDock />
+                                        <TitleBar />
+                                        <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
+                                          <AidSidebar />
+                                          <div data-tauri-drag-region className="flex min-w-0 flex-1 flex-col gap-2">
+                                            <div className="aid-main relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-tile bg-card">
+                                              {children}
+                                            </div>
+                                            <RecordDock />
+                                          </div>
                                         </div>
-                                      </div>
                                       </div>
                                     </AidRecordingControls>
                                   </AidTooltipProvider>

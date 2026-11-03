@@ -5,7 +5,11 @@ import * as React from 'react';
 import { ContextMenu as ContextMenuPrimitive } from 'radix-ui';
 import { cn } from '@/aid/lib/utils';
 
-const ContextMenu = ContextMenuPrimitive.Root;
+// Без модального режима: Radix не блокирует прокрутку страницы (react-remove-scroll)
+// и не снимает pointer-events с body, поэтому открытие меню не двигает раскладку.
+function ContextMenu({ modal = false, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+  return <ContextMenuPrimitive.Root modal={modal} {...props} />;
+}
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 
 const ContextMenuContent = React.forwardRef<
@@ -18,7 +22,7 @@ const ContextMenuContent = React.forwardRef<
       // data-aid: меню Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'z-50 min-w-[220px] overflow-hidden rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0',
+        'z-50 min-w-[220px] overflow-hidden rounded-2xl border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0',
         className,
       )}
       {...props}

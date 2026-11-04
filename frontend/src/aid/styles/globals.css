@@ -493,6 +493,68 @@ html body[data-scroll-locked] {
   background: hsl(0 0% 100% / 0.18);
 }
 
+/* Типографика без лесенки: заголовки, подписи и короткие тексты переносятся
+   ровными строками (balance), абзацы без одиноких слов в последней строке
+   (pretty). Подсказки и окна выводятся в портал вне .aid-app, поэтому они тут же. */
+.aid-app p,
+.aid-app li,
+[data-aid] p {
+  text-wrap: pretty;
+}
+
+/* Ниже и специфичнее: перекрывает pretty у коротких текстов */
+.aid-app h1,
+.aid-app h2,
+.aid-app h3,
+[data-aid] h2,
+.aid-app [role='status'] p,
+.aid-app [role='alert'] p,
+[data-aid] [role='status'] p,
+.aid-balance {
+  text-wrap: balance;
+}
+
+/* «Завершаем запись» (FinishingScreen): полосы звука затухающей волной, галочка
+   появляется с мягким увеличением. Только transform и opacity. */
+.aid-finish-bar {
+  transform: scaleY(calc(var(--bar, 1) * 0.6));
+  animation: aid-finish-bar 1.6s ease-in-out infinite;
+}
+
+@keyframes aid-finish-bar {
+  0%,
+  100% {
+    transform: scaleY(calc(var(--bar, 1) * 0.25));
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(var(--bar, 1));
+    opacity: 1;
+  }
+}
+
+.aid-finish-pop {
+  animation: aid-finish-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes aid-finish-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-finish-bar,
+  .aid-finish-pop {
+    animation: none;
+  }
+}
+
 /* Курсор печатной машинки в конце живого транскрипта (TranscriptList, live) */
 .aid-caret {
   display: inline-block;

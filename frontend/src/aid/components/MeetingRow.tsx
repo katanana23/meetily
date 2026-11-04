@@ -95,11 +95,12 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
   const [editing, setEditing] = useState(false);
   // Встреча открывается: шеврон меняется на спиннер сразу после клика. Страница
   // встречи может грузиться заметное время (в разработке Next её компилирует),
-  // и без отклика клик выглядел несработавшим. Через 15 с состояние сбрасывается.
+  // и без отклика клик выглядел несработавшим. Если встреча так и не открылась,
+  // guardNavigation снимает спиннер (onFail); запасной сброс через 30 с.
   const [opening, setOpening] = useState(false);
   useEffect(() => {
     if (!opening) return;
-    const timer = setTimeout(() => setOpening(false), 15_000);
+    const timer = setTimeout(() => setOpening(false), 30_000);
     return () => clearTimeout(timer);
   }, [opening]);
   const d = meeting.details;
@@ -141,7 +142,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
             setOpening(true);
-            openMeeting(router.push, meeting.id);
+            openMeeting(router.push, meeting.id, () => setOpening(false));
           }}
           aria-busy={opening || undefined}
           className={cn(
@@ -158,7 +159,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
               if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
                 setOpening(true);
-                guardNavigation(meetingHref(meeting.id));
+                guardNavigation(meetingHref(meeting.id), () => setOpening(false));
               }
             }}
             className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"

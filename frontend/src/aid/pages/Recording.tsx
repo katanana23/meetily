@@ -23,6 +23,7 @@ import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
+import { FinishingScreen } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
@@ -213,15 +214,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
     const copy = PHASE[phase];
     return (
       <Page width="max-w-[840px]">
-        <Card className="mt-6 w-full px-6 py-12 text-center" role="status" aria-live="polite">
-          {phase === 'opening' ? (
-            <Check weight="bold" className="mx-auto size-5 text-primary-ink" aria-hidden />
-          ) : (
-            <Spinner className="mx-auto" />
-          )}
-          <h1 className="mt-5 text-2xl font-semibold">{copy.title}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{copy.hint}</p>
-        </Card>
+        <FinishingScreen phase={phase} title={copy.title} hint={copy.hint} />
       </Page>
     );
   }

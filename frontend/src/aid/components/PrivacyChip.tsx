@@ -2,7 +2,7 @@
 // Смысл передают текст и иконка, цвет только поддерживает.
 'use client';
 
-import { Cloud, ShieldCheck, ShieldWarning } from '@phosphor-icons/react';
+import { Cloud, ShieldCheck, ShieldWarning, Sparkle, Waveform } from '@phosphor-icons/react';
 import { Badge } from '@/aid/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import type { PrivacyInfo, PrivacyLevel, ProviderPrivacy } from '@/aid/lib/privacy';
@@ -41,10 +41,16 @@ export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; clas
           {label}
         </Badge>
       </TooltipTrigger>
-      <TooltipContent side="bottom" align="start">
-        <p className="font-medium">{hint}</p>
-        <p className="mt-1 opacity-80">{line('Транскрипция', privacy.transcript)}</p>
-        <p className="opacity-80">{line('Итоги', privacy.summary)}</p>
+      {/* Сетка: колонка иконок и колонка текста, строки начинаются с одной линии */}
+      <TooltipContent side="bottom" align="start" className="w-max max-w-[min(460px,calc(100vw-2rem))] p-3">
+        <div className="grid grid-cols-[20px_1fr] items-start gap-x-2.5 gap-y-2 text-[13px]">
+          <Icon className="mt-px size-5 text-primary-ink" aria-hidden />
+          <p className="whitespace-nowrap font-medium">{hint}</p>
+          <Waveform className="mt-px size-4 justify-self-center text-muted-foreground" aria-hidden />
+          <p className="whitespace-nowrap text-muted-foreground">{line('Транскрипция', privacy.transcript)}</p>
+          <Sparkle className="mt-px size-4 justify-self-center text-muted-foreground" aria-hidden />
+          <p className="whitespace-nowrap text-muted-foreground">{line('Итоги', privacy.summary)}</p>
+        </div>
       </TooltipContent>
     </Tooltip>
   );

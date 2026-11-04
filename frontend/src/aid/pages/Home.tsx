@@ -316,7 +316,7 @@ function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f:
             )}
           >
             {label}
-            {n !== undefined && <span className={cn('tabular', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{n}</span>}
+            {n !== undefined && <span className={cn('tabular', active ? 'text-primary-foreground' : 'text-muted-foreground')}>{n}</span>}
           </button>
         );
       })}

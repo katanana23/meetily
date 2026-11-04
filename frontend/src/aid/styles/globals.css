@@ -703,3 +703,21 @@ html body[data-scroll-locked] {
 .aid-legacy.aid-legacy-flat .text-blue-600:hover {
   text-decoration: underline;
 }
+
+/* Переключатели оригинала (36×20 с тенью и рамкой) в мосте приводятся к
+   переключателю Aid: 44×24, без тени, бегунок 20 px со сдвигом 20 px */
+.aid-legacy [role='switch'] {
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+  border-width: 0;
+  box-shadow: none;
+}
+.aid-legacy [role='switch'] > span {
+  width: 20px;
+  height: 20px;
+  box-shadow: none;
+}
+.aid-legacy [role='switch'][data-state='checked'] > span {
+  transform: translateX(20px);
+}

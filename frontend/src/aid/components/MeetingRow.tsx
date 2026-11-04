@@ -79,7 +79,7 @@ function IconAction({
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-9 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-4', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-10 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-5', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={ariaLabel}
         >

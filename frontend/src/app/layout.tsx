@@ -42,6 +42,7 @@ import { AidIcons } from '@/aid/components/AidIcons'
 import { installTauriEventGuard } from '@/aid/lib/tauri-events'
 import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
 import { installNavDebug } from '@/aid/lib/nav-debug'
+import { showWindow, windowBootScript, windowShowScript } from '@/aid/lib/window-boot'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -127,6 +128,11 @@ export default function RootLayout({
   const [showDropOverlay, setShowDropOverlay] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
+
+  // Страховка: окно стартует скрытым, показать его, даже если скрипт в разметке не сработал
+  useEffect(() => {
+    void showWindow()
+  }, [])
 
   useEffect(() => {
     // Check onboarding status first
@@ -287,10 +293,13 @@ export default function RootLayout({
       <head>
         {isAidUI && <title>ShadeNotes</title>}
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
+        {/* Окно Tauri стартует скрытым (tauri.conf.json): фон по теме, затем показ (window-boot.ts) */}
+        <script dangerouslySetInnerHTML={{ __html: windowBootScript }} />
       </head>
       <body className={`${isAidUI ? `${inter.variable} aid-font` : sourceSans3.variable} font-sans antialiased`}>
         {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
         {isAidUI && <LaunchScreen />}
+        <script dangerouslySetInnerHTML={{ __html: windowShowScript }} />
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>

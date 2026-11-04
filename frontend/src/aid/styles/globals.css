@@ -92,18 +92,18 @@
   }
 
   .dark {
-    /* Тёмная тема: фон окна #0A0A0A, плитка #171717, вложенная #222222,
-       текст #FFFFFF и #A3A3A3 (7,1:1 на плитке, 6,3:1 на вложенной) */
-    --background: 0 0% 4%;
+    /* Тёмная тема наоборот светлой: окно серое #1C1C1C, плитки чёрные #0A0A0A,
+       вложенная #1A1A1A. Текст #FFFFFF и #A3A3A3 (7,9:1 на плитке, 6,7:1 на вложенной) */
+    --background: 0 0% 11%;
     --foreground: 0 0% 100%;
 
-    --card: 0 0% 9%;
+    --card: 0 0% 4%;
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 13%;
     --popover-foreground: 0 0% 100%;
 
     /* Risd как заливка тот же; как текст и иконка на тёмной плитке светлее
-       (#6E8DF5, 5,8:1), сам Risd на #171717 даёт только 3,2:1 */
+       (#7192F4, 6,7:1 на плитке), сам Risd на чёрной плитке даёт только 3,6:1 */
     --primary: 224 84% 54%;
     --primary-foreground: 0 0% 100%;
     --primary-ink: 225 86% 70%;
@@ -113,23 +113,23 @@
     --giants-ink: 18 81% 57%;
     --record: 4 74% 49%;
 
-    --secondary: 0 0% 13%;
+    --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 13%;
+    --muted: 0 0% 10%;
     --muted-foreground: 0 0% 64%;
 
-    --accent: 0 0% 13%;
+    --accent: 0 0% 10%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 4 92% 69%;
     --destructive-foreground: 0 0% 0%;
 
-    --border: 0 0% 17%;
-    --input: 0 0% 18%;
+    --border: 0 0% 14%;
+    --input: 0 0% 15%;
     --ring: 225 86% 70%;
 
     --loader: 0 0% 64%;
-    --skeleton: 0 0% 15%;
+    --skeleton: 0 0% 12%;
   }
 }
 
@@ -464,8 +464,8 @@ html body[data-scroll-locked] {
 }
 
 .dark {
-  --nest-card: 0 0% 13%;
-  --nest-muted: 0 0% 18%;
+  --nest-card: 0 0% 9%;
+  --nest-muted: 0 0% 14%;
 }
 
 /* Цветные плитки с ролью: текст #111 и приглушённый #262626 (на Giants 4,9:1,

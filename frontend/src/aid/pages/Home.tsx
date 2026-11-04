@@ -6,10 +6,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, CaretDown, Chats, UploadSimple, FolderOpen, MagnifyingGlass, Trash, Warning } from '@phosphor-icons/react';
+import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
@@ -17,7 +16,8 @@ import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { openTrash } from '@/aid/lib/recording-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
@@ -175,8 +175,8 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
   );
 }
 
-/** Раздел внизу списка: записи без текста. Свёрнут по умолчанию. */
-function UnrecognizedSection({
+/** Чип «Не распознано»: записи без текста или с парой фраз, с действиями. */
+function UnrecognizedList({
   meetings,
   legacy,
   onDelete,
@@ -187,61 +187,55 @@ function UnrecognizedSection({
   onDelete: (m: MeetingListItem) => void;
   onOpenFolder: (m: MeetingListItem) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [retranscribe, setRetranscribe] = useState<MeetingListItem | null>(null);
   const { betaFeatures } = useConfig();
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
+  if (meetings.length === 0) {
+    return <EmptyFilter title={t('noUnrecognized')} hint={t('noUnrecognizedHint')} />;
+  }
   return (
-    <section className="mt-4" aria-label={t('unrecognizedSection')}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-nested px-3 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {t('unrecognizedSection')} · {meetings.length}
-        {/* Вниз, когда свёрнуто, вверх, когда раскрыто */}
-        <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
-      </button>
-      {open && (
-        <div className="mt-2 space-y-2">
-          <p className="px-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
-          <ul className="space-y-2">
-            {meetings.map((m) => (
-              <li key={m.id} className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-nested py-2 pl-3 pr-1 hover:bg-muted">
-                <Link
-                  href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-                  className="min-w-0 flex-1 rounded-nested py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="block truncate text-[15px] font-medium" title={displayTitle(m.title)}>
-                    {displayTitle(m.title)}
-                  </span>
-                  {m.created_at && !isAutoTitle(m.title) && <span className="block text-sm text-muted-foreground">{formatShortDate(m.created_at)}</span>}
-                </Link>
-                {canRetranscribe && m.folder_path && (
-                  <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => setRetranscribe(m)}>
-                    <ArrowClockwise />
-                    {t('retranscribe')}
-                  </Button>
-                )}
-                <Button variant="ghost" className="h-10 rounded-full px-4 text-destructive hover:text-destructive" onClick={() => onDelete(m)}>
-                  <Trash />
-                  {t('delete')}
+    <section aria-label={t('unrecognizedSection')}>
+      <p className="mb-3 px-2 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
+      {/* Одна колонка: у строки три действия, в две колонки названия обрезались бы */}
+      <ul className="flex flex-col gap-1">
+        {meetings.map((m) => (
+          <li key={m.id} className="group flex min-h-[64px] flex-wrap items-center gap-3 rounded-nested p-2 transition-colors hover:bg-muted">
+            <Link
+              href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-nested focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <StatusThumb kind="silent" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-medium" title={displayTitle(m.title)}>
+                  {displayTitle(m.title)}
+                </span>
+                {m.created_at && !isAutoTitle(m.title) && <span className="block text-sm text-muted-foreground">{formatShortDate(m.created_at)}</span>}
+              </span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-1">
+              {canRetranscribe && m.folder_path && (
+                <Button variant="outline" size="sm" onClick={() => setRetranscribe(m)}>
+                  <ArrowClockwise />
+                  {t('retranscribe')}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-10 rounded-full text-muted-foreground"
-                  onClick={() => onOpenFolder(m)}
-                  aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
-                >
-                  <FolderOpen />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+              )}
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => onDelete(m)}>
+                <Trash />
+                {t('delete')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 text-muted-foreground"
+                onClick={() => onOpenFolder(m)}
+                aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
+              >
+                <FolderOpen />
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
       {retranscribe && (
         <RetranscribeDialog
           open
@@ -252,6 +246,81 @@ function UnrecognizedSection({
         />
       )}
     </section>
+  );
+}
+
+/** Пустой результат фильтра: иконка в круге, заголовок и подсказка, слева по краю списка. */
+function EmptyFilter({ title, hint, icon: Icon = Chats, children }: { title: string; hint: string; icon?: typeof Chats; children?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-start px-2 py-10">
+      <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+        <Icon className="size-6" />
+      </span>
+      <h2 className="mt-4 text-[22px] font-bold leading-7 tracking-tight">{title}</h2>
+      <p className="mt-1 max-w-md text-[15px] text-muted-foreground">{hint}</p>
+      {children}
+    </div>
+  );
+}
+
+/** Чип «Корзина»: что туда попадает и кнопка открыть папку. Сама корзина в файлах, не в базе. */
+function TrashPanel() {
+  const { storageLocations, loadPreferences } = useConfig();
+  useEffect(() => {
+    void loadPreferences();
+  }, [loadPreferences]);
+  const root = storageLocations?.recordings ?? null;
+  const open = async () => {
+    if (!root) return;
+    try {
+      await openTrash(root);
+    } catch (error) {
+      aidToast.error(t('openFolderFailed'), { description: String(error) });
+    }
+  };
+  return (
+    <EmptyFilter title={t('trashPanelTitle')} hint={t('trashPanelHint')} icon={Trash}>
+      <Button size="main" className="mt-5" onClick={() => void open()} disabled={!root}>
+        <FolderOpen />
+        {t('openTrash')}
+      </Button>
+    </EmptyFilter>
+  );
+}
+
+type Filter = 'all' | 'summary' | 'unrecognized' | 'trash';
+
+/** Чипы-фильтры таблетками: выбранный Risd (роль «выделение»), счётчик серым. */
+function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f: Filter) => void; counts: Partial<Record<Filter, number>> }) {
+  const items: Array<{ id: Filter; label: string }> = [
+    { id: 'all', label: t('filterAll') },
+    { id: 'summary', label: t('filterSummary') },
+    { id: 'unrecognized', label: t('filterUnrecognized') },
+    { id: 'trash', label: t('filterTrash') },
+  ];
+  return (
+    <div role="radiogroup" aria-label={t('filtersLabel')} className="flex flex-wrap gap-2">
+      {items.map(({ id, label }) => {
+        const active = value === id;
+        const n = counts[id];
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(id)}
+            className={cn(
+              'flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-input',
+            )}
+          >
+            {label}
+            {n !== undefined && <span className={cn('tabular', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{n}</span>}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -286,8 +355,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
         </DialogTitle>
         <DialogDescription>
           {n === 1
-            ? 'В ней нет ни одной реплики. Файл звука останется в папке записей. Если там был разговор, нажмите «Оставить»: запись будет в разделе «Не распознано» внизу списка.'
-            : 'В них нет ни одной реплики. Файлы звука останутся в папке записей. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в разделе «Не распознано» внизу списка.'}
+            ? 'В ней нет ни одной реплики. Файл звука останется в папке записей. Если там был разговор, нажмите «Оставить»: запись будет в фильтре «Не распознано».'
+            : 'В них нет ни одной реплики. Файлы звука останутся в папке записей. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в фильтре «Не распознано».'}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" size="main" onClick={keep} disabled={busy}>
@@ -351,6 +420,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
   // Записи без единой реплики в общий список не попадают: либо раздел «Не распознано»
   // внизу, либо (оставленные пользователем через «Вернуть») обычная строка
@@ -386,25 +456,36 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     const pending = groups.main.filter((m) => !m.details).length;
     return { found, matches, pending, total: groups.main.length };
   }, [groups, query]);
-  const filtered = search ? search.found : groups.main;
+  const withSummary = (m: MeetingListItem) => m.details?.status === 'summary';
+  const filtered = (search ? search.found : groups.main).filter((m) => filter !== 'summary' || withSummary(m));
 
   // Без поиска список по группам дат: сегодня, вчера, на этой неделе, раньше
   const dated = useMemo(() => {
     const order: DateGroup[] = ['today', 'yesterday', 'week', 'earlier'];
     const time = (m: MeetingListItem) => (m.created_at ? new Date(m.created_at).getTime() || 0 : 0);
-    const sorted = [...groups.main].sort((a, b) => time(b) - time(a));
+    const sorted = [...groups.main].filter((m) => filter !== 'summary' || m.details?.status === 'summary').sort((a, b) => time(b) - time(a));
     return order
       .map((g) => ({ group: g, items: sorted.filter((m) => dateGroup(m.created_at) === g) }))
       .filter((x) => x.items.length > 0);
-  }, [groups]);
+  }, [groups, filter]);
 
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
-  const showSearch = state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
+  const listFilter = filter === 'all' || filter === 'summary';
+  const showSearch = listFilter && state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
+  const counts: Partial<Record<Filter, number>> =
+    state.kind === 'ready'
+      ? { all: groups.main.length, summary: groups.main.filter((m) => m.details?.status === 'summary').length, unrecognized: groups.unrecognized.length }
+      : {};
 
-  // Шапка: заголовок и импорт аудио иконкой; кнопка записи плавает внизу по центру (RecordDock)
+  // Шапка плитки: заголовок 36/40 с подписью, импорт аудио иконкой, чипы-фильтры.
+  // Запись в плитке записи внизу (RecordDock)
   const header = (
-    <div className="flex items-center justify-between gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">{t('homeTitle')}</h1>
+    <>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('homeSubtitle')}</p>
+      </div>
       {betaFeatures.importAndRetranscribe && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -416,6 +497,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Tooltip>
       )}
     </div>
+    {state.kind !== 'error' && (
+      <div className="mt-5">
+        <FilterChips value={filter} onChange={setFilter} counts={counts} />
+      </div>
+    )}
+    </>
   );
 
   return (
@@ -453,10 +540,16 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Alert>
       ) : (
         <div className={blocker || startError ? 'mt-2' : ''}>
-          {/* Список прямо на серой плитке правой части: поиск и строки встреч */}
-          <section aria-label={t('meetingsList')}>
+          {/* Список прямо на плитке контента: поиск и строки встреч, без вложенных карточек.
+              @container: от 1100 px ширины списка строки в две колонки */}
+          <section aria-label={t('meetingsList')} className="@container">
+          {filter === 'unrecognized' && state.kind === 'ready' && (
+            <UnrecognizedList meetings={groups.unrecognized} legacy={groups.legacyEmpty.length > 0} onDelete={setToDelete} onOpenFolder={openFolder} />
+          )}
+          {filter === 'trash' && <TrashPanel />}
+          {listFilter && (<>
           {showSearch && (
-            <div className="relative mb-2">
+            <div className="relative mb-3">
               {/* Лупа контуром (bold): залитая рисуется сплошным диском и выглядит грубо */}
               <MagnifyingGlass weight="bold" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
@@ -465,7 +558,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('searchMeetings')}
                 aria-label={t('searchMeetings')}
-                className="rounded-tile bg-muted pl-12"
+                className="pl-12"
                 disabled={state.kind !== 'ready'}
               />
             </div>
@@ -477,10 +570,10 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="aid-skeleton-wave flex min-h-[64px] items-center gap-3 rounded-nested py-3 pl-3 pr-3"
+                  className="aid-skeleton-wave flex min-h-[64px] items-center gap-3 rounded-nested p-2"
                   style={{ ['--wave-delay' as string]: `${i * 0.18}s` }}
                 >
-                  <Skeleton className="size-5 shrink-0 rounded-full" />
+                  <Skeleton className="size-12 shrink-0 rounded-full" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-2/3 rounded-lg" />
                     <Skeleton className="h-3.5 w-1/3 rounded-lg" />
@@ -491,31 +584,30 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {state.kind === 'ready' && groups.main.length === 0 && (
-            <div className="flex flex-col items-center px-6 py-12 text-center">
-              <Chats className="size-5 text-muted-foreground" aria-hidden />
-              <h2 className="mt-3 text-xl font-semibold">{t('noMeetings')}</h2>
-              <p className="mt-2 max-w-sm text-[15px] text-muted-foreground">{t('noMeetingsHint')}</p>
-            </div>
+          {state.kind === 'ready' && groups.main.length === 0 && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
+          {state.kind === 'ready' && filter === 'summary' && !search && groups.main.length > 0 && dated.length === 0 && (
+            <EmptyFilter title={t('noSummaries')} hint={t('noSummariesHint')} icon={Sparkle} />
           )}
 
           {state.kind === 'ready' && search && groups.main.length > 0 && filtered.length === 0 && search.pending === 0 && (
-            <div className="flex flex-col items-center px-6 py-10 text-center">
-              <MagnifyingGlass weight="bold" className="size-5 text-muted-foreground" aria-hidden />
-              <h2 className="mt-3 text-lg font-semibold">{t('nothingFound')}</h2>
+            <div className="flex flex-col items-start px-2 py-10">
+              <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+                <MagnifyingGlass weight="bold" className="size-6" />
+              </span>
+              <h2 className="mt-4 text-[22px] font-bold leading-7 tracking-tight">{t('nothingFound')}</h2>
               <p className="mt-1 text-[15px] text-muted-foreground">{t('nothingFoundHint')}</p>
             </div>
           )}
 
           {search && search.pending > 0 && (
-            <p className="px-3 pb-2 text-sm text-muted-foreground" role="status">
+            <p className="px-2 pb-2 text-sm text-muted-foreground" role="status">
               <Spinner size={16} className="mr-2 inline-block align-[-3px]" />
               {t('searchProgress')} {search.total - search.pending} из {search.total}
             </p>
           )}
 
           {search && filtered.length > 0 && (
-            <ul className="space-y-1" aria-label={t('meetingsList')}>
+            <ul className="grid grid-cols-1 gap-x-6 gap-y-1 @[1100px]:grid-cols-2" aria-label={t('meetingsList')}>
               {filtered.map((m) => (
                 <MeetingRow
                   key={m.id}
@@ -531,11 +623,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
           {!search &&
             dated.map(({ group, items }) => (
-              <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-1 first:mt-0">
-                <h2 id={`aid-group-${group}`} className="px-3 pb-1 pt-3 text-xs font-medium text-muted-foreground">
+              <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-5 first:mt-1">
+                {/* Мелкий надзаголовок группы */}
+                <h2 id={`aid-group-${group}`} className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {t(GROUP_LABEL[group])}
                 </h2>
-                <ul className="space-y-1">
+                <ul className="grid grid-cols-1 gap-x-6 gap-y-1 @[1100px]:grid-cols-2">
                   {items.map((m) => (
                     <MeetingRow
                       key={m.id}
@@ -549,16 +642,8 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
                 </ul>
               </section>
             ))}
+          </>)}
           </section>
-
-          {state.kind === 'ready' && groups.unrecognized.length > 0 && !query.trim() && (
-            <UnrecognizedSection
-              meetings={groups.unrecognized}
-              legacy={groups.legacyEmpty.length > 0}
-              onDelete={setToDelete}
-              onOpenFolder={openFolder}
-            />
-          )}
         </div>
       )}
       <DeleteMeetingDialog

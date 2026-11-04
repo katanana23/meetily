@@ -40,13 +40,25 @@ export interface MeetingListItem {
   details: MeetingDetails | null;
 }
 
+// Цвет иконки по роли: итоги Indigo (ИИ), «Не распознано» Giants, транскрипт серый
 const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon | null; label: string; className: string }> = {
-  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary-ink' },
+  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-indigo-ink' },
   // Итоги в работе: общий Spinner вместо иконки (см. ниже)
   summarizing: { icon: null, label: t('statusSummarizing'), className: '' },
   transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
-  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive' },
+  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-giants-ink' },
 };
+
+/** Миниатюра состояния: круг 48 px на ступени тона, иконка 20 px в цвете роли. */
+export function StatusThumb({ kind }: { kind: MeetingStatus }) {
+  const status = kind !== 'unknown' ? STATUS[kind] : null;
+  const Glyph = status?.icon;
+  return (
+    <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted transition-colors group-hover:bg-input" aria-hidden>
+      {kind === 'summarizing' ? <Spinner /> : Glyph ? <Glyph className={cn('size-5', status?.className)} /> : null}
+    </span>
+  );
+}
 
 function IconAction({
   label,
@@ -131,7 +143,6 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
     );
   }
 
-  const StatusIcon = status?.icon;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -146,6 +157,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
           }}
           aria-busy={opening || undefined}
           className={cn(
+            // Без вложенной карточки: строки разделены отступом, подложка только при наведении
             'group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
             opening && 'bg-muted',
           )}
@@ -162,17 +174,11 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
                 guardNavigation(meetingHref(meeting.id), () => setOpening(false));
               }
             }}
-            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-2 pl-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            {kind === 'summarizing' ? (
-              <Spinner />
-            ) : StatusIcon ? (
-              <StatusIcon className={cn('size-5 shrink-0', status?.className)} aria-hidden />
-            ) : (
-              <span className="size-5 shrink-0" aria-hidden />
-            )}
+            <StatusThumb kind={kind} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium" title={shown}>{shown}</span>
+              <span className="block truncate text-base font-medium" title={shown}>{shown}</span>
               {/* Разделители для диктора: иначе имя ссылки читается слитно, «НазваниеСегодня, 10:00» */}
               {kind === 'summary' && <span className="sr-only">, {t('statusSummary')}</span>}
               {meta && (

@@ -1,4 +1,4 @@
-// shadcn/ui Tabs: сегментированный переключатель высотой 48 px.
+// shadcn/ui Tabs: таблетки высотой 48 px; выбранная Risd (роль «выделение»).
 'use client';
 
 import * as React from 'react';
@@ -13,7 +13,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('inline-flex h-12 items-center justify-center rounded-full bg-card p-1 text-muted-foreground', className)}
+    className={cn('inline-flex h-12 items-center justify-center gap-1 rounded-full bg-muted p-1 text-muted-foreground', className)}
     {...props}
   />
 ));
@@ -26,7 +26,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:bg-muted [&_svg]:size-4',
+      'inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground [&_svg]:size-4',
       className,
     )}
     {...props}

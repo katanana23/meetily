@@ -1,102 +1,128 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-03T12:58:49Z",
+  "generatedAt": "2026-11-04T12:00:00Z",
   "title": "Design System: ShadeNotes",
   "extensions": {
     "colorMeta": {
-      "cobalt": {
+      "risd": {
         "role": "primary",
-        "displayName": "Кобальт",
-        "canonical": "hsl(233 68% 52%)"
+        "displayName": "Risd: главное действие и выбор",
+        "canonical": "hsl(224 84% 54%)"
       },
-      "cobalt-dark-fill": {
-        "role": "primary",
-        "displayName": "Кобальт для тёмной заливки",
-        "canonical": "hsl(233 85% 62%)"
+      "mikado": {
+        "role": "accent",
+        "displayName": "Mikado: идёт запись",
+        "canonical": "hsl(43 91% 63%)"
       },
-      "cobalt-ink-dark": {
-        "role": "primary",
-        "displayName": "Кобальтовые чернила",
-        "canonical": "hsl(233 92% 75%)"
+      "indigo": {
+        "role": "accent",
+        "displayName": "Indigo: итоги и ИИ",
+        "canonical": "hsl(255 89% 79%)"
+      },
+      "giants": {
+        "role": "accent",
+        "displayName": "Giants: не распознано и предупреждения",
+        "canonical": "hsl(18 81% 57%)"
+      },
+      "record": {
+        "role": "danger",
+        "displayName": "Красный: только «Остановить» и удаление",
+        "canonical": "hsl(4 74% 49%)"
       },
       "window-dark": {
         "role": "neutral",
         "displayName": "Окно (тёмная)",
-        "canonical": "hsl(0 0% 0%)"
+        "canonical": "hsl(0 0% 4%)"
       },
       "tile-dark": {
         "role": "neutral",
         "displayName": "Плитка (тёмная)",
-        "canonical": "hsl(240 5% 8%)"
+        "canonical": "hsl(0 0% 9%)"
+      },
+      "nested-dark": {
+        "role": "neutral",
+        "displayName": "Вложенный (тёмная)",
+        "canonical": "hsl(0 0% 13%)"
+      },
+      "window-light": {
+        "role": "neutral",
+        "displayName": "Окно (светлая)",
+        "canonical": "hsl(100 6% 93%)"
+      },
+      "tile-light": {
+        "role": "neutral",
+        "displayName": "Плитка (светлая)",
+        "canonical": "hsl(0 0% 100%)"
+      },
+      "nested-light": {
+        "role": "neutral",
+        "displayName": "Вложенный (светлая)",
+        "canonical": "hsl(60 8% 95%)"
       }
     },
     "shadows": [
       {
         "name": "floating",
         "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
-        "purpose": "Плавающие элементы: капсула записи, карточка «Тишина», меню."
-      },
-      {
-        "name": "record-glass",
-        "value": "inset 0 1px 0 hsl(0 0% 100% / 0.5), inset 0 -12px 20px -12px hsl(var(--primary-deep) / 0.95), 0 6px 14px -8px hsl(0 0% 0% / 0.35)",
-        "purpose": "Только стекло записи: блик, внутренняя тень, нейтральная тень."
+        "purpose": "Только всплывающее: меню, подсказки, диалоги, тосты. У плиток тени нет."
       }
     ],
     "motion": [
       {
-        "name": "dock-breathe",
-        "value": "2.8s ease-out infinite (scale 1 → 1.22, opacity 0.45 → 0)",
-        "purpose": "Кольцо кнопки записи в покое."
-      },
-      {
         "name": "dock-in",
         "value": "0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2)",
-        "purpose": "Появление кнопки, капсулы и карточки (transform и opacity)."
+        "purpose": "Смена состояния плитки записи (transform и opacity)."
       },
       {
-        "name": "glass-shimmer",
-        "value": "1.8s ease-in-out infinite (translateX)",
-        "purpose": "Блик стекла при наведении; выключен при prefers-reduced-motion."
+        "name": "dock-dot",
+        "value": "1.6s ease-in-out infinite (opacity)",
+        "purpose": "Точка записи мерцает, пока идёт запись; выключена при prefers-reduced-motion."
+      },
+      {
+        "name": "pulse-now",
+        "value": "1.4s ease-in-out infinite (opacity)",
+        "purpose": "Текущая полоса «Пульса разговора»; выключена при prefers-reduced-motion."
       }
     ]
   },
   "narrative": {
-    "northStar": "Тихая студия",
-    "overview": "Чёрная или белая комната, предметы разложены по плиткам, ничего не блестит. Единственный живой предмет: кобальтовая кнопка записи в стекле. Остальное плоское и монохромное, текст главнее украшений.",
+    "northStar": "Бенто с ролями цвета",
+    "overview": "Окно разложено на нейтральные плитки: узкий сайдбар, контент, плитка записи внизу. Цвет появляется только с ролью: Risd действие и выбор, Mikado запись, Indigo ИИ, Giants «Не распознано». Красный только «Остановить» и удаление.",
     "keyCharacteristics": [
-      "Чёрный и белый фон окна, плитки на тон светлее",
-      "Один акцент: кобальт #3044D8",
-      "Бенто: 8 px между плитками, 16 px внутри, концентричные радиусы",
-      "Иконки Phosphor fill 16 и 20 px",
-      "Стекло и градиент только у записи"
+      "Тёмная: окно #0A0A0A, плитка #171717, вложенный #222222; светлая: #ECEEEB, #FFFFFF, #F4F4F2",
+      "Четыре акцента с ролями, текст на жёлтом, сиреневом и оранжевом #111, на синем белый",
+      "8 px между плитками и от края окна, 20 px внутри, радиус 24 и 16, таблетки",
+      "Сайдбар 72 px только иконками, плитка записи внизу во всю ширину контента",
+      "Иконки Phosphor fill 16 и 20 px"
     ],
     "rules": [
       {
-        "name": "Правило одного голоса",
-        "body": "Кобальт только на действии и состоянии.",
+        "name": "Правило роли",
+        "body": "Цвет только с ролью: Risd действие и выбор, Mikado запись, Indigo ИИ, Giants «Не распознано».",
         "section": "colors"
       },
       {
-        "name": "Правило записи",
-        "body": "Стекло и градиент только на кнопке записи и капсуле записи.",
-        "section": "elevation"
+        "name": "Правило двух плиток",
+        "body": "На экране не больше двух цветных плиток одновременно.",
+        "section": "colors"
       },
       {
         "name": "Правило плоскости",
-        "body": "Плитка в покое плоская и без рамки, глубину даёт тон.",
+        "body": "Без градиентов, стекла, свечений и цветных теней; глубину даёт тон.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do считать радиусы от --window-radius",
-      "Do держать 8 px между плитками и 16 px внутри",
-      "Do использовать Phosphor fill 16 и 20 px"
+      "Do давать цвет только с ролью",
+      "Do держать не больше двух цветных плиток на экране",
+      "Do 8 px между плитками, 20 px внутри, радиусы 24 и 16",
+      "Do Phosphor fill 16 и 20 px"
     ],
     "donts": [
-      "Don't индиго, сиреневый, фиолетово-розовые градиенты, неон",
-      "Don't стекло и градиент вне записи",
-      "Don't иконки со встроенной подложкой",
-      "Don't рамки у плиток"
+      "Don't белый текст на Giants (3,09:1)",
+      "Don't красный вне «Остановить» и удаления",
+      "Don't плавающие кнопки поверх контента",
+      "Don't градиенты, стекло, свечения, рамки у плиток"
     ]
   }
 }

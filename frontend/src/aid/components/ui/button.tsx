@@ -1,4 +1,4 @@
-// shadcn/ui Button. Размеры под десктоп с крупными целями: 44, 48 и 56 px.
+// shadcn/ui Button: таблетки. Контролы 48 px, главные действия 56 px, круглые иконки 48 px.
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -11,23 +11,25 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Главная кнопка: плоский кобальт (стекло и градиент только у элементов записи)
+        // Главное действие и выделение: Risd, белый текст (5,6:1)
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        // Вторичная кнопка бенто: заливка на ступень темнее (светлая) или светлее (тёмная), без рамки
-        outline: 'bg-secondary text-secondary-foreground hover:bg-input',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-input',
+        // Вторичная: вложенная поверхность плитки, без рамки
+        outline: 'bg-muted text-foreground hover:bg-input',
+        secondary: 'bg-muted text-foreground hover:bg-input',
+        // Итоги и всё, что делает ИИ: Indigo, текст #111 (8,2:1)
+        indigo: 'bg-indigo text-on-role hover:bg-indigo/90',
         ghost: 'text-foreground hover:bg-muted',
         link: 'text-primary-ink underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-11 px-5',
-        sm: 'h-11 px-4',
+        default: 'h-12 px-5',
+        sm: 'h-10 px-4',
         lg: 'h-12 px-6 text-[15px]',
         // Главные действия (пустые состояния, диалоги, «Сделать итоги»): не ниже 56 px, иконка 24 px
         main: 'h-14 px-6 text-[15px]',
         xl: 'h-14 px-7 text-base',
-        icon: 'aid-btn-icon h-11 w-11',
+        icon: 'aid-btn-icon h-12 w-12',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

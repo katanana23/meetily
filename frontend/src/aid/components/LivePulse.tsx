@@ -5,7 +5,8 @@
 // распознавание сообщили о речи (LiveSpeech.speechTimes). Уровня звука ядро во
 // время записи не отдаёт, поэтому это не громкость, а «говорили или нет».
 // Текущая полоса мягко мерцает, пока идёт запись; prefers-reduced-motion выключает
-// мерцание. Анимируются только transform и opacity.
+// мерцание. Анимируются только transform и opacity. Полосы нейтральные (цвет
+// текста темы): цветная плитка на экране одна, плитка записи Mikado.
 'use client';
 
 import { useMemo } from 'react';
@@ -56,21 +57,22 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
   ];
 
   return (
-    <section aria-label={t('pulseTitle')} className="mb-4 rounded-tile bg-card p-4">
+    <section aria-label={t('pulseTitle')} className="rounded-tile bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">{t('pulseTitle')}</h2>
+        <h2 className="text-[22px] font-bold leading-7 tracking-tight">{t('pulseTitle')}</h2>
         <span className="text-xs text-muted-foreground">{t('pulseWindow')}</span>
       </div>
       {/* Полосы: низ выровнен, высота через scaleY (только transform) */}
-      <div className="mt-3 flex h-14 items-end gap-[3px]" aria-hidden>
+      {/* Полосы не шире 12 px: на широком окне они не расплываются в капли */}
+      <div className="mt-3 flex h-14 items-end justify-between gap-[3px]" aria-hidden>
         {bars.map(({ bucket, value }) => {
           const now = bucket === current;
           return (
             <span
               key={bucket}
               className={cn(
-                'h-full flex-1 origin-bottom rounded-full transition-transform duration-500 ease-out',
-                value === null ? 'bg-foreground/5' : value > 0 ? 'bg-primary-ink' : 'bg-foreground/15',
+                'h-full max-w-3 flex-1 origin-bottom rounded-full transition-transform duration-500 ease-out',
+                value === null ? 'bg-foreground/5' : value > 0 ? 'bg-foreground' : 'bg-foreground/15',
                 now && !isPaused && 'aid-pulse-now',
               )}
               style={{ transform: `scaleY(${value === null || value === 0 ? 0.08 : 0.25 + value * 0.75})` }}
@@ -82,7 +84,7 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
         {stats.map((s) => (
           <div key={s.label} className="min-w-0">
             <dt className="truncate text-xs text-muted-foreground">{s.label}</dt>
-            <dd className="tabular text-xl font-semibold tracking-tight">{s.value}</dd>
+            <dd className="tabular text-2xl font-bold tracking-tight">{s.value}</dd>
           </div>
         ))}
       </dl>

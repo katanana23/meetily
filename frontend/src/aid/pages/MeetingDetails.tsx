@@ -1,8 +1,8 @@
-// Экран «Встреча»: главное здесь транскрипт, он открыт сразу.
-// Итоги вторичны: кнопка «Сделать итоги» в шапке, а готовые итоги показываются
-// сворачиваемым блоком над транскриптом. Пока итогов нет, блоков про них нет.
-// Копирование текста и Markdown собрано в одном меню «Копировать».
-// Встреча без реплик показывает одно сообщение «Речь не распознана» с действиями.
+// Экран «Встреча» в бенто: плитка-шапка (название, мета, действия таблетками),
+// ниже плитки. Главное транскрипт, он открыт сразу одним текстовым потоком.
+// Итоги вторичны: кнопка Indigo «Сделать итоги» в шапке, готовые итоги отдельной
+// плиткой Indigo, свёрнутой в полосу-заголовок, пока её не раскроют.
+// Встреча без реплик показывает плитку Giants «Речь не распознана» с действиями.
 
 'use client';
 
@@ -26,11 +26,10 @@ import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
-import { Page } from '@/aid/components/Page';
+import { Page, TILE } from '@/aid/components/Page';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
@@ -47,7 +46,7 @@ import {
 } from '@/aid/lib/meeting';
 import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
-import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, plural, shownTitle as titleForDisplay } from '@/aid/lib/format';
+import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
 import { contentTitle, countWords, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
@@ -57,7 +56,13 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 
-const WIDTH = 'max-w-[840px]'; // колонка текста реплик около 700 px
+// Колонка текста: строки реплик не длиннее 760 px, дальше читать тяжело
+const MEASURE = 'max-w-[760px]';
+
+// Кнопки на цветной плитке роли: главная тёмная таблетка (#111, белый текст),
+// вторичные полупрозрачным затемнением, текст #111
+const ON_ROLE_MAIN = 'bg-on-role text-white hover:bg-on-role/90';
+const ON_ROLE_SOFT = 'bg-black/10 text-on-role hover:bg-black/15';
 
 function BackLink() {
   return <BackButton label={t('back')} href="/" />;
@@ -65,7 +70,8 @@ function BackLink() {
 
 function ErrorAlert({ title, error, onRetry }: { title: string; error: FriendlyError; onRetry?: () => void }) {
   return (
-    <Alert variant="destructive">
+    // В колонке плиток ошибка тоже плитка
+    <Alert variant="destructive" className="rounded-tile bg-card p-5 [&>svg]:left-5 [&>svg]:top-5">
       <Warning />
       <div>
         <AlertTitle>{title}</AlertTitle>
@@ -104,7 +110,7 @@ function Title({ shown, editable, onRename }: { shown: string; editable: string;
           }
         }}
         onClose={() => setEditing(false)}
-        inputClassName="h-12 text-xl font-semibold"
+        inputClassName="h-14 text-2xl font-bold"
       />
     );
   }
@@ -112,7 +118,7 @@ function Title({ shown, editable, onRename }: { shown: string; editable: string;
   // Карандаша нет: само название кликабельно. Наведение подсвечивает его подложкой
   // колодца, клик или Enter начинают переименование
   return (
-    <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight">
+    <h1 className="min-w-0 text-[36px] font-bold leading-10 tracking-tight">
       <button
         type="button"
         onClick={begin}
@@ -176,35 +182,38 @@ function SilentRecording({
   const needModel = cause === 'no-model' || cause === 'model-downloading';
 
   return (
-    <Card className="p-4" role="status">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <MicrophoneSlash className="size-5 text-destructive" aria-hidden />
+    // Плитка Giants: роль «Не распознано и предупреждения», текст #111 (6,1:1)
+    <section className="aid-role aid-role-giants rounded-tile p-5" role="status" aria-labelledby="silent-title">
+      <span className="flex size-12 items-center justify-center rounded-full bg-black/10" aria-hidden>
+        <MicrophoneSlash className="size-5" />
+      </span>
+      <h2 id="silent-title" className="mt-4 text-[22px] font-bold leading-7 tracking-tight">
         {t('silentTitle')}
       </h2>
-      <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <p className="mt-1 max-w-xl text-[15px] text-muted-foreground">{cause ? CAUSE[cause] : t('loading')}</p>
+      <div className="mt-5 flex flex-wrap gap-2">
         {needModel ? (
-          <Button asChild size="main">
+          <Button asChild size="main" className={ON_ROLE_MAIN}>
             <Link href="/settings?tab=transcription">{t('downloadModel')}</Link>
           </Button>
         ) : (
           canRetranscribe && (
-            <Button size="main" onClick={onRetranscribe}>
+            <Button size="main" className={ON_ROLE_MAIN} onClick={onRetranscribe}>
               <ArrowClockwise />
               {t('retranscribe')}
             </Button>
           )
         )}
-        <Button variant="outline" size="main" onClick={onOpenFolder}>
+        <Button variant="ghost" size="main" className={ON_ROLE_SOFT} onClick={onOpenFolder}>
           <FolderOpen />
           {t('openRecordingFolder')}
         </Button>
-        <Button variant="ghost" size="main" className="text-destructive hover:text-destructive" onClick={onDelete}>
+        <Button variant="ghost" size="main" className={ON_ROLE_SOFT} onClick={onDelete}>
           <Trash />
           {t('delete')}
         </Button>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -232,12 +241,15 @@ function SummaryBlock({
     }
   }, [summary.kind]);
 
+  // Итоги и всё, что делает ИИ: плитка Indigo, текст #111 (8,2:1) в обеих темах
   if (summary.kind === 'processing') {
     return (
-      <div className="mb-2 flex items-center gap-3 rounded-tile bg-card p-4" role="status" aria-live="polite">
-        <Spinner />
+      <div className="aid-role aid-role-indigo flex min-h-[72px] items-center gap-3 rounded-tile px-5 py-4" role="status" aria-live="polite">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10">
+          <Spinner />
+        </span>
         <div className="min-w-0">
-          <p className="text-sm font-medium">{t('summaryProcessing')}</p>
+          <p className="text-base font-semibold">{t('summaryProcessing')}</p>
           <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
         </div>
       </div>
@@ -245,42 +257,46 @@ function SummaryBlock({
   }
 
   if (summary.kind === 'failed') {
-    return (
-      <div className="mb-2">
-        <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />
-      </div>
-    );
+    return <ErrorAlert title={t('summaryFailed')} error={summary.error} onRetry={onRetry} />;
   }
 
   if (summary.kind !== 'ready') return null;
 
   return (
-    <section className="mb-2 rounded-tile bg-card" aria-labelledby="summary-title">
-      <div className="flex items-center gap-2 p-2">
+    <section className="aid-role aid-role-indigo rounded-tile" aria-labelledby="summary-title">
+      {/* Полоса-заголовок: вся она раскрывает итоги; «Сделать заново» справа */}
+      <div className="flex items-center gap-2 p-3">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="summary-body"
-          className="flex h-11 flex-1 items-center gap-3 rounded-nested px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-12 flex-1 items-center gap-3 rounded-full pr-3 text-left transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Sparkle className="size-5 text-primary-ink" aria-hidden />
-          <span id="summary-title" className="text-base font-semibold">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10" aria-hidden>
+            <Sparkle className="size-5" />
+          </span>
+          <span id="summary-title" className="text-lg font-bold tracking-tight">
             {t('summary')}
           </span>
+          {!open && <span className="hidden text-sm text-muted-foreground sm:inline">{t('summaryOpenHint')}</span>}
           {/* Вниз, когда свёрнуто, вверх, когда раскрыто: залитый треугольник вправо читается как «воспроизвести» */}
-          <CaretDown className={cn('ml-auto size-4 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden />
+          <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
         </button>
-        <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={onRetry}>
+        <Button variant="ghost" className={cn('h-12 px-5', ON_ROLE_SOFT)} onClick={onRetry}>
           <ArrowClockwise />
           {t('summaryRedo')}
         </Button>
       </div>
       {open && (
+        // Тёмный текст на сиреневом в обеих темах: без dark:prose-invert
         <article
           id="summary-body"
-          className="prose prose-neutral max-w-none px-4 pb-4 pt-1 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left"
+          className={cn(
+            MEASURE,
+            'aid-prose-role prose px-5 pb-5 pt-1 prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left',
+          )}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryForPage(summary.markdown, title)}</ReactMarkdown>
         </article>
@@ -362,9 +378,9 @@ function IconAction({ label, onClick, children, destructive }: { label: string; 
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="ghost"
+          variant="secondary"
           size="icon"
-          className={cn('size-14 text-muted-foreground [&_svg]:size-6', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-14 [&_svg]:size-6', destructive ? 'hover:text-destructive' : '')}
           onClick={onClick}
           aria-label={label}
         >
@@ -379,16 +395,16 @@ function IconAction({ label, onClick, children, destructive }: { label: string; 
 function LoadingState() {
   return (
     <Page
-      width={WIDTH}
+      layout="bento"
       header={
         <div role="status" aria-busy="true" aria-label={t('loading')}>
-          <Skeleton className="size-10 rounded-full" />
-          <Skeleton className="mt-4 h-9 w-2/3 rounded-xl" />
-          <Skeleton className="mt-3 h-5 w-48 rounded-lg" />
+          <Skeleton className="size-14 rounded-full" />
+          <Skeleton className="mt-5 h-10 w-2/3 rounded-full" />
+          <Skeleton className="mt-4 h-5 w-64 rounded-full" />
         </div>
       }
     >
-      <div className="space-y-5" aria-hidden>
+      <div className={cn(TILE, 'space-y-5')} aria-hidden>
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i} className="grid grid-cols-[3.5rem_1fr] gap-x-4">
             <Skeleton className="ml-auto h-4 w-9 rounded-lg" />
@@ -417,7 +433,6 @@ function MeetingDetailsContent() {
   // Автоматическое название показываем началом первой осмысленной реплики
   const fromContent = useMemo(() => contentTitle(m.segments.map((x) => x.text)), [m.segments]);
   const shownTitle = meta ? titleForDisplay(meta.title, fromContent) : '';
-  const segmentsLabel = useMemo(() => `${formatNumber(m.total)} ${plural(m.total, 'реплика', 'реплики', 'реплик')}`, [m.total]);
 
   // Запись тихо сохранена в «Не распознано»: оригинальный хук всё равно открыл её
   // страницу. Возвращаем пользователя туда, где он был (recording-outcome.tsx)
@@ -445,18 +460,18 @@ function MeetingDetailsContent() {
 
   if (m.meeting.kind === 'not-found') {
     return (
-      <Page width={WIDTH} header={<BackLink />}>
-        <Card className="px-6 py-12 text-center">
-          <h1 className="text-2xl font-semibold">{t('meetingNotFound')}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
-        </Card>
+      <Page layout="bento" header={<BackLink />}>
+        <div className={cn(TILE, 'py-10')}>
+          <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('meetingNotFound')}</h1>
+          <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
+        </div>
       </Page>
     );
   }
 
   if (m.meeting.kind === 'error' || !meta) {
     return (
-      <Page width={WIDTH} header={<BackLink />}>
+      <Page layout="bento" header={<BackLink />}>
         {m.meeting.kind === 'error' && <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />}
       </Page>
     );
@@ -465,11 +480,11 @@ function MeetingDetailsContent() {
   // Запись с пометкой «не сохранять» (решение после стопа) по прямому адресу не открывается
   if (isDiscarded(meta)) {
     return (
-      <Page width={WIDTH} header={<BackLink />}>
-        <Card className="px-6 py-12 text-center">
-          <h1 className="text-2xl font-semibold">{t('notSavedTitle')}</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
-        </Card>
+      <Page layout="bento" header={<BackLink />}>
+        <div className={cn(TILE, 'py-10')}>
+          <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('notSavedTitle')}</h1>
+          <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
+        </div>
       </Page>
     );
   }
@@ -478,7 +493,12 @@ function MeetingDetailsContent() {
   // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
   const date = isAutoTitle(meta.title) && !fromContent ? null : formatDateTime(meta.created_at);
   const duration = formatDuration(m.duration);
-  const facts = [date, duration, segmentsLabel].filter(Boolean).join(' · ');
+  // Мета подписью и значением: дата, длительность, реплики
+  const facts = [
+    date && { label: t('metaDate'), value: date },
+    duration && { label: t('metaDuration'), value: duration },
+    { label: t('metaReplies'), value: formatNumber(m.total) },
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
   const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
   // Короткая запись (меньше 15 слов): итоги из неё не собрать, поэтому ни блока
@@ -519,8 +539,8 @@ function MeetingDetailsContent() {
         <BackLink />
         <div className="flex flex-wrap items-center gap-2">
           {showGenerate && (
-            // 56 px, серая, как «Копировать»: на странице встречи главный транскрипт
-            <Button variant="outline" size="main" onClick={() => void m.generateSummary()}>
+            // 56 px, Indigo: роль итогов и ИИ
+            <Button variant="indigo" size="main" onClick={() => void m.generateSummary()}>
               <Sparkle />
               {t('generateSummary')}
             </Button>
@@ -541,15 +561,22 @@ function MeetingDetailsContent() {
           </IconAction>
         </div>
       </div>
-      <div className="mt-3 min-w-0">
+      <div className="mt-5 min-w-0">
         <Title shown={shownTitle} editable={editableTitle(meta.title, fromContent)} onRename={rename} />
-        <p className="mt-1 text-sm text-muted-foreground">{facts}</p>
+        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
+              <dd className="tabular text-[15px] font-medium">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </>
   );
 
   return (
-    <Page width={WIDTH} header={header}>
+    <Page layout="bento" header={header}>
       {empty ? (
         <SilentRecording
           folder={meta.folder_path ?? null}
@@ -561,10 +588,11 @@ function MeetingDetailsContent() {
       ) : (
         <>
           {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
-          {/* Транскрипт прямо на серой плитке правой части: время на одной линии с
-              названием и кнопкой «Назад» (16 px от края плитки) */}
-          <section aria-label={t('transcript')} className="pt-2">
-            <TranscriptList segments={m.segments} />
+          {/* Транскрипт отдельной плиткой одним текстовым потоком, колонка до 760 px */}
+          <section aria-label={t('transcript')} className={TILE}>
+            <div className={MEASURE}>
+              <TranscriptList segments={m.segments} />
+            </div>
             {m.hasMore && (
               <div className="flex justify-center pt-6">
                 <Button variant="outline" onClick={() => void m.loadMore()} disabled={m.loadingMore}>

@@ -480,17 +480,11 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Иконка в кнопке с текстом на своей подложке: 4 px вокруг знака, скругление
-   вложенного элемента. На кобальтовой и красной заливке подложка светлая. */
+/* Иконка в кнопке с текстом: 24 px, без подложки (у кнопки из одной иконки
+   размер задаёт сама кнопка). Спиннер остаётся своего размера. */
 .aid-btn:not(.aid-btn-icon) > svg:not(.aid-spinner) {
-  box-sizing: content-box;
-  padding: 4px;
-  border-radius: var(--nested-radius);
-  background: hsl(var(--foreground) / 0.08);
-}
-
-.aid-btn-solid:not(.aid-btn-icon) > svg:not(.aid-spinner) {
-  background: hsl(0 0% 100% / 0.18);
+  width: 24px;
+  height: 24px;
 }
 
 /* Типографика без лесенки: заголовки, подписи и короткие тексты переносятся

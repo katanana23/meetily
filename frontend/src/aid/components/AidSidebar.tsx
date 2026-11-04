@@ -28,7 +28,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
   const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
   return (
     <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
-      <Record className={cn('size-5 text-destructive', !rec.isPaused && 'motion-safe:animate-pulse')} aria-hidden />
+      <Record className={cn('size-6 shrink-0 text-destructive', !rec.isPaused && 'motion-safe:animate-pulse')} aria-hidden />
       <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
       <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
     </Link>
@@ -54,16 +54,7 @@ export function AidSidebar() {
               aria-current={active ? 'page' : undefined}
               className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
             >
-              {/* Иконка на своей подложке бенто: плитка 28 px со скруглением вложенного элемента */}
-              <span
-                className={cn(
-                  'flex size-7 shrink-0 items-center justify-center rounded-nested transition-colors',
-                  active ? 'bg-primary/15 text-primary-ink' : 'bg-foreground/[0.06]',
-                )}
-                aria-hidden
-              >
-                <Icon className="size-4" />
-              </span>
+              <Icon className="size-6 shrink-0" aria-hidden />
               {item.label}
             </Link>
           );

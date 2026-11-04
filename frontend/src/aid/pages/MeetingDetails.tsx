@@ -364,7 +364,7 @@ function IconAction({ label, onClick, children, destructive }: { label: string; 
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-14 text-muted-foreground', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-14 text-muted-foreground [&_svg]:size-6', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={label}
         >

@@ -408,7 +408,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       {betaFeatures.importAndRetranscribe && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="secondary" size="icon" className="size-14 [&_svg]:size-5" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
+            <Button variant="secondary" size="icon" className="size-14 [&_svg]:size-6" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
               <UploadSimple />
             </Button>
           </TooltipTrigger>

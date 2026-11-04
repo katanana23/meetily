@@ -555,6 +555,52 @@ html body[data-scroll-locked] {
   }
 }
 
+/* Заставка запуска (LaunchScreen): маскот мягко «дышит», три точки бегут волной,
+   уход растворением. Только transform и opacity. */
+.aid-launch-mark {
+  animation: aid-launch-breathe 1.8s ease-in-out infinite;
+}
+
+.aid-launch-dot {
+  animation: aid-launch-dot 1.1s ease-in-out infinite;
+}
+
+.aid-launch-leave {
+  opacity: 0;
+  transition: opacity 0.26s ease-out;
+  pointer-events: none;
+}
+
+@keyframes aid-launch-breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes aid-launch-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* Скелетоны списка загораются волной сверху вниз (задержка у каждой строки) */
+.aid-skeleton-wave .aid-skeleton {
+  animation-delay: var(--wave-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-launch-mark,
+  .aid-launch-dot {
+    animation: none;
+  }
+}
+
 /* Курсор печатной машинки в конце живого транскрипта (TranscriptList, live) */
 .aid-caret {
   display: inline-block;

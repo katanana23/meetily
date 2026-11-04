@@ -33,6 +33,7 @@ import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/toolt
 import { AidToaster } from '@/aid/components/AidToaster'
 import { RecordDock } from '@/aid/components/RecordDock'
 import { TitleBar } from '@/aid/components/TitleBar'
+import { LaunchScreen } from '@/aid/components/LaunchScreen'
 import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
@@ -288,6 +289,8 @@ export default function RootLayout({
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body className={`${isAidUI ? `${inter.variable} aid-font` : sourceSans3.variable} font-sans antialiased`}>
+        {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
+        {isAidUI && <LaunchScreen />}
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>

@@ -198,6 +198,7 @@ const ru = {
   opening: 'Открываем встречу',
   renameHint: 'Нажмите, чтобы переименовать',
   copiedShort: 'Скопировано',
+  launching: 'Открываем ShadeNotes',
   finishSteps: 'Шаги завершения записи',
   finishStepStop: 'Запись остановлена',
   finishStepTranscribe: 'Дописываем реплики',

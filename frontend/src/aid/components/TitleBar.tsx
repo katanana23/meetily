@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { BrandMark } from './BrandMark';
+import { markTitlebarOverlay } from '@/aid/lib/window-theme';
 import { t } from '@/aid/strings';
 
 function nativeTitleBar(): boolean {
@@ -18,7 +19,11 @@ function nativeTitleBar(): boolean {
 
 export function TitleBar() {
   const [hidden, setHidden] = useState(false);
-  useEffect(() => setHidden(nativeTitleBar()), []);
+  useEffect(() => {
+    setHidden(nativeTitleBar());
+    // Страховка к скрипту в <head> (theme.ts): класс отступа за кнопками окна
+    markTitlebarOverlay();
+  }, []);
   if (hidden) return null;
   return (
     <header

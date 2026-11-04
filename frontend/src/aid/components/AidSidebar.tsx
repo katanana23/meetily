@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { GearSix, Notebook, Record } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { PrivacyChip } from './PrivacyChip';
+import { Skeleton } from './ui/skeleton';
 import { usePrivacy } from '@/aid/lib/privacy';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
@@ -36,7 +37,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
 
 export function AidSidebar() {
   const pathname = usePathname() ?? '/';
-  const { privacy } = usePrivacy();
+  const { privacy, loading: privacyLoading } = usePrivacy();
 
   return (
     // Плитка бенто: на тон светлее фона, радиус --tile-radius (rounded-tile), без рамки
@@ -72,7 +73,8 @@ export function AidSidebar() {
 
       <div className="space-y-2 p-2">
         <div className="px-3 py-1">
-          <PrivacyChip privacy={privacy} />
+          {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон плашки */}
+          {privacyLoading ? <Skeleton className="h-8 w-28 rounded-full" /> : <PrivacyChip privacy={privacy} />}
         </div>
         <ThemeSwitcher />
       </div>

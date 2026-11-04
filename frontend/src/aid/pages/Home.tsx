@@ -472,9 +472,14 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
           {state.kind === 'loading' && (
             <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>
-              {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка */}
+              {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка.
+                  Строки загораются волной сверху вниз (.aid-skeleton-wave) */}
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex min-h-[64px] items-center gap-3 rounded-nested py-3 pl-3 pr-3">
+                <div
+                  key={i}
+                  className="aid-skeleton-wave flex min-h-[64px] items-center gap-3 rounded-nested py-3 pl-3 pr-3"
+                  style={{ ['--wave-delay' as string]: `${i * 0.18}s` }}
+                >
                   <Skeleton className="size-5 shrink-0 rounded-full" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-2/3 rounded-lg" />

@@ -47,10 +47,19 @@ export function onThemeChange(cb: (mode: ThemeMode) => void) {
 // Блокирующий скрипт для <head>: ставит класс до первой отрисовки, без мигания.
 export const themeScript = `
 (function() {
+  try { window.__aidLaunchAt = performance.now(); } catch (e) {}
   try {
     var s = localStorage.getItem('${THEME_KEY}');
     var dark = s === 'dark' || (s !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     if (dark) document.documentElement.classList.add('dark');
+  } catch (e) {}
+  // Окно Tauri на macOS (кнопки окна поверх полосы TitleBar): класс ставится до первой
+  // отрисовки, иначе знак и название первые мгновения стоят под кнопками окна
+  try {
+    var w = window;
+    if (w.__TAURI_INTERNALS__ && !/[?&]mock=/.test(location.search) && /Mac/i.test(navigator.platform || navigator.userAgent)) {
+      document.documentElement.classList.add('aid-titlebar-overlay');
+    }
   } catch (e) {}
 })();
 `;

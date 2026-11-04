@@ -263,9 +263,10 @@ function SummaryBlock({
   if (summary.kind !== 'ready') return null;
 
   return (
-    <section className="aid-role aid-role-indigo rounded-tile" aria-labelledby="summary-title">
-      {/* Полоса-заголовок: вся она раскрывает итоги; «Сделать заново» справа */}
-      <div className="flex items-center gap-2 p-3">
+    // Indigo только у полосы-заголовка; раскрытый текст на нейтральной плитке под ней,
+    // чтобы длинные итоги не заливали экран сиреневым
+    <section className="flex flex-col gap-2" aria-labelledby="summary-title">
+      <div className="aid-role aid-role-indigo flex items-center gap-2 rounded-tile p-3">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -279,7 +280,7 @@ function SummaryBlock({
           <span id="summary-title" className="text-lg font-bold tracking-tight">
             {t('summary')}
           </span>
-          {!open && <span className="hidden text-sm text-muted-foreground sm:inline">{t('summaryOpenHint')}</span>}
+          <span className="hidden text-sm text-muted-foreground sm:inline">{t('summaryOpenHint')}</span>
           {/* Вниз, когда свёрнуто, вверх, когда раскрыто: залитый треугольник вправо читается как «воспроизвести» */}
           <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
@@ -290,12 +291,11 @@ function SummaryBlock({
         </Button>
       </div>
       {open && (
-        // Тёмный текст на сиреневом в обеих темах: без dark:prose-invert
         <article
           id="summary-body"
           className={cn(
-            MEASURE,
-            'aid-prose-role prose px-5 pb-5 pt-1 prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left',
+            TILE,
+            'prose prose-neutral max-w-none dark:prose-invert [&>*]:max-w-[760px] prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-xl prose-h2:text-base prose-h3:text-[15px] prose-p:leading-7 prose-p:text-pretty prose-li:text-pretty prose-li:my-1 prose-table:text-sm prose-th:text-left',
           )}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryForPage(summary.markdown, title)}</ReactMarkdown>

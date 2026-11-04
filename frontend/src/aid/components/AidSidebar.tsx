@@ -44,7 +44,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-role aid-role-mikado')}>
-          <span className={cn('size-3 rounded-full bg-record', !rec.isPaused && 'aid-dock-dot')} aria-hidden />
+          <span className={cn('size-3 rounded-full bg-on-role', !rec.isPaused && 'aid-dock-dot')} aria-hidden />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>

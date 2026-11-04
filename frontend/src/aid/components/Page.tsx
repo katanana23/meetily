@@ -65,7 +65,9 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
         )}
         {/* -mr-2: прокрутка заходит в правое поле окна, полоса 8 px живёт там */}
         <div ref={ref} className="aid-scroll aid-scroll-edge -mr-2 min-h-0 flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-2">{children}</div>
+          {/* Последняя нейтральная плитка тянется до плитки записи: без пустого фона окна под колонкой.
+              Цветную плитку (.aid-role) не тянем: большое цветное пятно хуже пустоты */}
+          <div className="flex min-h-full flex-col gap-2 [&>*:last-child:not(.aid-role)]:grow">{children}</div>
         </div>
       </main>
     );

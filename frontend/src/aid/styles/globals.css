@@ -491,21 +491,6 @@ html body[data-scroll-locked] {
   background: hsl(var(--giants));
 }
 
-/* Итоги на плитке Indigo: весь текст prose #111 в обеих темах */
-.aid-prose-role {
-  --tw-prose-body: hsl(var(--on-role));
-  --tw-prose-headings: hsl(var(--on-role));
-  --tw-prose-bold: hsl(var(--on-role));
-  --tw-prose-links: hsl(var(--on-role));
-  --tw-prose-counters: hsl(var(--on-role) / 0.7);
-  --tw-prose-bullets: hsl(var(--on-role) / 0.6);
-  --tw-prose-hr: hsl(var(--on-role) / 0.15);
-  --tw-prose-quotes: hsl(var(--on-role));
-  --tw-prose-quote-borders: hsl(var(--on-role) / 0.2);
-  --tw-prose-code: hsl(var(--on-role));
-  --tw-prose-th-borders: hsl(var(--on-role) / 0.2);
-  --tw-prose-td-borders: hsl(var(--on-role) / 0.12);
-}
 
 /* Текущая полоса «Пульса разговора» (LivePulse): мерцает, пока идёт запись */
 .aid-pulse-now {
@@ -664,7 +649,8 @@ html body[data-scroll-locked] {
 }
 
 .aid-record-dot {
-  background: hsl(var(--record));
+  /* На Mikado точка #111: красный только у «Остановить» и удаления */
+  background: hsl(var(--on-role));
 }
 
 /* Уровень речи в плитке записи: полосы растут на каждый сигнал детектора речи
@@ -687,4 +673,33 @@ html body[data-scroll-locked] {
 .aid-app a,
 .aid-app img {
   -webkit-user-drag: none;
+}
+
+/* Приватность в настройках: AnalyticsConsentSwitch оригинала сведён к строкам
+   плитки. Без рамок, подложек и иконки в круге; пояснение серым 14 px, ссылка Risd. */
+.aid-legacy.aid-legacy-flat h3 {
+  display: none;
+}
+.aid-legacy.aid-legacy-flat .border {
+  border-width: 0;
+}
+.aid-legacy.aid-legacy-flat .bg-gray-50,
+.aid-legacy.aid-legacy-flat .bg-blue-50 {
+  background-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+.aid-legacy.aid-legacy-flat .bg-blue-50 > svg {
+  display: none;
+}
+.aid-legacy.aid-legacy-flat .text-blue-700 {
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+}
+.aid-legacy.aid-legacy-flat .text-blue-600 {
+  color: hsl(var(--primary-ink));
+  text-decoration: none;
+}
+.aid-legacy.aid-legacy-flat .text-blue-600:hover {
+  text-decoration: underline;
 }

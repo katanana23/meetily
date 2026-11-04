@@ -60,18 +60,19 @@ export function LivePulse({ live, duration, isPaused, segments }: Props) {
     <section aria-label={t('pulseTitle')} className="rounded-tile bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-[22px] font-bold leading-7 tracking-tight">{t('pulseTitle')}</h2>
-        <span className="text-xs text-muted-foreground">{t('pulseWindow')}</span>
+        {/* Пока окно не набрано, подпись честная: «с начала записи» */}
+        <span className="text-xs text-muted-foreground">{duration >= BARS * BUCKET_SEC ? t('pulseWindow') : t('pulseSinceStart')}</span>
       </div>
       {/* Полосы: низ выровнен, высота через scaleY (только transform) */}
-      {/* Полосы не шире 12 px: на широком окне они не расплываются в капли */}
-      <div className="mt-3 flex h-14 items-end justify-between gap-[3px]" aria-hidden>
+      {/* Полосы не шире 6 px: на широком окне они не расплываются в капли */}
+      <div className="mt-3 flex h-10 items-end justify-between gap-[3px]" aria-hidden>
         {bars.map(({ bucket, value }) => {
           const now = bucket === current;
           return (
             <span
               key={bucket}
               className={cn(
-                'h-full max-w-3 flex-1 origin-bottom rounded-full transition-transform duration-500 ease-out',
+                'h-full max-w-[6px] flex-1 origin-bottom rounded-full transition-transform duration-500 ease-out',
                 value === null ? 'bg-foreground/5' : value > 0 ? 'bg-foreground' : 'bg-foreground/15',
                 now && !isPaused && 'aid-pulse-now',
               )}

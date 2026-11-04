@@ -165,6 +165,7 @@ const ru = {
   collapse: 'Свернуть',
   expand: 'Развернуть',
   summaryRedo: 'Сделать заново',
+  pulseSinceStart: 'с начала записи',
   summaryOpenHint: 'Решения, задачи и главное из разговора',
   copyFailed: 'Не получилось скопировать. Выделите текст и нажмите ⌘C.',
 

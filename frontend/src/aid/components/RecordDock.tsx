@@ -104,7 +104,8 @@ function SpeechHint({ heard }: { heard: boolean }) {
     <div className="flex min-w-0 items-center gap-3" role="status">
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">{t('noSpeechTitle')}</p>
-        <p className="truncate text-xs text-muted-foreground" title={silenceCause(sound)}>
+        {/* 14 px, не больше двух строк; полный текст в подсказке */}
+        <p className="line-clamp-2 text-sm text-muted-foreground" title={silenceCause(sound)}>
           {silenceCause(sound)}
         </p>
       </div>

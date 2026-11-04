@@ -42,6 +42,9 @@ const TABS = [
 ] as const;
 type TabValue = (typeof TABS)[number]['value'];
 
+// Активная вкладка тянется на всю высоту колонки (см. Page, раскладка bento)
+const TAB = 'mt-0 flex-col data-[state=active]:flex [&>*:last-child]:grow';
+
 const UPSTREAM_URL = 'https://github.com/Zackriya-Solutions/meeting-minutes';
 const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
 
@@ -63,7 +66,8 @@ function Row({ title, hint, children }: { title: string; hint?: ReactNode; child
         <p className="text-base font-medium">{title}</p>
         {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
       </div>
-      {children !== null && <div className="flex w-[200px] shrink-0 justify-end">{children}</div>}
+      {/* Кнопки на всю ширину колонки, переключатель у её правого края */}
+      {children !== null && <div className="flex w-[200px] shrink-0 justify-end [&>button]:w-full">{children}</div>}
     </div>
   );
 }
@@ -180,7 +184,7 @@ function TrashRow() {
 function GeneralTab() {
   return (
     // Бенто: разделы отдельными плитками, 8 px между плитками
-    <div className="flex flex-col gap-2">
+    <div className="flex grow flex-col gap-2 [&>*:last-child]:grow">
       <Section title={t('settingsSectionNotifications')}>
         <NotificationsRow />
       </Section>
@@ -287,15 +291,15 @@ function SettingsContent() {
     // Tabs снаружи: вкладки в неподвижной шапке, содержимое в прокручиваемой области
     <Tabs value={tab} onValueChange={change} className="flex h-full min-w-0 flex-1">
       <Page layout="bento" header={header}>
-      <TabsContent value="general" className="mt-0">
+      <TabsContent value="general" className={TAB}>
         <GeneralTab />
       </TabsContent>
-      <TabsContent value="recording" className="mt-0">
+      <TabsContent value="recording" className={TAB}>
         <LegacyTile title={t('settingsRecording')}>
           <RecordingSettings />
         </LegacyTile>
       </TabsContent>
-      <TabsContent value="transcription" className="mt-0">
+      <TabsContent value="transcription" className={TAB}>
         <LegacyTile title={t('settingsTranscription')}>
           <TranscriptSettings
             transcriptModelConfig={transcriptModelConfig}
@@ -303,18 +307,18 @@ function SettingsContent() {
           />
         </LegacyTile>
       </TabsContent>
-      <TabsContent value="summary" className="mt-0">
+      <TabsContent value="summary" className={TAB}>
         {/* aid-no-autosummary: переключатель «Итоги автоматически» скрыт, Aid делает итоги только по кнопке */}
         <LegacyTile title={t('settingsSummary')} className="aid-no-autosummary">
           <SummaryModelSettings />
         </LegacyTile>
       </TabsContent>
-      <TabsContent value="beta" className="mt-0">
+      <TabsContent value="beta" className={TAB}>
         <LegacyTile title={t('settingsBeta')}>
           <BetaSettings />
         </LegacyTile>
       </TabsContent>
-      <TabsContent value="about" className="mt-0">
+      <TabsContent value="about" className={TAB}>
         <AboutTab />
       </TabsContent>
       </Page>

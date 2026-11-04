@@ -195,7 +195,7 @@ function UnrecognizedList({
   }
   return (
     <section aria-label={t('unrecognizedSection')}>
-      <p className="mb-3 px-2 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
+      <p className="mb-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
       {/* Одна колонка: у строки три действия, в две колонки названия обрезались бы */}
       <ul className="flex flex-col gap-1">
         {meetings.map((m) => (
@@ -252,7 +252,7 @@ function UnrecognizedList({
 /** Пустой результат фильтра: иконка в круге, заголовок и подсказка, слева по краю списка. */
 function EmptyFilter({ title, hint, icon: Icon = Chats, children }: { title: string; hint: string; icon?: typeof Chats; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-start px-2 py-10">
+    <div className="flex flex-col items-start py-10">
       <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
         <Icon className="size-6" />
       </span>
@@ -590,7 +590,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
 
           {state.kind === 'ready' && search && groups.main.length > 0 && filtered.length === 0 && search.pending === 0 && (
-            <div className="flex flex-col items-start px-2 py-10">
+            <div className="flex flex-col items-start py-10">
               <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
                 <MagnifyingGlass weight="bold" className="size-6" />
               </span>
@@ -600,7 +600,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
 
           {search && search.pending > 0 && (
-            <p className="px-2 pb-2 text-sm text-muted-foreground" role="status">
+            <p className="pb-2 text-sm text-muted-foreground" role="status">
               <Spinner size={16} className="mr-2 inline-block align-[-3px]" />
               {t('searchProgress')} {search.total - search.pending} из {search.total}
             </p>
@@ -625,7 +625,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             dated.map(({ group, items }) => (
               <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-5 first:mt-1">
                 {/* Мелкий надзаголовок группы */}
-                <h2 id={`aid-group-${group}`} className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <h2 id={`aid-group-${group}`} className="pb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {t(GROUP_LABEL[group])}
                 </h2>
                 <ul className="grid grid-cols-1 gap-x-6 gap-y-1 @[1100px]:grid-cols-2">

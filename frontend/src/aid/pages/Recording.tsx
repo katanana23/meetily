@@ -24,7 +24,6 @@ import { FinishingScreen } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
-import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 
@@ -165,16 +164,12 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
     );
   }
 
-  // Шапка-плитка: «Назад» к списку (запись идёт дальше), надзаголовок состояния и
-  // название. Таймер, уровень речи, пауза и «Остановить» в плитке записи (RecordDock).
+  // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
+  // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
   const header = (
     <div className="flex items-center gap-4">
       <BackButton label={t('backFromRecording')} onClick={onBack} />
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          <span className={cn('size-2 rounded-full', isPaused ? 'bg-muted-foreground' : 'aid-dock-dot bg-record')} aria-hidden />
-          {isPaused ? t('paused') : t('recording')}
-        </div>
         <h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
       </div>
     </div>

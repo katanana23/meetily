@@ -43,7 +43,7 @@ const TABS = [
 type TabValue = (typeof TABS)[number]['value'];
 
 // Активная вкладка тянется на всю высоту колонки (см. Page, раскладка bento)
-const TAB = 'mt-0 flex-col data-[state=active]:flex [&>*:last-child]:grow';
+const TAB = 'mt-0 flex-col data-[state=active]:flex data-[state=active]:grow [&>*:last-child]:grow';
 
 const UPSTREAM_URL = 'https://github.com/Zackriya-Solutions/meeting-minutes';
 const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
@@ -67,7 +67,7 @@ function Row({ title, hint, children }: { title: string; hint?: ReactNode; child
         {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
       </div>
       {/* Кнопки на всю ширину колонки, переключатель у её правого края */}
-      {children !== null && <div className="flex w-[200px] shrink-0 justify-end [&>button]:w-full">{children}</div>}
+      {children !== null && <div className="flex w-[200px] shrink-0 justify-end [&>button:not([role=switch])]:w-full">{children}</div>}
     </div>
   );
 }

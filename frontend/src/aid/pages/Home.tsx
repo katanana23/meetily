@@ -271,7 +271,7 @@ function EmptyFilter({
   return (
     <div className="flex flex-col items-start py-10">
       {mascot ? (
-        <Mascot mood="idle" size={176} followCursor className="-mb-6 -ml-3 text-muted-foreground" />
+        <Mascot mood="idle" size={160} followCursor bare className="mb-2 text-foreground" />
       ) : (
         <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
           <Icon className="size-6" />

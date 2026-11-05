@@ -155,7 +155,7 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       className="flex w-full min-w-0 items-center gap-4"
     >
       {/* Маскот: «Тишина» и «Пара фраз» сонный, «Не распознано» ошибка с тряской */}
-      <Mascot mood={notice.verdict === 'unrecognized' ? 'error' : 'sleepy'} size={160} className="-my-2 -ml-2 text-muted-foreground" />
+      <Mascot mood={notice.verdict === 'unrecognized' ? 'error' : 'sleepy'} size={144} bare className={cn('shrink-0', notice.verdict === 'unrecognized' ? 'text-on-role [--m-hole:#FFFFFF]' : 'text-foreground')} />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
         <div className="min-w-0">
           <p className="text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>

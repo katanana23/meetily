@@ -21,7 +21,7 @@ export function FinishingScreen({ phase, title, hint }: { phase: FinishPhase; ti
   const done = DONE[phase];
   return (
     <section role="status" aria-live="polite" className="flex flex-col items-center px-6 pb-10 pt-[8vh] text-center">
-      <Mascot mood={finishMood(phase)} size={184} details className="text-muted-foreground" />
+      <Mascot mood={finishMood(phase)} size={184} bare className="text-foreground" />
 
       <h1 className="mt-6 text-[22px] font-bold leading-7 tracking-tight">{title}</h1>
       <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{hint}</p>

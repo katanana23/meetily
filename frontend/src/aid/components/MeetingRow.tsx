@@ -3,10 +3,8 @@
 // и при фокусе с клавиатуры; те же действия есть в меню по правому клику.
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
+import { useState } from 'react';
+import { meetingHref, openMeeting } from '@/aid/lib/open-meeting';
 import {
   CaretRight,
   ChatText,
@@ -40,13 +38,25 @@ export interface MeetingListItem {
   details: MeetingDetails | null;
 }
 
+// Цвет иконки по роли: итоги Indigo (ИИ), «Не распознано» Giants, транскрипт серый
 const STATUS: Record<Exclude<MeetingStatus, 'unknown'>, { icon: Icon | null; label: string; className: string }> = {
-  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-primary-ink' },
+  summary: { icon: Sparkle, label: t('statusSummary'), className: 'text-indigo-ink' },
   // Итоги в работе: общий Spinner вместо иконки (см. ниже)
   summarizing: { icon: null, label: t('statusSummarizing'), className: '' },
   transcript: { icon: ChatText, label: t('statusTranscript'), className: 'text-muted-foreground' },
-  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-destructive' },
+  silent: { icon: MicrophoneSlash, label: t('statusSilent'), className: 'text-giants-ink' },
 };
+
+/** Миниатюра состояния: круг 48 px на ступени тона, иконка 20 px в цвете роли. */
+export function StatusThumb({ kind }: { kind: MeetingStatus }) {
+  const status = kind !== 'unknown' ? STATUS[kind] : null;
+  const Glyph = status?.icon;
+  return (
+    <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted transition-colors group-hover:bg-input" aria-hidden>
+      {kind === 'summarizing' ? <Spinner /> : Glyph ? <Glyph className={cn('size-5', status?.className)} /> : null}
+    </span>
+  );
+}
 
 function IconAction({
   label,
@@ -67,7 +77,7 @@ function IconAction({
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-9 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-4', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className={cn('size-10 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-5', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
           onClick={onClick}
           aria-label={ariaLabel}
         >
@@ -91,18 +101,7 @@ interface MeetingRowProps {
 }
 
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly, match }: MeetingRowProps) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // Встреча открывается: шеврон меняется на спиннер сразу после клика. Страница
-  // встречи может грузиться заметное время (в разработке Next её компилирует),
-  // и без отклика клик выглядел несработавшим. Если встреча так и не открылась,
-  // guardNavigation снимает спиннер (onFail); запасной сброс через 30 с.
-  const [opening, setOpening] = useState(false);
-  useEffect(() => {
-    if (!opening) return;
-    const timer = setTimeout(() => setOpening(false), 30_000);
-    return () => clearTimeout(timer);
-  }, [opening]);
   const d = meeting.details;
   const shown = shownTitle(meeting.title, d?.contentTitle);
   const kind = d?.status ?? 'unknown';
@@ -131,7 +130,6 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
     );
   }
 
-  const StatusIcon = status?.icon;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -141,38 +139,29 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
           onClick={(e) => {
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
-            setOpening(true);
-            openMeeting(router.push, meeting.id, () => setOpening(false));
+            openMeeting(meeting.id);
           }}
-          aria-busy={opening || undefined}
           className={cn(
+            // Без вложенной карточки: строки разделены отступом, подложка только при наведении
             'group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
-            opening && 'bg-muted',
           )}
         >
-          <Link
+          <a
             href={meetingHref(meeting.id)}
             // WebKit на macOS даёт тянуть ссылку: лёгкое движение при нажатии начинает
             // перетаскивание вместо клика (в Tauri его ещё перехватывает обработчик файлов)
             draggable={false}
             onClick={(e) => {
-              // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
-              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
-                setOpening(true);
-                guardNavigation(meetingHref(meeting.id), () => setOpening(false));
-              }
+              // Встреча открывается на главной без перехода между страницами (open-meeting.ts)
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              openMeeting(meeting.id);
             }}
-            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-3 pl-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-2 pl-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            {kind === 'summarizing' ? (
-              <Spinner />
-            ) : StatusIcon ? (
-              <StatusIcon className={cn('size-5 shrink-0', status?.className)} aria-hidden />
-            ) : (
-              <span className="size-5 shrink-0" aria-hidden />
-            )}
+            <StatusThumb kind={kind} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium" title={shown}>{shown}</span>
+              <span className="block truncate text-base font-medium" title={shown}>{shown}</span>
               {/* Разделители для диктора: иначе имя ссылки читается слитно, «НазваниеСегодня, 10:00» */}
               {kind === 'summary' && <span className="sr-only">, {t('statusSummary')}</span>}
               {meta && (
@@ -192,7 +181,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
                 </span>
               )}
             </span>
-          </Link>
+          </a>
           {/* Только у строки под курсором или с фокусом от клавиатуры: после клика не залипают */}
           <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
             <IconAction label={t('rename')} ariaLabel={`${t('rename')}: ${shown}`} onClick={begin}>
@@ -202,12 +191,8 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               <Trash />
             </IconAction>
           </div>
-          {/* Шеврон: исключение из правила fill (CLAUDE.md); пока встреча открывается, спиннер */}
-          {opening ? (
-            <Spinner size={16} label={t('opening')} />
-          ) : (
-            <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          )}
+          {/* Шеврон: исключение из правила fill (CLAUDE.md) */}
+          <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </li>
       </ContextMenuTrigger>
       <ContextMenuContent>

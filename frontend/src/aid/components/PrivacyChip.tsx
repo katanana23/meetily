@@ -25,12 +25,25 @@ function line(title: string, p: ProviderPrivacy) {
   return `${title}: ${p.label}, ${WHERE[p.level]}`;
 }
 
-export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; className?: string }) {
+/** compact: круглая кнопка 48 px только с иконкой (узкий сайдбар), подпись в подсказке. */
+export function PrivacyChip({ privacy, className, compact }: { privacy: PrivacyInfo; className?: string; compact?: boolean }) {
   const { icon: Icon, label, hint, variant } = LEVEL[privacy.level];
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
+        {compact ? (
+          <span
+            tabIndex={0}
+            className={cn(
+              'flex size-12 cursor-default items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              className,
+            )}
+            aria-label={`${t('privacy')}: ${label}. ${hint}`}
+          >
+            <Icon className="size-5" aria-hidden />
+          </span>
+        ) : (
         <Badge
           variant={variant}
           tabIndex={0}
@@ -40,9 +53,10 @@ export function PrivacyChip({ privacy, className }: { privacy: PrivacyInfo; clas
           <Icon aria-hidden />
           {label}
         </Badge>
+        )}
       </TooltipTrigger>
       {/* Сетка: колонка иконок и колонка текста, строки начинаются с одной линии */}
-      <TooltipContent side="bottom" align="start" className="w-max max-w-[min(460px,calc(100vw-2rem))] p-3">
+      <TooltipContent side={compact ? 'right' : 'bottom'} align={compact ? 'end' : 'start'} className="w-max max-w-[min(460px,calc(100vw-2rem))] p-3">
         <div className="grid grid-cols-[20px_1fr] items-start gap-x-2.5 gap-y-2 text-[13px]">
           <Icon className="mt-px size-5 text-primary-ink" aria-hidden />
           <p className="whitespace-nowrap font-medium">{hint}</p>

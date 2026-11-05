@@ -28,6 +28,23 @@ module.exports = {
   				// Aid: текст и иконки акцента (в тёмной теме светлее заливки ради контраста AA)
   				ink: 'hsl(var(--primary-ink, var(--primary)))'
   			},
+  			// Aid: роли цвета (globals.css). Заливки: bg-risd, bg-mikado, bg-indigo, bg-giants;
+  			// текст и иконки роли на нейтральной плитке: text-*-ink; текст на заливке: text-on-role
+  			risd: 'hsl(var(--risd, var(--primary)))',
+  			mikado: {
+  				DEFAULT: 'hsl(var(--mikado, 43 91% 63%))',
+  				ink: 'hsl(var(--mikado-ink, 42 100% 27%))'
+  			},
+  			indigo: {
+  				DEFAULT: 'hsl(var(--indigo, 255 89% 79%))',
+  				ink: 'hsl(var(--indigo-ink, 254 64% 57%))'
+  			},
+  			giants: {
+  				DEFAULT: 'hsl(var(--giants, 18 81% 57%))',
+  				ink: 'hsl(var(--giants-ink, 18 76% 37%))'
+  			},
+  			'on-role': 'hsl(var(--on-role, 0 0% 7%))',
+  			record: 'hsl(var(--record, 4 74% 49%))',
   			secondary: {
   				DEFAULT: 'hsl(var(--secondary))',
   				foreground: 'hsl(var(--secondary-foreground))'
@@ -64,8 +81,8 @@ module.exports = {
   		borderRadius: {
   			// Aid: концентричные радиусы (globals.css): окно → плитка → вложенный элемент
   			window: 'var(--window-radius, 17px)',
-  			tile: 'var(--tile-radius, 9px)',
-  			nested: 'var(--nested-radius, 6px)',
+  			tile: 'var(--tile-radius, 24px)',
+  			nested: 'var(--nested-radius, 16px)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'

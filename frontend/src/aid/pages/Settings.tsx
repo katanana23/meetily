@@ -3,6 +3,10 @@
 // на данных ConfigContext. Сложные секции оригинала (устройства, модели
 // распознавания и итогов, бета) подключены как есть: их логику не дублируем,
 // а цвета и тексты приводит к Aid временный мост (.aid-legacy, LegacyBridge).
+//
+// Бенто: шапка-плитка с вкладками, ниже разделы отдельными плитками. Заголовок
+// раздела 22/28, строки разделены отступом, переключатели и кнопки справа в
+// одной колонке фиксированной ширины.
 
 'use client';
 
@@ -13,13 +17,13 @@ import { getVersion } from '@tauri-apps/api/app';
 import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Trash, Waveform } from '@phosphor-icons/react';
 import { openTrash } from '@/aid/lib/recording-trash';
 import { Button } from '@/aid/components/ui/button';
-import { Page } from '@/aid/components/Page';
+import { Page, TILE } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
-import { Card } from '@/aid/components/ui/card';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Switch } from '@/aid/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/aid/components/ui/tabs';
 import { aidToast } from '@/aid/lib/toasts';
+import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useConfig, type NotificationSettings } from '@/contexts/ConfigContext';
 import { RecordingSettings } from '@/components/RecordingSettings';
@@ -38,17 +42,32 @@ const TABS = [
 ] as const;
 type TabValue = (typeof TABS)[number]['value'];
 
+// Активная вкладка тянется на всю высоту колонки (см. Page, раскладка bento)
+const TAB = 'mt-0 flex-col data-[state=active]:flex data-[state=active]:grow [&>*:last-child]:grow';
+
 const UPSTREAM_URL = 'https://github.com/Zackriya-Solutions/meeting-minutes';
 const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
 
+/** Раздел настроек: плитка с заголовком 22/28. */
+function Section({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
+  return (
+    <section className={cn(TILE, className)} aria-label={title}>
+      {title && <h2 className="text-[22px] font-bold leading-7 tracking-tight">{title}</h2>}
+      <div className={cn('flex flex-col gap-1', title && 'mt-3')}>{children}</div>
+    </section>
+  );
+}
+
+/** Строка: подпись слева, управление справа в колонке 200 px (переключатели на одной линии). */
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4">
-      <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-medium">{title}</p>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
+      <div className="min-w-0 flex-1 basis-64">
+        <p className="text-base font-medium">{title}</p>
         {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
       </div>
-      {children}
+      {/* Кнопки на всю ширину колонки, переключатель у её правого края */}
+      {children !== null && <div className="flex w-[200px] shrink-0 justify-end [&>button:not([role=switch])]:w-full">{children}</div>}
     </div>
   );
 }
@@ -164,20 +183,20 @@ function TrashRow() {
 
 function GeneralTab() {
   return (
-    // Бенто: каждая настройка отдельной плиткой, 8 px между плитками
-    <div className="space-y-2">
-      <Card>
+    // Бенто: разделы отдельными плитками, 8 px между плитками
+    <div className="flex grow flex-col gap-2 [&>*:last-child]:grow">
+      <Section title={t('settingsSectionNotifications')}>
         <NotificationsRow />
-      </Card>
-      <Card>
+      </Section>
+      <Section title={t('settingsSectionStorage')}>
         <StorageRow />
         <TrashRow />
-      </Card>
-      <Card className="p-4">
+      </Section>
+      <Section title={t('settingsSectionPrivacy')}>
         <Legacy className="aid-legacy-flat">
           <AnalyticsConsentSwitch />
         </Legacy>
-      </Card>
+      </Section>
     </div>
   );
 }
@@ -193,21 +212,17 @@ function AboutTab() {
     invoke('open_external_url', { url }).catch((error) => aidToast.error(t('openLinkFailed'), { description: String(error) }));
 
   return (
-    <div className="space-y-2">
-      <Card>
-        <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
-          {null}
-        </Row>
-      </Card>
-      <Card>
+    <Section title={t('settingsAbout')}>
+      <Row title={t('appName')} hint={version ? `${t('version')} ${version}` : undefined}>
+        {null}
+      </Row>
       <Row title={t('licenseTitle')} hint={t('licenseHint')}>
         <Button variant="outline" onClick={() => void openUrl(LICENSE_URL)}>
           <ArrowUpRight />
           {t('license')}
         </Button>
       </Row>
-      </Card>
-    </div>
+    </Section>
   );
 }
 
@@ -218,7 +233,18 @@ function AboutTab() {
 function Legacy({ children, className }: { children: ReactNode; className?: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-tile" />}</div>;
+  return <div className={`aid-legacy ${className ?? ''}`}>{mounted ? children : <Skeleton className="h-40 w-full rounded-nested" />}</div>;
+}
+
+/** Вкладка из секций оригинала: одна плитка, внутри вложенная ступень тона (.aid-nest). */
+function LegacyTile({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
+  return (
+    <Section title={title}>
+      <div className="aid-nest">
+        <Legacy className={className}>{children}</Legacy>
+      </div>
+    </Section>
+  );
 }
 
 function SettingsContent() {
@@ -241,11 +267,11 @@ function SettingsContent() {
 
   const header = (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <BackButton label={t('backToMeetings')} href="/" />
-        <h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>
+        <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>
       </div>
-      <div className="-mx-1 mt-4 overflow-x-auto px-1 pb-1">
+      <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1">
         <TabsList aria-label={t('navSettings')}>
           {TABS.map((x) => {
             const Icon = x.icon;
@@ -264,35 +290,35 @@ function SettingsContent() {
   return (
     // Tabs снаружи: вкладки в неподвижной шапке, содержимое в прокручиваемой области
     <Tabs value={tab} onValueChange={change} className="flex h-full min-w-0 flex-1">
-      <Page header={header}>
-      <TabsContent value="general" className="mt-0">
+      <Page layout="bento" header={header}>
+      <TabsContent value="general" className={TAB}>
         <GeneralTab />
       </TabsContent>
-      <TabsContent value="recording" className="mt-0">
-        <Legacy>
+      <TabsContent value="recording" className={TAB}>
+        <LegacyTile title={t('settingsRecording')}>
           <RecordingSettings />
-        </Legacy>
+        </LegacyTile>
       </TabsContent>
-      <TabsContent value="transcription" className="mt-0">
-        <Legacy>
+      <TabsContent value="transcription" className={TAB}>
+        <LegacyTile title={t('settingsTranscription')}>
           <TranscriptSettings
             transcriptModelConfig={transcriptModelConfig}
             setTranscriptModelConfig={setTranscriptModelConfig}
           />
-        </Legacy>
+        </LegacyTile>
       </TabsContent>
-      <TabsContent value="summary" className="mt-0">
+      <TabsContent value="summary" className={TAB}>
         {/* aid-no-autosummary: переключатель «Итоги автоматически» скрыт, Aid делает итоги только по кнопке */}
-        <Legacy className="aid-no-autosummary">
+        <LegacyTile title={t('settingsSummary')} className="aid-no-autosummary">
           <SummaryModelSettings />
-        </Legacy>
+        </LegacyTile>
       </TabsContent>
-      <TabsContent value="beta" className="mt-0">
-        <Legacy>
+      <TabsContent value="beta" className={TAB}>
+        <LegacyTile title={t('settingsBeta')}>
           <BetaSettings />
-        </Legacy>
+        </LegacyTile>
       </TabsContent>
-      <TabsContent value="about" className="mt-0">
+      <TabsContent value="about" className={TAB}>
         <AboutTab />
       </TabsContent>
       </Page>
@@ -304,7 +330,7 @@ export default function Settings() {
   return (
     <Suspense
       fallback={
-        <Page header={<h1 className="text-3xl font-semibold tracking-tight">{t('navSettings')}</h1>}>
+        <Page layout="bento" header={<h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>}>
           <Skeleton className="h-40 w-full rounded-tile" />
         </Page>
       }

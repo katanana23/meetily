@@ -47,7 +47,7 @@ function Field({ label, children, hint }: { label: string; children: React.React
 }
 
 const SELECT =
-  'h-12 w-full appearance-none rounded-tile bg-muted px-4 text-[15px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
+  'h-12 w-full appearance-none rounded-full bg-muted px-5 text-[15px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 
 interface Props {
   open: boolean;
@@ -153,9 +153,9 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
               type="button"
               onClick={() => void choose()}
               disabled={status === 'validating'}
-              className="flex w-full flex-col items-center gap-3 rounded-tile bg-card px-6 py-8 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              className="flex w-full flex-col items-center gap-3 rounded-nested bg-muted px-6 py-8 text-center transition-colors hover:bg-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
             >
-              <span className="flex size-12 items-center justify-center rounded-tile bg-primary/15 text-primary-ink" aria-hidden>
+              <span className="flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary-ink" aria-hidden>
                 {status === 'validating' ? <Spinner /> : <UploadSimple className="size-5" />}
               </span>
               <span className="text-[15px] font-semibold">{status === 'validating' ? t('importChecking') : t('importChoose')}</span>
@@ -165,7 +165,7 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
 
           {!isProcessing && !error && fileInfo && (
             <>
-              <div className="flex items-center gap-3 rounded-tile bg-card p-3">
+              <div className="flex items-center gap-3 rounded-nested bg-muted p-3">
                 <span className="flex size-11 shrink-0 items-center justify-center rounded-nested bg-primary/15 text-primary-ink" aria-hidden>
                   <FileAudio className="size-5" />
                 </span>
@@ -190,7 +190,7 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
                     setTitleTouched(true);
                   }}
                   placeholder={fileInfo.filename}
-                  className="rounded-tile bg-muted"
+                  className="bg-muted"
                 />
               </Field>
 
@@ -224,7 +224,7 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
           )}
 
           {isProcessing && (
-            <div className="rounded-tile bg-card p-4" role="status" aria-live="polite">
+            <div className="rounded-nested bg-muted p-4" role="status" aria-live="polite">
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="font-medium">{progress?.stage || t('importRunning')}</span>
                 <span className="tabular text-muted-foreground">{Math.round(progress?.progress_percentage ?? 0)}%</span>
@@ -239,7 +239,7 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
           )}
 
           {error && (
-            <div className="flex gap-3 rounded-tile bg-card p-4" role="alert">
+            <div className="flex gap-3 rounded-nested bg-muted p-4" role="alert">
               <Warning className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
               <p className="min-w-0 break-words text-sm">{error}</p>
             </div>

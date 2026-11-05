@@ -1,7 +1,7 @@
 // Показ окна Tauri при запуске. Окно создаётся скрытым ("visible": false в
 // tauri.conf.json): иначе первые мгновения, пока WebView ждёт страницу, видно
 // пустое светлое окно ядра, и в тёмной теме оно слепит. Скрипт в <head> ставит
-// окну фон темы (тёмная #000, светлая #FFF), а показывает его скрипт в начале
+// окну фон темы (тёмная #1C1C1C, светлая #ECEEEB, как WINDOW_BACKGROUND в window-theme.ts), а показывает его скрипт в начале
 // <body>, сразу после разметки заставки (LaunchScreen): окно появляется уже с
 // маскотом в цвет темы. Страховки: повтор через SHOW_FALLBACK_MS и вызов из
 // эффекта layout (showWindow), если встроенный скрипт не сработал.
@@ -25,7 +25,7 @@ export const windowBootScript = `
   };
   try {
     var dark = document.documentElement.classList.contains('dark');
-    T.invoke('plugin:window|set_background_color', { color: dark ? '#000000' : '#FFFFFF' }).catch(function() {});
+    T.invoke('plugin:window|set_background_color', { color: dark ? '#1C1C1C' : '#ECEEEB' }).catch(function() {});
   } catch (e) {}
   setTimeout(function() { w.__aidShowWindow(); }, ${SHOW_FALLBACK_MS});
 })();

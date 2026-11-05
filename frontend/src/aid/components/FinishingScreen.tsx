@@ -51,7 +51,7 @@ export function FinishingScreen({ phase, title, hint }: { phase: FinishPhase; ti
                 key={key}
                 className={cn(
                   'flex h-10 items-center gap-2 rounded-full px-4 text-sm transition-colors',
-                  state === 'current' ? 'bg-card font-medium text-foreground' : state === 'done' ? 'text-foreground' : 'text-muted-foreground',
+                  state === 'current' ? 'bg-muted font-medium text-foreground' : state === 'done' ? 'text-foreground' : 'text-muted-foreground',
                 )}
               >
                 <span className="flex size-5 items-center justify-center" aria-hidden>

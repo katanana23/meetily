@@ -1,12 +1,24 @@
-// Сайдбар Aid: навигация, идущая запись, тема и индикатор приватности.
+// Сайдбар ShadeNotes: узкая плитка 72 px. Только иконки Phosphor fill в круглых
+// кнопках 48 px с подсказками; выбранный раздел Mikado с градиентом (роль «выделение»). Пока идёт
+// запись, а человек ушёл с главной, ниже кнопка Risd с точкой записи: путь к
+// «Остановить». Внизу приватность, знак ShadeNotes и переключатель темы таблеткой.
+//
+// Кнопки окна macOS (titleBarStyle Overlay, trafficLightPosition x 18, y 22 в
+// tauri.conf.json) стоят в верхней части этой плитки: плитка начинается с x 8,
+// кнопки занимают x 18–70, ровно по её центру. В Tauri на macOS (класс
+// aid-titlebar-overlay) сверху оставлено место 36 px; верх плитки перетаскивает окно.
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GearSix, Notebook, Record } from '@phosphor-icons/react';
+import { GearSix, Notebook } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { BrandMark } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';
 import { Skeleton } from './ui/skeleton';
+import { markTitlebarOverlay } from '@/aid/lib/window-theme';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { usePrivacy } from '@/aid/lib/privacy';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
@@ -18,55 +30,72 @@ const NAV = [
   { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p: string) => p.startsWith('/settings') },
 ];
 
-const ITEM =
-  'flex h-11 items-center gap-3 rounded-nested px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+/** Круглая кнопка сайдбара 48 px. */
+export const SIDEBAR_BUTTON =
+  'flex size-12 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-/** Запись идёт, а пользователь ушёл с главной: напоминание и путь обратно к кнопке «Остановить». */
+/** Запись идёт, а пользователь ушёл с главной: кнопка Risd с точкой записи ведёт к «Остановить». */
 function RecordingLink({ pathname }: { pathname: string }) {
   const rec = useRecordingState();
   if (!rec.isRecording || pathname === '/') return null;
   const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
+  const label = `${rec.isPaused ? t('paused') : t('recording')}, ${formatTimer(seconds)}`;
   return (
-    <Link href="/" className={cn(ITEM, 'bg-destructive/10 text-foreground hover:bg-destructive/15')}>
-      <Record className={cn('size-6 shrink-0 text-destructive', !rec.isPaused && 'motion-safe:animate-pulse')} aria-hidden />
-      <span className="flex-1">{rec.isPaused ? t('paused') : t('recording')}</span>
-      <span className="tabular text-muted-foreground">{formatTimer(seconds)}</span>
-    </Link>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-role aid-role-risd')}>
+          <span className={cn('size-3 rounded-full bg-on-role', !rec.isPaused && 'aid-dock-dot')} aria-hidden />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
 export function AidSidebar() {
   const pathname = usePathname() ?? '/';
   const { privacy, loading: privacyLoading } = usePrivacy();
+  // Страховка к скрипту в <head> (theme.ts): класс места под кнопки окна macOS
+  useEffect(() => markTitlebarOverlay(), []);
 
   return (
-    // Плитка бенто: на тон светлее фона, радиус --tile-radius (rounded-tile), без рамки
-    <aside className="flex h-full w-[232px] shrink-0 flex-col rounded-tile bg-card">
-      {/* Знак, название и кнопки окна теперь в верхней полосе окна (TitleBar) */}
-      <nav className="flex-1 space-y-1 p-2" aria-label="Основная навигация">
+    <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-tile bg-card py-3">
+      {/* Место под кнопки окна macOS: только в Tauri на macOS */}
+      <div data-tauri-drag-region className="hidden h-9 w-full shrink-0 [.aid-titlebar-overlay_&]:block" />
+
+      <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Основная навигация">
         {NAV.map((item) => {
           const active = item.match(pathname);
           const Icon = item.icon;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={cn(ITEM, active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}
-            >
-              <Icon className="size-6 shrink-0" aria-hidden />
-              {item.label}
-            </Link>
+            <Tooltip key={item.href}>
+              <TooltipTrigger asChild>
+                <Link
+                  href={item.href}
+                  aria-label={item.label}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    SIDEBAR_BUTTON,
+                    active ? 'aid-primary-fill text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <Icon className="size-6" aria-hidden />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">{item.label}</TooltipContent>
+            </Tooltip>
           );
         })}
         <RecordingLink pathname={pathname} />
       </nav>
 
-      <div className="space-y-2 p-2">
-        <div className="px-3 py-1">
-          {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон плашки */}
-          {privacyLoading ? <Skeleton className="h-8 w-28 rounded-full" /> : <PrivacyChip privacy={privacy} />}
-        </div>
+      <div className="flex flex-col items-center gap-3">
+        {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон знака */}
+        {privacyLoading ? <Skeleton className="size-12 rounded-full" /> : <PrivacyChip privacy={privacy} compact />}
+        <span className="flex size-12 items-center justify-center" title={t('appName')}>
+          <BrandMark size={28} />
+          <span className="sr-only">{t('appName')}</span>
+        </span>
         <ThemeSwitcher />
       </div>
     </aside>

@@ -1,25 +1,22 @@
 // Экран записи: таймер, пауза, стоп и транскрипт в реальном времени.
 // Реплики приходят из TranscriptContext (событие ядра transcript-update).
 // Здесь же напоминание предупредить участников (вместо тоста оригинала),
-// ошибки распознавания и подсказки по тишине: «Не слышу речи» в первые 20 с
-// и «Похоже, встреча закончилась» после 2 минут тишины (сигналы: recording-outcome.tsx).
+// ошибки распознавания и «Похоже, встреча закончилась» после 2 минут тишины
+// (сигналы: recording-outcome.tsx). «Не слышу речи» в плитке записи (RecordDock).
+// Раскладка бенто: шапка-плитка, плитка уведомлений (если есть), «Пульс разговора»
+// и плитка транскрипта.
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import Link from 'next/link';
-import { Check, MicrophoneSlash, SpeakerHigh, Stop, Warning, Waveform } from '@phosphor-icons/react';
-import { useConfig } from '@/contexts/ConfigContext';
-import { LANGUAGES } from '@/constants/languages';
+import { SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Card } from '@/aid/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
-import { Page } from '@/aid/components/Page';
-import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
+import { Page, TILE } from '@/aid/components/Page';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
@@ -27,7 +24,6 @@ import { FinishingScreen } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import type { FinishPhase } from '@/aid/lib/recording';
-import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 
@@ -41,69 +37,21 @@ interface RecordingViewProps {
   onStop: () => void;
 }
 
-/** Через сколько секунд без единой осмысленной реплики показать «Не слышу речи». */
-export const NO_SPEECH_HINT_SEC = 20;
-/** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается. */
+/** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается.
+ *  «Не слышу речи» (первые 20 с без реплик) живёт в плитке записи (RecordDock). */
 export const LONG_SILENCE_SEC = 120;
-
-/**
- * «Не слышу речи»: 20 с без единой осмысленной реплики (шум и галлюцинации не в счёт).
- * Две разные беды: детектор речь слышит, а распознавание текста не даёт (модель,
- * язык), или речь вообще не доходит (микрофон, системный звук). Показываем, какая.
- */
-function NoSpeechHint({ heard }: { heard: boolean }) {
-  const [open, setOpen] = useState(false);
-  const sound = useSoundState(true);
-  const { transcriptModelConfig, selectedLanguage } = useConfig();
-  if (heard) {
-    const model = [transcriptModelConfig?.provider, transcriptModelConfig?.model].filter(Boolean).join(' · ') || t('unknownModel');
-    const code = selectedLanguage || 'auto';
-    const language =
-      code === 'auto' ? t('languageAuto') : code === 'auto-translate' ? t('languageAutoTranslate') : (LANGUAGES.find((l) => l.code === code)?.name ?? code);
-    return (
-      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
-        <Warning className="size-5 shrink-0 text-destructive" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">{t('heardNoTextTitle')}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {t('heardNoTextHint')} {t('recognitionModel')}: {model}. {t('recognitionLanguage')}: {language}.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="main">
-          <Link href="/settings?tab=transcription">
-            <Waveform />
-            {t('openTranscriptionSettings')}
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-  return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="status">
-      <MicrophoneSlash className="size-5 shrink-0 text-destructive" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">{t('noSpeechTitle')}</p>
-        <p className="mt-0.5 text-sm text-muted-foreground">{silenceCause(sound)}</p>
-      </div>
-      <Button variant="outline" size="main" onClick={() => setOpen(true)}>
-        <SpeakerHigh />
-        {t('soundCheck')}
-      </Button>
-      <SoundCheckDialog open={open} onOpenChange={setOpen} />
-    </div>
-  );
-}
 
 /** Долгая тишина после речи: предложить остановить, но не останавливать самим. */
 function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onContinue: () => void }) {
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-tile bg-card p-4" role="alert">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-nested bg-muted p-4" role="alert">
       <p className="min-w-0 flex-1 text-sm font-semibold">{t('longSilence')}</p>
       <div className="flex gap-2">
-        <Button variant="outline" size="main" onClick={onContinue}>
+        <Button variant="ghost" size="main" onClick={onContinue}>
           {t('continueRecording')}
         </Button>
-        <Button variant="destructive" size="main" onClick={onStop}>
+        {/* Красный только у стопа и удаления */}
+        <Button size="main" className="bg-record text-white hover:bg-record/90" onClick={onStop}>
           <Stop />
           {t('stopRecording')}
         </Button>
@@ -156,13 +104,14 @@ function ConsentNotice() {
 
   if (!show) return null;
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-tile bg-card px-4 py-3">
-      <p className="text-sm">{t('consentNotice')}</p>
+    // Прямо на плитке, без вложенной подложки
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-[15px]">{t('consentNotice')}</p>
       <div className="flex gap-2">
         <Button variant="ghost" className="h-10 px-4 text-muted-foreground" onClick={() => void never()}>
           {t('consentNever')}
         </Button>
-        <Button variant="outline" className="h-10 px-4" onClick={() => setShow(false)}>
+        <Button variant="secondary" className="h-10 px-4" onClick={() => setShow(false)}>
           {t('consentDone')}
         </Button>
       </div>
@@ -193,10 +142,6 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
   const [silenceDismissedAt, setSilenceDismissedAt] = useState(0);
 
-  // То же правило, что после стопа: ложные срабатывания детектора на шум без
-  // осмысленного текста речью не считаются, поэтому подсказка от них не мигает
-  const heardNothing = live.textSegments === 0 && !live.recognitionFailed;
-  const showNoSpeech = live.tracking && heardNothing && duration >= NO_SPEECH_HINT_SEC;
   const silentSince = Math.max(live.lastSpeechAt ?? 0, silenceDismissedAt);
   const showLongSilence =
     live.tracking && !isPaused && live.lastSpeechAt !== null && duration - silentSince >= LONG_SILENCE_SEC;
@@ -213,68 +158,70 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   if (phase) {
     const copy = PHASE[phase];
     return (
-      <Page width="max-w-[840px]">
+      <Page>
         <FinishingScreen phase={phase} title={copy.title} hint={copy.hint} />
       </Page>
     );
   }
 
-  // Шапка: «Назад» к списку (запись идёт дальше), состояние и название.
-  // Таймер, пауза и «Остановить» в кнопке записи внизу (RecordDock).
+  // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
+  // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
   const header = (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
       <BackButton label={t('backFromRecording')} onClick={onBack} />
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <span className={cn('size-2.5 rounded-full', isPaused ? 'bg-muted-foreground' : 'aid-dock-dot bg-destructive')} aria-hidden />
-          {isPaused ? t('paused') : t('recording')}
-        </div>
-        <h1 className="truncate text-2xl font-semibold tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
+        <h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
       </div>
     </div>
   );
 
   return (
-    <Page width="max-w-[840px]" header={header}>
-      {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
-      {!showLongSilence && showNoSpeech && <NoSpeechHint heard={live.vadSegments > 0} />}
-
-      <ConsentNotice />
-
-      {problems.error && (
-        <Alert variant="destructive" className="mb-2">
-          <Warning />
-          <div>
-            <AlertTitle>{problems.error.message}</AlertTitle>
-            <AlertDescription>
-              <p>{t('transcriptionStoppedHint')}</p>
-              <ErrorDetails raw={problems.error.raw} />
-            </AlertDescription>
-          </div>
-        </Alert>
-      )}
-      {!problems.error && problems.lagging && (
-        <p className="mb-4 px-1 text-sm text-muted-foreground" role="status">
-          {t('transcriptionLagging')}
-        </p>
-      )}
+    <Page layout="bento" header={header}>
+      {/* Уведомления одной плиткой: «Похоже, встреча закончилась», напоминание об участниках, ошибки */}
+      <ConsentTile>
+        {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
+        <ConsentNotice />
+        {problems.error && (
+          <Alert variant="destructive">
+            <Warning />
+            <div>
+              <AlertTitle>{problems.error.message}</AlertTitle>
+              <AlertDescription>
+                <p>{t('transcriptionStoppedHint')}</p>
+                <ErrorDetails raw={problems.error.raw} />
+              </AlertDescription>
+            </div>
+          </Alert>
+        )}
+        {!problems.error && problems.lagging && (
+          <p className="px-1 text-sm text-muted-foreground" role="status">
+            {t('transcriptionLagging')}
+          </p>
+        )}
+      </ConsentTile>
 
       <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
-      <section className="pt-2" aria-label={t('liveTranscript')}>
+      <section className={TILE} aria-label={t('liveTranscript')}>
+        <h2 className="mb-4 text-[22px] font-bold leading-7 tracking-tight">{t('transcript')}</h2>
         {segments.length === 0 ? (
-          <Card className="flex flex-col items-center px-6 py-12 text-center">
-            <SpeakerHigh className="size-5 text-muted-foreground" aria-hidden />
-            <p className="mt-3 text-lg font-semibold">{t('waitingSpeech')}</p>
-            <p className="mx-auto mt-1 max-w-md text-[15px] text-muted-foreground">{t('waitingSpeechHint')}</p>
-          </Card>
+          <div className="flex flex-col items-start py-6">
+            <SpeakerHigh className="size-6 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-[15px] font-semibold">{t('waitingSpeech')}</p>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">{t('waitingSpeechHint')}</p>
+          </div>
         ) : (
-          <>
+          <div className="max-w-[760px]">
             <TranscriptList segments={segments} live onTyped={scrollToEnd} settledIds={settledIds} />
             <div ref={endRef} />
-          </>
+          </div>
         )}
       </section>
     </Page>
   );
+}
+
+/** Плитка уведомлений экрана записи: показывается, только если внутри что-то есть. */
+function ConsentTile({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-2 rounded-tile bg-card p-5 empty:hidden [&:not(:has(*))]:hidden">{children}</div>;
 }

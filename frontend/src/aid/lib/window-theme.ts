@@ -9,7 +9,8 @@
 
 import { getStoredTheme, type ThemeMode } from './theme';
 
-export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#FFFFFF', dark: '#000000' };
+// Фон окна бенто (globals.css, --background): светлая #ECEEEB, тёмная #1C1C1C
+export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#ECEEEB', dark: '#1C1C1C' };
 
 function inTauri(): boolean {
   if (typeof window === 'undefined') return false;

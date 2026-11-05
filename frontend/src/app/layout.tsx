@@ -32,10 +32,10 @@ import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 import { AidToaster } from '@/aid/components/AidToaster'
 import { RecordDock } from '@/aid/components/RecordDock'
-import { TitleBar } from '@/aid/components/TitleBar'
 import { LaunchScreen } from '@/aid/components/LaunchScreen'
 import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
+import { InPlaceMeetingRouter } from '@/aid/lib/in-place-router'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
@@ -300,6 +300,8 @@ export default function RootLayout({
         {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
         {isAidUI && <LaunchScreen />}
         <script dangerouslySetInnerHTML={{ __html: windowShowScript }} />
+        {/* Aid: встреча открывается на главной, без перехода между страницами */}
+        <InPlaceMeetingRouter enabled={isAidUI}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -328,20 +330,17 @@ export default function RootLayout({
                               ) : isAidUI ? (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
-                                    {/* Бенто: чёрный (светлая тема: белый) фон, плитки с отступом 8 px; кнопка записи над областью контента */}
+                                    {/* Бенто с ролями цвета: фон окна, узкая плитка сайдбара 72 px и колонка
+                                        страницы (её плитки рисует сама страница) с плиткой записи внизу.
+                                        8 px между плитками и от краёв окна. data-tauri-drag-region:
+                                        промежутки между плитками перетаскивают окно */}
                                     <AidRecordingControls>
-                                      {/* Сверху полоса окна (кнопки окна, знак, название), ниже две плитки.
-                                          data-tauri-drag-region: промежутки между плитками тоже перетаскивают окно */}
-                                      <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
-                                      <TitleBar />
-                                      <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
+                                      <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
                                         <AidSidebar />
-                                        {/* Правая часть одной серой плиткой, как сайдбар (.aid-main в globals.css) */}
-                                        <div className="aid-main relative flex min-w-0 flex-1 overflow-hidden rounded-tile">
-                                          {children}
+                                        <div data-tauri-drag-region className="flex min-w-0 flex-1 flex-col gap-2">
+                                          <div className="relative flex min-h-0 min-w-0 flex-1">{children}</div>
                                           <RecordDock />
                                         </div>
-                                      </div>
                                       </div>
                                     </AidRecordingControls>
                                   </AidTooltipProvider>
@@ -371,6 +370,7 @@ export default function RootLayout({
             </TranscriptProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
+        </InPlaceMeetingRouter>
 
         {isAidUI ? (
           <>

@@ -1,21 +1,20 @@
-// Сайдбар ShadeNotes: узкая плитка 72 px. Только иконки Phosphor fill в круглых
-// кнопках 48 px с подсказками; выбранный раздел тёмно-серой таблеткой с белой
-// иконкой (--nav-active). Пока идёт запись, а человек ушёл с главной, ниже кнопка
-// с красной точкой записи: путь к «Остановить». Внизу настройки, приватность, знак
-// ShadeNotes и переключатель темы таблеткой.
+// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: живой маскот 28 px
+// в круглой кнопке 48 px, ведёт к списку встреч (вкладка одна, отдельного пункта
+// «Встречи» нет). Маскот моргает, смотрит за курсором и отзывается на запись
+// (mascot-mood.ts). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
+// точкой записи: путь к «Остановить». Внизу «Настройки» (выбранный раздел тёмно-серой
+// таблеткой, --nav-active), «Локально» и переключатель темы таблеткой.
 //
-// Кнопки окна macOS (titleBarStyle Overlay, trafficLightPosition x 18, y 22 в
-// tauri.conf.json) стоят в верхней части этой плитки: плитка начинается с x 8,
-// кнопки занимают x 18–70, ровно по её центру. В Tauri на macOS (класс
-// aid-titlebar-overlay) сверху оставлено место 36 px; верх плитки перетаскивает окно.
+// Кнопки окна macOS стоят в отдельной полосе окна над плитками (WindowBar), поэтому
+// своего места под них в сайдбаре нет.
 'use client';
 
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GearSix, Notebook } from '@phosphor-icons/react';
+import { GearSix } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
-import { BrandMark } from './BrandMark';
+import { Mascot } from './Mascot';
 import { PrivacyChip } from './PrivacyChip';
 import { Skeleton } from './ui/skeleton';
 import { markTitlebarOverlay } from '@/aid/lib/window-theme';
@@ -25,10 +24,11 @@ import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useRecordingControls } from '@/aid/lib/recording-controls';
+import { useAppMascotMood } from '@/aid/lib/mascot-mood';
 
-type NavItem = { label: string; href: string; icon: typeof Notebook; match: (p: string) => boolean };
+type NavItem = { label: string; href: string; icon: typeof GearSix; match: (p: string) => boolean };
 
-const MEETINGS: NavItem = { label: t('navMeetings'), href: '/', icon: Notebook, match: (p) => p === '/' || p.startsWith('/meeting-details') };
 const SETTINGS: NavItem = { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p) => p.startsWith('/settings') };
 
 /** Раздел сайдбара: выбранный тёмно-серой таблеткой, остальные серой иконкой. */
@@ -77,19 +77,37 @@ function RecordingLink({ pathname }: { pathname: string }) {
   );
 }
 
+/** Знак ShadeNotes: живой маскот, ведёт к списку встреч (и с экрана записи, и со встречи). */
+function BrandLink() {
+  const c = useRecordingControls();
+  const { mood, pulse } = useAppMascotMood();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/"
+          aria-label={`${t('appName')}: ${t('navMeetings')}`}
+          onClick={() => c.setView('list')}
+          className={cn(SIDEBAR_BUTTON, 'hover:bg-muted')}
+        >
+          <Mascot mood={mood} pulse={pulse} size={28} followCursor details={false} />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{t('navMeetings')}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AidSidebar() {
   const pathname = usePathname() ?? '/';
   const { privacy, loading: privacyLoading } = usePrivacy();
-  // Страховка к скрипту в <head> (theme.ts): класс места под кнопки окна macOS
+  // Страховка к скрипту в <head> (theme.ts): класс полосы окна macOS (WindowBar)
   useEffect(() => markTitlebarOverlay(), []);
 
   return (
     <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-tile bg-card py-3">
-      {/* Место под кнопки окна macOS: только в Tauri на macOS */}
-      <div data-tauri-drag-region className="hidden h-9 w-full shrink-0 [.aid-titlebar-overlay_&]:block" />
-
       <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Основная навигация">
-        <NavLink item={MEETINGS} pathname={pathname} />
+        <BrandLink />
         <RecordingLink pathname={pathname} />
         {/* Настройки внизу, над приватностью */}
         <div className="mt-auto">
@@ -100,10 +118,6 @@ export function AidSidebar() {
       <div className="mt-3 flex flex-col items-center gap-3">
         {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон знака */}
         {privacyLoading ? <Skeleton className="size-12 rounded-full" /> : <PrivacyChip privacy={privacy} compact />}
-        <span className="flex size-12 items-center justify-center" title={t('appName')}>
-          <BrandMark size={28} />
-          <span className="sr-only">{t('appName')}</span>
-        </span>
         <ThemeSwitcher />
       </div>
     </aside>

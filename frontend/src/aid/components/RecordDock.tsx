@@ -5,9 +5,9 @@
 // - запись: стеклянная капсула (.aid-glass): красная точка с кольцом на речь,
 //   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
 //   стеклянной карточкой над капсулой;
-// - завершение: капсула «Завершаем запись» со спиннером;
-// - запись не сохранена или не распознана: карточка с крестиком; «Речь не
-//   распознана» плиткой Giants (роль «Не распознано»), остальное стеклом.
+// - завершение: капсула со спиннером: «Слушаю последние секунды», «Сохраняю встречу»;
+// - запись не сохранена или не распознана: карточка с маскотом 160 px и крестиком;
+//   «Речь не распознана» плиткой Giants (роль «Не распознано»), остальное стеклом.
 // Смена состояния появляется из размытия (.aid-dock-in), только transform,
 // opacity и filter; prefers-reduced-motion их выключает.
 // Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
@@ -28,14 +28,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { useRecordingOutcome, type DiscardNotice, type LiveSpeech } from '@/aid/lib/recording-outcome';
+import { noSpeechYet } from '@/aid/lib/mascot-mood';
+import { Mascot } from '@/aid/components/Mascot';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { LANGUAGES } from '@/constants/languages';
-
-/** Через сколько секунд без единой осмысленной реплики показать «Не слышу речи». */
-export const NO_SPEECH_HINT_SEC = 20;
 
 const LEVEL_BARS = 9;
 
@@ -155,22 +154,26 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
       className="flex w-full min-w-0 items-center gap-4"
     >
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>
-        <p className="truncate text-sm text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
+      {/* Маскот: «Тишина» и «Пара фраз» сонный, «Не распознано» ошибка с тряской */}
+      <Mascot mood={notice.verdict === 'unrecognized' ? 'error' : 'sleepy'} size={160} className="-my-2 -ml-2 text-muted-foreground" />
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>
+          <p className="text-sm text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
+        </div>
+        {notice.verdict !== 'too-little' && (
+          <Button
+            variant="outline"
+            className={cn(notice.verdict === 'unrecognized' && 'bg-black/10 text-on-role hover:bg-black/15')}
+            onClick={() => setSoundCheck(true)}
+          >
+            <SpeakerHigh />
+            {t('soundCheck')}
+          </Button>
+        )}
       </div>
-      {notice.verdict !== 'too-little' && (
-        <Button
-          variant="outline"
-          className={cn(notice.verdict === 'unrecognized' && 'bg-on-role/10 text-on-role hover:bg-on-role/20')}
-          onClick={() => setSoundCheck(true)}
-        >
-          <SpeakerHigh />
-          {t('soundCheck')}
-        </Button>
-      )}
       {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
-      <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
+      <Button variant="ghost" size="icon" className="shrink-0 self-start text-muted-foreground hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
         <X weight="bold" />
       </Button>
       <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
@@ -223,8 +226,10 @@ export function RecordDock() {
   };
   // Правило экрана записи: ложные срабатывания детектора на шум без осмысленного
   // текста речью не считаются
-  const showSpeechHint =
-    state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
+  const showSpeechHint = state === 'recording' && noSpeechYet(c, live);
+  // Экран завершения с маскотом уже на месте (главная, вид записи): капсула его не повторяет
+  const onFinishingScreen =
+    state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
   const unrecognized = state === 'notice' && notice?.verdict === 'unrecognized';
 
   return (
@@ -289,15 +294,21 @@ export function RecordDock() {
           </div>
         )}
 
-        {state === 'finishing' && (
+        {state === 'finishing' && !onFinishingScreen && (
           <div role="status" aria-live="polite" className="aid-glass relative flex h-[72px] items-center gap-3 rounded-full px-7 text-[15px] font-medium">
             <Spinner />
-            {c.phase === 'opening' ? t('savedShort') : t('finishingShort')}
+            {c.phase === 'opening'
+              ? t('savedShort')
+              : c.phase === 'saving'
+                ? t('savingShort')
+                : c.phase === 'discarding'
+                  ? t('discardingShort')
+                  : t('finishingShort')}
           </div>
         )}
 
         {state === 'notice' && notice && (
-          <div className={cn('relative w-[min(600px,calc(100vw-8rem))] rounded-tile p-4 pl-5', unrecognized ? 'aid-role aid-role-giants shadow-lg' : 'aid-glass')}>
+          <div className={cn('relative w-[min(600px,calc(100vw-8rem))] rounded-tile p-4', unrecognized ? 'aid-role aid-role-giants shadow-lg' : 'aid-glass')}>
             <NoticeRow notice={notice} />
           </div>
         )}

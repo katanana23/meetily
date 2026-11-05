@@ -51,6 +51,10 @@ import { InlineRename } from '@/aid/components/InlineRename';
 import { contentTitle, countWords, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
+import { setSummaryActivity } from '@/aid/lib/mascot-mood';
+
+/** Сколько маскот «рассказывает» только что готовые итоги, мс. */
+const SUMMARY_SPEAKING_MS = 2400;
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useConfig } from '@/contexts/ConfigContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
@@ -240,6 +244,20 @@ function SummaryBlock({
       setOpen(true);
     }
   }, [summary.kind]);
+  // Маскот в сайдбаре: пока итоги готовятся, думает; готовый текст ненадолго «рассказывает»
+  useEffect(() => {
+    if (summary.kind === 'processing') {
+      setSummaryActivity('thinking');
+      return;
+    }
+    if (summary.kind === 'ready' && open) {
+      setSummaryActivity('speaking');
+      const id = window.setTimeout(() => setSummaryActivity(null), SUMMARY_SPEAKING_MS);
+      return () => window.clearTimeout(id);
+    }
+    setSummaryActivity(null);
+  }, [summary.kind, open]);
+  useEffect(() => () => setSummaryActivity(null), []);
 
   // Итоги и всё, что делает ИИ: плитка Indigo, текст #111 (8,2:1) в обеих темах
   if (summary.kind === 'processing') {

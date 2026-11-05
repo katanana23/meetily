@@ -153,6 +153,8 @@ export function useAidRecording() {
     dismissBlocker: () => setBlocker(null),
     busy,
     live: outcome.live,
+    /** Запись не сохраняется (фаза discarding): тишина или пара фраз. */
+    discardVerdict: outcome.discardVerdict,
     start,
     stop,
     togglePause,

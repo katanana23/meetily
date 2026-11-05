@@ -5,6 +5,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
 import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning } from '@phosphor-icons/react';
@@ -18,6 +19,7 @@ import { Page } from '@/aid/components/Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { Mascot } from '@/aid/components/Mascot';
 import { openTrash } from '@/aid/lib/recording-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
@@ -251,13 +253,30 @@ function UnrecognizedList({
   );
 }
 
-/** Пустой результат фильтра: иконка в круге, заголовок и подсказка, слева по краю списка. */
-function EmptyFilter({ title, hint, icon: Icon = Chats, children }: { title: string; hint: string; icon?: typeof Chats; children?: React.ReactNode }) {
+/** Пустой результат фильтра: иконка в круге (или маскот), заголовок и подсказка, слева по краю списка. */
+function EmptyFilter({
+  title,
+  hint,
+  icon: Icon = Chats,
+  mascot,
+  children,
+}: {
+  title: string;
+  hint: string;
+  icon?: typeof Chats;
+  /** Пустой список встреч: вместо иконки маскот, смотрит за курсором. */
+  mascot?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col items-start py-10">
-      <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
-        <Icon className="size-6" />
-      </span>
+      {mascot ? (
+        <Mascot mood="idle" size={176} followCursor className="-mb-6 -ml-3 text-muted-foreground" />
+      ) : (
+        <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+          <Icon className="size-6" />
+        </span>
+      )}
       <h2 className="mt-4 text-[22px] font-bold leading-7 tracking-tight">{title}</h2>
       <p className="mt-1 max-w-md text-[15px] text-muted-foreground">{hint}</p>
       {children}
@@ -586,7 +605,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {state.kind === 'ready' && groups.main.length === 0 && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
+          {state.kind === 'ready' && groups.main.length === 0 && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} mascot />}
           {state.kind === 'ready' && filter === 'summary' && !search && groups.main.length > 0 && dated.length === 0 && (
             <EmptyFilter title={t('noSummaries')} hint={t('noSummariesHint')} icon={Sparkle} />
           )}
@@ -667,10 +686,16 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
+// Только в разработке: лист эмоций маскота по ?mascot=sheet (MascotSheet.tsx); в сборку не попадает
+const MascotSheet =
+  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/MascotSheet').then((m) => m.MascotSheet), { ssr: false }) : null;
+
 function HomeContent() {
   const rec = useRecordingControls();
+  const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
-  const meetingId = useSearchParams().get('id');
+  const meetingId = params.get('id');
+  if (MascotSheet && params.get('mascot') === 'sheet') return <MascotSheet still={params.get('still') === '1'} />;
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
   const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
 
@@ -683,6 +708,7 @@ function HomeContent() {
         live={rec.live}
         onBack={() => rec.setView('list')}
         onStop={rec.stop}
+        discardVerdict={rec.discardVerdict}
       />
     );
   }

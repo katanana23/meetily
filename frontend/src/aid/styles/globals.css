@@ -2,13 +2,14 @@
  * Токены ShadeNotes: «бенто с ролями цвета». Нейтральные плитки с крупным
  * радиусом и зазором 8 px; цвет только с ролью, на экране не больше двух
  * цветных плиток одновременно:
- *   Mikado  #F6C74D  главное действие и выделение (на кнопках с градиентом);
- *   Risd    #255BEC  идёт запись (живая плитка записи);
+ *   Mikado  #F6C74D  главное действие и выделение;
  *   Indigo  #B49DF8  итоги и всё, что сделал ИИ;
  *   Giants  #EA6E38  «Не распознано» и предупреждения.
- * Красный только у «Остановить» и удаления. Текст на Mikado, Indigo и Giants
- * #111 (на Giants белый даёт 3,1:1, ниже AA), на Risd белый (5,6:1).
- * Градиент только у заливки главного действия (.aid-primary-fill), без стекла и свечений.
+ * Красный только у «Остановить», точки записи и удаления. Текст на Mikado,
+ * Indigo и Giants #111 (на Giants белый даёт 3,1:1, ниже AA).
+ * Без градиентов и свечений. Стекло (.aid-glass) только у того, что лежит
+ * поверх контента: шапки при прокрутке, капсула записи, меню, подсказки,
+ * диалоги, уведомления.
  * Шрифт SF Pro: системный шрифт macOS (-apple-system выбирает SF Pro Text или
  * Display по размеру). В приложение он не встраивается (лицензия Apple), на Mac
  * он и так есть. Запасной для Windows и Linux Inter из next/font (--font-inter).
@@ -88,8 +89,19 @@
     --tile-radius: 24px;
     --nested-radius: calc(var(--tile-radius) - var(--inner-gap));
     --radius: var(--tile-radius);
-    /* Плитка записи внизу */
-    --dock-height: 88px;
+    /* Запас снизу у прокручиваемого контента: над ним плавает капсула записи */
+    --dock-space: 112px;
+
+    /* Выбранный раздел сайдбара: тёмно-серая таблетка, белая иконка */
+    --nav-active: 0 0% 20%;
+    --nav-active-foreground: 0 0% 100%;
+
+    /* Стекло: тон, прозрачность, блик по краю */
+    --glass-tint: 0 0% 100%;
+    --glass-alpha: 0.7;
+    --glass-rim: 0.85;
+    --glass-edge: 0 0% 0% / 0.06;
+    --glass-shadow: 0 0% 0% / 0.14;
   }
 
   .dark {
@@ -131,6 +143,13 @@
 
     --loader: 0 0% 64%;
     --skeleton: 0 0% 12%;
+
+    --nav-active: 0 0% 22%;
+    --glass-tint: 0 0% 8%;
+    --glass-alpha: 0.72;
+    --glass-rim: 0.16;
+    --glass-edge: 0 0% 100% / 0.08;
+    --glass-shadow: 0 0% 0% / 0.5;
   }
 }
 
@@ -196,6 +215,11 @@
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] {
+  /* Стекло, как у всплывающего (.aid-glass) */
+  background: hsl(var(--glass-tint) / 0.74);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border-color: hsl(var(--glass-edge));
   padding: 16px 44px 16px 16px;
   align-items: flex-start;
   /* Кнопка действия переносится под текст: рядом с текстом она сжимала его в узкий столбик */
@@ -203,7 +227,13 @@
   column-gap: 12px;
   row-gap: 12px;
   font-size: 14px;
-  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.16);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / var(--glass-rim)),
+    0 12px 32px -12px hsl(var(--glass-shadow));
+}
+
+.dark .aid-toaster [data-sonner-toast][data-styled='true'] {
+  background: hsl(0 0% 13% / 0.74);
 }
 
 /* Текст занимает всю строку справа от иконки 20 px (зазор 12 px) */
@@ -365,9 +395,35 @@ body {
 
 /* Колонка плиток (Page layout="bento"): прокрутка заходит в правое поле окна
    на 8 px, полоса шириной 8 px (бегунок 4 px) живёт там, края плиток совпадают
-   с краем шапки и плитки записи. */
+   с краем шапки. */
 .aid-scroll-edge::-webkit-scrollbar {
   width: 8px;
+}
+
+/* Обрезка колонки плиток по радиусу плитки (Page layout="bento"). Прокрутка шире
+   колонки на 8 px (полоса в поле окна), поэтому overflow + border-radius не
+   подходит: правые углы разошлись бы с краем плиток. Маска из двух полос и
+   четырёх кругов даёт скруглённый прямоугольник ровно по краю плиток, а полосу
+   прокрутки справа оставляет видимой. */
+.aid-round-clip {
+  --clip-r: var(--tile-radius);
+  --clip-sb: 8px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) 0 var(--clip-r) / calc(100% - var(--clip-sb)) calc(100% - 2 * var(--clip-r)) no-repeat,
+    linear-gradient(#000 0 0) var(--clip-r) 0 / calc(100% - var(--clip-sb) - 2 * var(--clip-r)) 100% no-repeat,
+    linear-gradient(#000 0 0) right 0 top 0 / var(--clip-sb) 100% no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat;
+  mask:
+    linear-gradient(#000 0 0) 0 var(--clip-r) / calc(100% - var(--clip-sb)) calc(100% - 2 * var(--clip-r)) no-repeat,
+    linear-gradient(#000 0 0) var(--clip-r) 0 / calc(100% - var(--clip-sb) - 2 * var(--clip-r)) 100% no-repeat,
+    linear-gradient(#000 0 0) right 0 top 0 / var(--clip-sb) 100% no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
+    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat;
 }
 
 /* Лоадеры. Вращение без подложки и без цвета акцента: в кнопке спиннер берёт
@@ -435,8 +491,9 @@ html body[data-scroll-locked] {
 
 @keyframes aid-dock-in {
   from {
-    transform: scale(0.97);
+    transform: translateY(8px) scale(0.96);
     opacity: 0;
+    filter: blur(8px);
   }
   to {
     transform: scale(1);
@@ -454,7 +511,7 @@ html body[data-scroll-locked] {
 
 .aid-dock-in {
   /* ease-out-quint: плавная остановка без перелёта */
-  animation: aid-dock-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: aid-dock-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   transform-origin: center;
 }
 
@@ -504,40 +561,6 @@ html body[data-scroll-locked] {
   background: hsl(var(--mikado));
 }
 
-/* Идёт запись: плитка Risd, текст белый (5,6:1), приглушённый #E3EAFD (4,6:1) */
-.aid-role-risd {
-  background: hsl(var(--risd));
-  --on-role: 0 0% 100%;
-  --muted-foreground: 225 86% 94%;
-}
-
-/* Заливка главного действия: Mikado с мягким бликом слева сверху и переходом
-   в янтарь справа. При наведении градиент сдвигается, при нажатии темнеет.
-   Текст #111: на самом светлом участке 16,7:1, на янтаре 8,9:1.
-   Если у кнопки свой фон (класс bg-…), градиент не включается. */
-.aid-primary-fill:not([class*='bg-']) {
-  background-color: hsl(var(--primary));
-  background-image:
-    radial-gradient(120% 160% at 0% 0%, hsl(48 100% 86%) 0%, hsl(48 100% 86% / 0) 46%),
-    linear-gradient(115deg, hsl(46 95% 68%) 0%, hsl(43 91% 63%) 45%, hsl(34 88% 58%) 100%);
-  background-size: 100% 100%, 200% 100%;
-  background-position: 0 0, 0% 0;
-  transition: background-position 0.5s cubic-bezier(0.22, 1, 0.36, 1), filter 0.15s ease;
-}
-
-.aid-primary-fill:not([class*='bg-']):hover {
-  background-position: 0 0, 100% 0;
-}
-
-.aid-primary-fill:not([class*='bg-']):active {
-  filter: brightness(0.94);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aid-primary-fill {
-    transition: none;
-  }
-}
 
 .aid-role-indigo {
   background: hsl(var(--indigo));
@@ -705,8 +728,7 @@ html body[data-scroll-locked] {
 }
 
 .aid-record-dot {
-  /* На Mikado точка #111: красный только у «Остановить» и удаления */
-  background: hsl(var(--on-role));
+  background: hsl(var(--record));
 }
 
 /* Уровень речи в плитке записи: полосы растут на каждый сигнал детектора речи
@@ -776,4 +798,167 @@ html body[data-scroll-locked] {
 }
 .aid-legacy [role='switch'][data-state='checked'] > span {
   transform: translateX(20px);
+}
+
+/* Стекло в духе Liquid Glass (macOS 26): полупрозрачный тон, сильное размытие
+   с насыщенностью того, что под ним, светлый блик по верхнему краю и тонкая
+   кромка. Только у того, что лежит поверх контента. Если система просит
+   меньше прозрачности, стекло становится сплошным. */
+/* position не задаётся: стекло бывает липким (шапка) и фиксированным (диалог);
+   там, где элемент статичный, класс relative ставит сам компонент */
+.aid-glass {
+  isolation: isolate;
+  background: hsl(var(--glass-tint) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / var(--glass-rim)),
+    inset 0 0 0 1px hsl(var(--glass-edge)),
+    0 12px 32px -12px hsl(var(--glass-shadow));
+}
+
+/* Блик: кромка светлее слева сверху и справа снизу, как у изогнутого стекла */
+.aid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, hsl(0 0% 100% / 0.5), hsl(0 0% 100% / 0) 32%, hsl(0 0% 100% / 0) 68%, hsl(0 0% 100% / 0.22));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.dark .aid-glass::before {
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .aid-glass {
+    background: hsl(var(--popover));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Шапка страницы: в покое обычная плитка, при прокрутке становится стеклом,
+   и плитки проходят под ней размытыми */
+.aid-sticky-head {
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease,
+    -webkit-backdrop-filter 0.3s ease,
+    backdrop-filter 0.3s ease;
+}
+
+.aid-sticky-head:not(.aid-glass) {
+  background: hsl(var(--card));
+}
+
+/* Всплывающее (меню, подсказки, диалоги): стекло плотнее, появляется из размытия */
+.aid-glass-pop {
+  --glass-alpha: 0.72;
+}
+
+.dark .aid-glass-pop {
+  --glass-tint: 0 0% 13%;
+  --glass-alpha: 0.74;
+}
+
+@keyframes aid-blur-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes aid-blur-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+.aid-glass-pop[data-state='open'],
+.aid-glass-pop[data-state='delayed-open'],
+.aid-glass-pop[data-state='instant-open'] {
+  animation: aid-blur-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aid-glass-pop[data-state='closed'] {
+  animation: aid-blur-out 0.14s ease-in forwards;
+}
+
+/* Затемнение под диалогом размывает приложение */
+.aid-dialog-overlay {
+  background: hsl(0 0% 0% / 0.32);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: aid-fade-in 0.2s ease-out;
+}
+
+@keyframes aid-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Кнопка записи в покое: круглая 72 px, сплошной Mikado, тёмный микрофон.
+   От круга расходятся две мягкие волны, как от звука (transform и opacity). */
+.aid-record-button {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 10px 24px -12px hsl(0 0% 0% / 0.55);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease-out;
+}
+
+.aid-record-button:hover {
+  background: hsl(43 91% 58%);
+}
+
+.aid-record-wave {
+  background: hsl(var(--primary) / 0.32);
+  animation: aid-record-wave 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.aid-record-wave-late {
+  animation-delay: 1.3s;
+}
+
+@keyframes aid-record-wave {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-record-wave {
+    display: none;
+  }
+  .aid-record-button,
+  .aid-sticky-head {
+    transition: none;
+  }
+  .aid-glass-pop[data-state] {
+    animation: none;
+  }
 }

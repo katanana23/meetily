@@ -31,6 +31,11 @@ module.exports = {
   			// Aid: роли цвета (globals.css). Заливки: bg-risd, bg-mikado, bg-indigo, bg-giants;
   			// текст и иконки роли на нейтральной плитке: text-*-ink; текст на заливке: text-on-role
   			risd: 'hsl(var(--risd, var(--primary)))',
+  			// Aid: выбранный раздел сайдбара, тёмно-серая таблетка
+  			'nav-active': {
+  				DEFAULT: 'hsl(var(--nav-active, 0 0% 20%))',
+  				foreground: 'hsl(var(--nav-active-foreground, 0 0% 100%))'
+  			},
   			mikado: {
   				DEFAULT: 'hsl(var(--mikado, 43 91% 63%))',
   				ink: 'hsl(var(--mikado-ink, 42 100% 27%))'

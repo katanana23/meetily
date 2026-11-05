@@ -24,7 +24,7 @@ const DropdownMenuContent = React.forwardRef<
       // data-aid: меню Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'z-50 min-w-[240px] overflow-hidden rounded-tile border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0',
+        'aid-glass aid-glass-pop relative z-50 min-w-[240px] overflow-hidden rounded-tile p-1.5 text-popover-foreground',
         className,
       )}
       {...props}

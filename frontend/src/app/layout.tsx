@@ -331,14 +331,15 @@ export default function RootLayout({
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
                                     {/* Бенто с ролями цвета: фон окна, узкая плитка сайдбара 72 px и колонка
-                                        страницы (её плитки рисует сама страница) с плиткой записи внизу.
+                                        страницы (её плитки рисует сама страница) с плавающей капсулой записи.
                                         8 px между плитками и от краёв окна. data-tauri-drag-region:
                                         промежутки между плитками перетаскивают окно */}
                                     <AidRecordingControls>
                                       <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
                                         <AidSidebar />
-                                        <div data-tauri-drag-region className="flex min-w-0 flex-1 flex-col gap-2">
-                                          <div className="relative flex min-h-0 min-w-0 flex-1">{children}</div>
+                                        {/* Капсула записи плавает внизу по центру поверх контента */}
+                                        <div data-tauri-drag-region className="relative flex min-h-0 min-w-0 flex-1">
+                                          {children}
                                           <RecordDock />
                                         </div>
                                       </div>

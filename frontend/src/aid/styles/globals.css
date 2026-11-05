@@ -943,359 +943,43 @@ html body[data-scroll-locked] {
   pointer-events: none;
 }
 
-/* ─── Маскот ShadeNotes (Mascot.tsx) ───
-   Рта нет: настроение несут глаза (веко, щека, моргание), искра и поза.
-   Настроение в data-mood задаёт переменные, части «доезжают» пружиной.
-   Короткие движения в data-move, моргание в data-blink, мерцание искры в data-twinkle.
-   Только transform и opacity. Координаты в единицах рисунка (viewBox 256). */
-.aid-mascot {
-  --m-body: #0a0a0a;
-  --m-eye: #ffffff;
-  --m-spark: #e2fb6f;
-  /* Пружина с лёгким перелётом только у персонажа, как у маскота сайта */
-  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
-  --pose: rotate(0deg);
-  --eye-l: 1;
-  --eye-r: 1;
-  --lid-l: 0px;
-  --lid-r: 0px;
-  --lid-rot-l: 0deg;
-  --lid-rot-r: 0deg;
-  --cheek-l: 0px;
-  --cheek-r: 0px;
-  --mgx: 0px;
-  --mgy: 0px;
-  --spark-s: 1;
-  --spark-o: 1;
+/* «Завершаем запись» (FinishingScreen): полосы звука затухающей волной, галочка
+   появляется с мягким увеличением. Только transform и opacity. */
+.aid-finish-bar {
+  transform: scaleY(calc(var(--bar, 1) * 0.6));
+  animation: aid-finish-bar 1.6s ease-in-out infinite;
 }
-/* Без плитки: тело цвета текста, глаза и искра цвета подложки, как вырезы в иконке
-   (в тёмной теме белый силуэт с чёрными глазами, в светлой наоборот) */
-.aid-mascot[data-bare] {
-  --m-body: currentColor;
-  --m-hole: hsl(var(--card));
-  --m-eye: var(--m-hole);
-  --m-spark: var(--m-hole);
-}
-.aid-mascot .m-pose,
-.aid-mascot .m-move,
-.aid-mascot .m-loop {
-  transform-box: view-box;
-  transform-origin: 128px 236px;
-}
-.aid-mascot .m-pose {
-  transform: var(--pose);
-  transition: transform 0.45s var(--spring);
-}
-.aid-mascot .m-gaze {
-  transform: translate(calc(var(--gx, 0px) + var(--mgx)), calc(var(--gy, 0px) + var(--mgy)));
-  transition: transform 0.22s ease-out;
-}
-.aid-mascot .m-react-eyes,
-.aid-mascot .m-eye-wrap,
-.aid-mascot .m-spark {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.aid-mascot .m-eye-wrap {
-  transition: transform 0.42s var(--spring);
-}
-.aid-mascot .m-eye-wrap-l {
-  transform: scale(var(--eye-l));
-}
-.aid-mascot .m-eye-wrap-r {
-  transform: scale(var(--eye-r));
-}
-/* Моргание: глаз сжимается к своему плоскому низу */
-.aid-mascot .m-blink {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-}
-.aid-mascot[data-blink] .m-blink {
-  animation: m-blink 0.2s ease-in-out;
-}
-@keyframes m-blink {
+
+@keyframes aid-finish-bar {
   0%,
   100% {
-    transform: scaleY(1);
+    transform: scaleY(calc(var(--bar, 1) * 0.25));
+    opacity: 0.45;
   }
-  45%,
-  55% {
-    transform: scaleY(0.08);
-  }
-}
-/* Веко: опускается (translateY) и наклоняется вокруг середины нижнего края */
-.aid-mascot .m-lid {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  transform: translateY(var(--lid)) rotate(var(--lid-rot));
-  transition: transform 0.38s var(--spring);
-}
-.aid-mascot .m-lid-l {
-  --lid: var(--lid-l);
-  --lid-rot: var(--lid-rot-l);
-}
-.aid-mascot .m-lid-r {
-  --lid: var(--lid-r);
-  --lid-rot: var(--lid-rot-r);
-}
-/* Щека: поднимается снизу, от глаза остаётся полумесяц */
-.aid-mascot .m-cheek {
-  transform: translateY(var(--cheek));
-  transition: transform 0.4s var(--spring);
-}
-.aid-mascot .m-cheek-l {
-  --cheek: var(--cheek-l);
-}
-.aid-mascot .m-cheek-r {
-  --cheek: var(--cheek-r);
-}
-/* Искра: огонёк внимания */
-.aid-mascot .m-spark {
-  transform: scale(var(--spark-s));
-  opacity: var(--spark-o);
-  transition:
-    transform 0.5s var(--spring),
-    opacity 0.5s ease-out;
-}
-.aid-mascot[data-twinkle] .m-spark {
-  animation: m-twinkle 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes m-twinkle {
-  0% {
-    transform: scale(var(--spark-s)) rotate(0deg);
-  }
-  35% {
-    transform: scale(0.55) rotate(45deg);
-  }
-  70% {
-    transform: scale(1.2) rotate(90deg);
-  }
-  100% {
-    transform: scale(var(--spark-s)) rotate(90deg);
+  50% {
+    transform: scaleY(var(--bar, 1));
+    opacity: 1;
   }
 }
 
-/* Слушает: глаза чуть шире, искра ярче */
-.aid-mascot[data-mood='listening'] {
-  --eye-l: 1.05;
-  --eye-r: 1.05;
-  --spark-s: 1.06;
-}
-/* Любопытство: наклон, один глаз шире, другой прищурен */
-.aid-mascot[data-mood='curious'] {
-  --pose: rotate(-7deg);
-  --eye-l: 1.14;
-  --eye-r: 0.96;
-  --lid-r: 9px;
-  --lid-rot-r: -8deg;
-}
-/* Думает: взгляд вверх и вправо, веки чуть ниже, искра медленно вращается */
-.aid-mascot[data-mood='thinking'] {
-  --pose: rotate(3deg);
-  --lid-l: 8px;
-  --lid-r: 11px;
-  --mgx: 4px;
-  --mgy: -3px;
-}
-.aid-mascot[data-mood='thinking'] .m-spark {
-  animation: m-spin 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-}
-/* Говорит: глаза открыты, лёгкое покачивание, искра пульсирует */
-.aid-mascot[data-mood='speaking'] {
-  --eye-l: 1.04;
-  --eye-r: 1.04;
-}
-.aid-mascot[data-mood='speaking'] .m-spark {
-  animation: m-spark-pulse 0.55s ease-in-out infinite alternate;
-}
-/* Рад: глаза полумесяцами, искра крупнее */
-.aid-mascot[data-mood='happy'] {
-  --pose: translateY(-2px);
-  --cheek-l: -20px;
-  --cheek-r: -27px;
-  --spark-s: 1.12;
-}
-/* Сонный: тяжёлые веки, голова клонится, искра гаснет */
-.aid-mascot[data-mood='sleepy'] {
-  --pose: rotate(-5deg) translateY(4px);
-  --lid-l: 19px;
-  --lid-r: 27px;
-  --mgy: 2px;
-  --spark-s: 0.8;
-  --spark-o: 0.25;
-}
-/* Ошибка: веки наклонены наружу вниз (растерянность вместо хитрого прищура), глаза меньше */
-.aid-mascot[data-mood='error'] {
-  --eye-l: 0.94;
-  --eye-r: 0.94;
-  --lid-l: 10px;
-  --lid-r: 12px;
-  --lid-rot-l: -24deg;
-  --lid-rot-r: 22deg;
-  --spark-s: 0.85;
-  --spark-o: 0.6;
-}
-/* Подмигивает: левый глаз полумесяцем */
-.aid-mascot[data-mood='wink'] {
-  --pose: rotate(2deg);
-  --cheek-l: -22px;
-  --eye-r: 1.04;
+.aid-finish-pop {
+  animation: aid-finish-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Циклы настроений */
-.aid-mascot[data-mood='idle'] .m-loop {
-  animation: m-breath 4.5s ease-in-out infinite;
-}
-.aid-mascot[data-mood='sleepy'] .m-loop {
-  animation: m-breath-deep 3.6s ease-in-out infinite;
-}
-.aid-mascot[data-mood='thinking'] .m-loop {
-  animation: m-sway 2.4s ease-in-out infinite;
-}
-.aid-mascot[data-mood='speaking'] .m-loop {
-  animation: m-bob 0.55s ease-in-out infinite alternate;
-}
-@keyframes m-breath {
-  0%,
-  100% {
-    transform: scale(1, 1);
-  }
-  50% {
-    transform: scale(1.008, 1.016);
-  }
-}
-@keyframes m-breath-deep {
-  0%,
-  100% {
-    transform: scale(1, 1);
-  }
-  50% {
-    transform: scale(1.02, 0.975);
-  }
-}
-@keyframes m-sway {
-  0%,
-  100% {
-    transform: rotate(-1.5deg);
-  }
-  50% {
-    transform: rotate(1.5deg);
-  }
-}
-@keyframes m-bob {
+@keyframes aid-finish-pop {
   from {
-    transform: translateY(0) scale(1, 1);
+    transform: scale(0.6);
+    opacity: 0;
   }
   to {
-    transform: translateY(-3px) scale(0.99, 1.02);
-  }
-}
-@keyframes m-spin {
-  0% {
-    transform: scale(var(--spark-s)) rotate(0deg);
-  }
-  60%,
-  100% {
-    transform: scale(var(--spark-s)) rotate(90deg);
-  }
-}
-@keyframes m-spark-pulse {
-  from {
-    transform: scale(0.92);
-  }
-  to {
-    transform: scale(1.1);
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
-/* Короткие движения (Mascot.tsx, MOVE_MS). Внутри плитки: прыжок невысокий */
-.aid-mascot[data-move='hop'] .m-move {
-  animation: m-hop 0.7s cubic-bezier(0.3, 0.7, 0.4, 1);
-}
-.aid-mascot[data-move='shake'] .m-move {
-  animation: m-shake 0.62s ease-in-out;
-}
-.aid-mascot[data-move='lean'] .m-move {
-  animation: m-lean 0.9s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.aid-mascot[data-move='settle'] .m-move {
-  animation: m-settle 0.9s ease-in-out;
-}
-@keyframes m-hop {
-  0% {
-    transform: translateY(0) scale(1, 1);
-  }
-  18% {
-    transform: translateY(0) scale(1.05, 0.93);
-  }
-  45% {
-    transform: translateY(-14px) scale(0.97, 1.05);
-  }
-  72% {
-    transform: translateY(0) scale(1.05, 0.95);
-  }
-  86% {
-    transform: translateY(-2px) scale(0.99, 1.02);
-  }
-  100% {
-    transform: translateY(0) scale(1, 1);
-  }
-}
-@keyframes m-shake {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  15% {
-    transform: rotate(-6deg);
-  }
-  35% {
-    transform: rotate(5deg);
-  }
-  55% {
-    transform: rotate(-4deg);
-  }
-  75% {
-    transform: rotate(2deg);
-  }
-}
-@keyframes m-lean {
-  0%,
-  100% {
-    transform: rotate(0) translateX(0);
-  }
-  40%,
-  60% {
-    transform: rotate(-6deg) translateX(-4px);
-  }
-}
-@keyframes m-settle {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  30% {
-    transform: rotate(3deg);
-  }
-  65% {
-    transform: rotate(-2deg);
-  }
-}
-
-/* Без движения: лист эмоций и prefers-reduced-motion. Формы глаз остаются */
-.aid-mascot[data-still] *,
-.aid-mascot[data-still] {
-  animation: none !important;
-  transition: none !important;
-}
 @media (prefers-reduced-motion: reduce) {
-  .aid-mascot *,
-  .aid-mascot {
-    animation: none !important;
-    transition: none !important;
-  }
-  .aid-mascot .m-gaze {
-    --gx: 0px;
-    --gy: 0px;
+  .aid-finish-bar,
+  .aid-finish-pop {
+    animation: none;
   }
 }

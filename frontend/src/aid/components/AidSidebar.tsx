@@ -1,7 +1,6 @@
-// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: живой маскот 28 px
+// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 32 px
 // в круглой кнопке 48 px, ведёт к списку встреч (вкладка одна, отдельного пункта
-// «Встречи» нет). Маскот моргает, смотрит за курсором и отзывается на запись
-// (mascot-mood.ts). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
+// «Встречи» нет). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
 // точкой записи: путь к «Остановить». Внизу «Настройки» (выбранный раздел тёмно-серой
 // таблеткой, --nav-active), «Локально» и переключатель темы таблеткой.
 //
@@ -14,7 +13,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { GearSix } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
-import { Mascot } from './Mascot';
+import { BRAND_MARK_SRC } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';
 import { Skeleton } from './ui/skeleton';
 import { markTitlebarOverlay } from '@/aid/lib/window-theme';
@@ -25,7 +24,6 @@ import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
-import { useAppMascotMood } from '@/aid/lib/mascot-mood';
 
 type NavItem = { label: string; href: string; icon: typeof GearSix; match: (p: string) => boolean };
 
@@ -77,10 +75,9 @@ function RecordingLink({ pathname }: { pathname: string }) {
   );
 }
 
-/** Знак ShadeNotes: живой маскот, ведёт к списку встреч (и с экрана записи, и со встречи). */
+/** Знак ShadeNotes: логотип, ведёт к списку встреч (и с экрана записи, и со встречи). */
 function BrandLink() {
   const c = useRecordingControls();
-  const { mood, pulse } = useAppMascotMood();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -90,7 +87,8 @@ function BrandLink() {
           onClick={() => c.setView('list')}
           className={cn(SIDEBAR_BUTTON, 'hover:bg-muted')}
         >
-          <Mascot mood={mood} pulse={pulse} size={28} followCursor details={false} />
+          {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
+          <img src={BRAND_MARK_SRC} width={32} height={32} alt="" draggable={false} className="size-8 rounded-[9px]" />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{t('navMeetings')}</TooltipContent>

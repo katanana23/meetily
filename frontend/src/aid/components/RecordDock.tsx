@@ -6,7 +6,7 @@
 //   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
 //   стеклянной карточкой над капсулой;
 // - завершение: капсула со спиннером: «Слушаю последние секунды», «Сохраняю встречу»;
-// - запись не сохранена или не распознана: карточка с маскотом 160 px и крестиком;
+// - запись не сохранена или не распознана: карточка с крестиком;
 //   «Речь не распознана» плиткой Giants (роль «Не распознано»), остальное стеклом.
 // Смена состояния появляется из размытия (.aid-dock-in), только transform,
 // opacity и filter; prefers-reduced-motion их выключает.
@@ -28,13 +28,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { useRecordingOutcome, type DiscardNotice, type LiveSpeech } from '@/aid/lib/recording-outcome';
-import { noSpeechYet } from '@/aid/lib/mascot-mood';
-import { Mascot } from '@/aid/components/Mascot';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { LANGUAGES } from '@/constants/languages';
+
+/** Через сколько секунд без единой осмысленной реплики показать «Не слышу речи». */
+export const NO_SPEECH_HINT_SEC = 20;
 
 const LEVEL_BARS = 9;
 
@@ -154,8 +155,6 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
       className="flex w-full min-w-0 items-center gap-4"
     >
-      {/* Маскот: «Тишина» и «Пара фраз» сонный, «Не распознано» ошибка с тряской */}
-      <Mascot mood={notice.verdict === 'unrecognized' ? 'error' : 'sleepy'} size={144} bare className={cn('shrink-0', notice.verdict === 'unrecognized' ? 'text-on-role [--m-hole:#FFFFFF]' : 'text-foreground')} />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
         <div className="min-w-0">
           <p className="text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>
@@ -226,8 +225,9 @@ export function RecordDock() {
   };
   // Правило экрана записи: ложные срабатывания детектора на шум без осмысленного
   // текста речью не считаются
-  const showSpeechHint = state === 'recording' && noSpeechYet(c, live);
-  // Экран завершения с маскотом уже на месте (главная, вид записи): капсула его не повторяет
+  const showSpeechHint =
+    state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
+  // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
   const onFinishingScreen =
     state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
   const unrecognized = state === 'notice' && notice?.verdict === 'unrecognized';

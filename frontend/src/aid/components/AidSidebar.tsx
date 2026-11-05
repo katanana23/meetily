@@ -1,7 +1,8 @@
 // Сайдбар ShadeNotes: узкая плитка 72 px. Только иконки Phosphor fill в круглых
-// кнопках 48 px с подсказками; выбранный раздел Mikado с градиентом (роль «выделение»). Пока идёт
-// запись, а человек ушёл с главной, ниже кнопка Risd с точкой записи: путь к
-// «Остановить». Внизу приватность, знак ShadeNotes и переключатель темы таблеткой.
+// кнопках 48 px с подсказками; выбранный раздел тёмно-серой таблеткой с белой
+// иконкой (--nav-active). Пока идёт запись, а человек ушёл с главной, ниже кнопка
+// с красной точкой записи: путь к «Остановить». Внизу настройки, приватность, знак
+// ShadeNotes и переключатель темы таблеткой.
 //
 // Кнопки окна macOS (titleBarStyle Overlay, trafficLightPosition x 18, y 22 в
 // tauri.conf.json) стоят в верхней части этой плитки: плитка начинается с x 8,
@@ -25,16 +26,40 @@ import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 
-const NAV = [
-  { label: t('navMeetings'), href: '/', icon: Notebook, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
-  { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p: string) => p.startsWith('/settings') },
-];
+type NavItem = { label: string; href: string; icon: typeof Notebook; match: (p: string) => boolean };
+
+const MEETINGS: NavItem = { label: t('navMeetings'), href: '/', icon: Notebook, match: (p) => p === '/' || p.startsWith('/meeting-details') };
+const SETTINGS: NavItem = { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p) => p.startsWith('/settings') };
+
+/** Раздел сайдбара: выбранный тёмно-серой таблеткой, остальные серой иконкой. */
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = item.match(pathname);
+  const Icon = item.icon;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href={item.href}
+          aria-label={item.label}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            SIDEBAR_BUTTON,
+            active ? 'bg-nav-active text-nav-active-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          )}
+        >
+          <Icon className="size-6" aria-hidden />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** Круглая кнопка сайдбара 48 px. */
 export const SIDEBAR_BUTTON =
   'flex size-12 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-/** Запись идёт, а пользователь ушёл с главной: кнопка Risd с точкой записи ведёт к «Остановить». */
+/** Запись идёт, а пользователь ушёл с главной: кнопка с красной точкой записи ведёт к «Остановить». */
 function RecordingLink({ pathname }: { pathname: string }) {
   const rec = useRecordingState();
   if (!rec.isRecording || pathname === '/') return null;
@@ -43,8 +68,8 @@ function RecordingLink({ pathname }: { pathname: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-role aid-role-risd')}>
-          <span className={cn('size-3 rounded-full bg-on-role', !rec.isPaused && 'aid-dock-dot')} aria-hidden />
+        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'bg-muted hover:bg-input')}>
+          <span className={cn('size-3 rounded-full', rec.isPaused ? 'bg-foreground/40' : 'aid-dock-dot aid-record-dot')} aria-hidden />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
@@ -64,32 +89,15 @@ export function AidSidebar() {
       <div data-tauri-drag-region className="hidden h-9 w-full shrink-0 [.aid-titlebar-overlay_&]:block" />
 
       <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Основная навигация">
-        {NAV.map((item) => {
-          const active = item.match(pathname);
-          const Icon = item.icon;
-          return (
-            <Tooltip key={item.href}>
-              <TooltipTrigger asChild>
-                <Link
-                  href={item.href}
-                  aria-label={item.label}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    SIDEBAR_BUTTON,
-                    active ? 'aid-primary-fill text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <Icon className="size-6" aria-hidden />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">{item.label}</TooltipContent>
-            </Tooltip>
-          );
-        })}
+        <NavLink item={MEETINGS} pathname={pathname} />
         <RecordingLink pathname={pathname} />
+        {/* Настройки внизу, над приватностью */}
+        <div className="mt-auto">
+          <NavLink item={SETTINGS} pathname={pathname} />
+        </div>
       </nav>
 
-      <div className="flex flex-col items-center gap-3">
+      <div className="mt-3 flex flex-col items-center gap-3">
         {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон знака */}
         {privacyLoading ? <Skeleton className="size-12 rounded-full" /> : <PrivacyChip privacy={privacy} compact />}
         <span className="flex size-12 items-center justify-center" title={t('appName')}>

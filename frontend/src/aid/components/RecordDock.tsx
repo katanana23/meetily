@@ -1,16 +1,16 @@
-// Плитка записи: полоса во всю ширину колонки страницы под плиткой контента,
-// на всех страницах. Это единственная большая цветная плитка на экране, и только
-// пока идёт запись.
+// Запись: плавает внизу по центру поверх контента на всех страницах.
 // Состояния:
-// - покой: нейтральная плитка; кнопка «Записать» Mikado с градиентом таблеткой 56 px и подсказка ⌘⇧R;
-// - запись: вся плитка Risd (роль «идёт запись»): надзаголовок «Идёт запись»,
-//   таймер 32/36, уровень речи, подсказка «Не слышу речи» внутри, пауза и стоп
-//   таблетками (стоп красный: красный только у стопа и удаления);
-// - завершение: «Завершаем запись» со спиннером;
-// - запись не сохранена или не распознана: строка-карточка с крестиком; «Речь не
-//   распознана» плиткой Giants (роль «Не распознано»), остальное нейтрально.
-// Переходы между состояниями: только transform и opacity, prefers-reduced-motion
-// их выключает (globals.css, .aid-dock-*).
+// - покой: круглая кнопка Mikado 72 px с микрофоном, от неё расходятся две мягкие
+//   волны; сочетание клавиш в подсказке;
+// - запись: стеклянная капсула (.aid-glass): красная точка с кольцом на речь,
+//   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
+//   стеклянной карточкой над капсулой;
+// - завершение: капсула «Завершаем запись» со спиннером;
+// - запись не сохранена или не распознана: карточка с крестиком; «Речь не
+//   распознана» плиткой Giants (роль «Не распознано»), остальное стеклом.
+// Смена состояния появляется из размытия (.aid-dock-in), только transform,
+// opacity и filter; prefers-reduced-motion их выключает.
+// Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
 //
 // Уровня звука во время записи ядро не отдаёт (audio-levels шлёт синусоиду, только
 // для проверки звука). Поэтому «уровень» здесь честный уровень речи: полосы за
@@ -42,9 +42,9 @@ const LEVEL_BARS = 9;
 /** Точка записи с кольцом: вспышка на каждый сигнал речи (ключ меняется, анимация начинается заново). */
 function ActivityDot({ pulse, paused }: { pulse: number; paused: boolean }) {
   return (
-    <span className="relative flex size-6 shrink-0 items-center justify-center" aria-hidden>
+    <span className="relative flex size-8 shrink-0 items-center justify-center" aria-hidden>
       {!paused && pulse > 0 && <span key={pulse} className="aid-dock-speech absolute inset-0 rounded-full border-2 border-record" />}
-      <span className={cn('size-3 rounded-full', paused ? 'bg-on-role/40' : 'aid-dock-dot aid-record-dot')} />
+      <span className={cn('size-3 rounded-full', paused ? 'bg-foreground/40' : 'aid-dock-dot aid-record-dot')} />
     </span>
   );
 }
@@ -61,11 +61,11 @@ function SpeechLevel({ live, duration, paused }: { live: LiveSpeech; duration: n
     return Array.from({ length: LEVEL_BARS }, (_, i) => Math.min(counts.get(now - (LEVEL_BARS - 1) + i) ?? 0, 2) / 2);
   }, [live.speechTimes, now]);
   return (
-    <span className="flex h-9 items-end gap-1" aria-hidden>
+    <span className="flex h-7 items-end gap-[3px] px-1" aria-hidden>
       {bars.map((v, i) => (
         <span
           key={i}
-          className="aid-level-bar h-full w-1.5 rounded-full bg-on-role"
+          className="aid-level-bar h-full w-1 rounded-full bg-foreground"
           style={{ transform: `scaleY(${paused ? 0.12 : 0.18 + v * 0.82})`, opacity: v > 0 ? 1 : 0.35 }}
         />
       ))}
@@ -91,7 +91,7 @@ function SpeechHint({ heard }: { heard: boolean }) {
             {t('recognitionModel')}: {model} · {t('recognitionLanguage')}: {language}
           </p>
         </div>
-        <Button asChild size="sm" className="shrink-0 bg-on-role/10 text-on-role hover:bg-on-role/20">
+        <Button asChild size="sm" variant="secondary" className="shrink-0">
           <Link href="/settings?tab=transcription">
             <Waveform />
             {t('openTranscriptionSettings')}
@@ -109,7 +109,7 @@ function SpeechHint({ heard }: { heard: boolean }) {
           {silenceCause(sound)}
         </p>
       </div>
-      <Button size="sm" className="shrink-0 bg-on-role/10 text-on-role hover:bg-on-role/20" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="secondary" className="shrink-0" onClick={() => setOpen(true)}>
         <SpeakerHigh />
         {t('soundCheck')}
       </Button>
@@ -178,6 +178,38 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
   );
 }
 
+/** Кнопка записи в покое: круг 72 px, сплошной Mikado, от него расходятся две волны. */
+function RecordButton() {
+  const c = useRecordingControls();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="group relative inline-flex size-[72px] shrink-0">
+          {!c.isStarting && (
+            <>
+              <span className="aid-record-wave pointer-events-none absolute inset-0 rounded-full" aria-hidden />
+              <span className="aid-record-wave aid-record-wave-late pointer-events-none absolute inset-0 rounded-full" aria-hidden />
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => void c.startAnywhere()}
+            disabled={c.isStarting}
+            aria-label={t('startRecording')}
+            aria-keyshortcuts="Meta+Shift+R Control+Shift+R"
+            className="aid-record-button relative flex size-full items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-95 disabled:opacity-80"
+          >
+            {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-7" aria-hidden />}
+          </button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {t('startRecording')} · {c.hotkey} {c.hotkeyScope}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function RecordDock() {
   const c = useRecordingControls();
   const { live, notice } = useRecordingOutcome();
@@ -193,102 +225,82 @@ export function RecordDock() {
   // текста речью не считаются
   const showSpeechHint =
     state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
-  const role = state === 'recording' ? 'aid-role aid-role-risd' : state === 'notice' && notice?.verdict === 'unrecognized' ? 'aid-role aid-role-giants' : 'bg-card';
+  const unrecognized = state === 'notice' && notice?.verdict === 'unrecognized';
 
   return (
     <section
       aria-label={t('recordingTile')}
-      className={cn('flex min-h-[var(--dock-height)] shrink-0 items-center rounded-tile px-5 py-3 transition-colors', role)}
+      className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex flex-col items-center gap-2 px-4"
     >
-      <div key={state} className="aid-dock-in flex w-full min-w-0 items-center gap-4">
-        {state === 'idle' && (
-          <div className="flex w-full items-center justify-center gap-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="main"
-                  className="min-w-[180px] text-base font-semibold"
-                  onClick={() => void c.startAnywhere()}
-                  disabled={c.isStarting}
-                  aria-keyshortcuts="Meta+Shift+R Control+Shift+R"
-                >
-                  {c.isStarting ? <Spinner tone="inherit" /> : <Microphone />}
-                  {t('record')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {t('startRecording')} · {c.hotkey} {c.hotkeyScope}
-              </TooltipContent>
-            </Tooltip>
-            <span className="text-sm text-muted-foreground">
-              <kbd className="font-sans font-medium text-foreground">{c.hotkey}</kbd> {c.hotkeyScope}
-            </span>
-          </div>
-        )}
+      {showSpeechHint && (
+        <div key="hint" className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
+          <SpeechHint heard={live.vadSegments > 0} />
+        </div>
+      )}
+
+      <div key={state} className="aid-dock-in pointer-events-auto flex max-w-full justify-center">
+        {state === 'idle' && <RecordButton />}
 
         {state === 'recording' && (
-          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="flex w-full min-w-0 items-center gap-5">
+          <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-glass relative flex items-center gap-2 rounded-full p-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={openRecording}
                   aria-label={`${t('openRecording')}, ${formatTimer(c.duration)}`}
-                  className="-my-1 -ml-2 flex shrink-0 items-center gap-3 rounded-nested px-2 py-1 text-left transition-colors hover:bg-on-role/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-14 shrink-0 items-center gap-2 rounded-full pl-3 pr-4 transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ActivityDot pulse={live.vadSegments + live.textSegments} paused={c.isPaused} />
-                  <span className="flex flex-col">
-                    {/* Надзаголовок и крупное значение */}
-                    <span className="text-xs font-semibold uppercase tracking-[0.06em]">{c.isPaused ? t('paused') : t('recording')}</span>
-                    <span className="tabular text-[32px] font-bold leading-9 tracking-tight">{formatTimer(c.duration)}</span>
-                  </span>
+                  <span className="tabular text-2xl font-bold tracking-tight">{formatTimer(c.duration)}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('openRecording')}</TooltipContent>
+              <TooltipContent side="top">{c.isPaused ? t('paused') : t('openRecording')}</TooltipContent>
             </Tooltip>
 
             <SpeechLevel live={live} duration={c.duration} paused={c.isPaused} />
 
-            <div className="min-w-0 flex-1">{showSpeechHint && <SpeechHint heard={live.vadSegments > 0} />}</div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="main"
-                    className="bg-on-role/10 px-5 text-on-role hover:bg-on-role/20"
-                    onClick={() => void c.togglePause()}
-                    disabled={c.busy !== null}
-                  >
-                    {c.isPaused ? <Play /> : <Pause />}
-                    {c.isPaused ? t('resumeRecording') : t('pauseRecording')}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">{c.isPaused ? t('resumeRecording') : t('pauseRecording')}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="main" className="bg-white px-6 text-record hover:bg-white/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
-                    {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
-                    {t('stopRecording')}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {t('stopRecording')} · {c.hotkey} {c.hotkeyScope}
-                </TooltipContent>
-              </Tooltip>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="aid-btn-icon size-14 bg-foreground/[0.06] hover:bg-foreground/[0.12] [&_svg]:size-6"
+                  onClick={() => void c.togglePause()}
+                  disabled={c.busy !== null}
+                  aria-label={c.isPaused ? t('resumeRecording') : t('pauseRecording')}
+                >
+                  {c.isPaused ? <Play /> : <Pause />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{c.isPaused ? t('resumeRecording') : t('pauseRecording')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="main" className="bg-record px-6 text-white hover:bg-record/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                  {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
+                  {t('stopRecording')}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {t('stopRecording')} · {c.hotkey} {c.hotkeyScope}
+              </TooltipContent>
+            </Tooltip>
           </div>
         )}
 
         {state === 'finishing' && (
-          <div role="status" aria-live="polite" className="flex w-full items-center justify-center gap-3 text-[15px] font-medium">
+          <div role="status" aria-live="polite" className="aid-glass relative flex h-[72px] items-center gap-3 rounded-full px-7 text-[15px] font-medium">
             <Spinner />
             {c.phase === 'opening' ? t('savedShort') : t('finishingShort')}
           </div>
         )}
 
-        {state === 'notice' && notice && <NoticeRow notice={notice} />}
+        {state === 'notice' && notice && (
+          <div className={cn('relative w-[min(600px,calc(100vw-8rem))] rounded-tile p-4 pl-5', unrecognized ? 'aid-role aid-role-giants shadow-lg' : 'aid-glass')}>
+            <NoticeRow notice={notice} />
+          </div>
+        )}
       </div>
     </section>
   );

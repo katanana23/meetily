@@ -11,8 +11,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Главное действие: Mikado с градиентом (.aid-primary-fill), текст #111
-        default: 'aid-primary-fill text-primary-foreground',
+        // Главное действие и выбор: Mikado, текст #111 (11,8:1)
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         // Вторичная: вложенная поверхность плитки, без рамки
         outline: 'bg-muted text-foreground hover:bg-input',

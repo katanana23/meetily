@@ -15,13 +15,14 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
   <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+    <DialogPrimitive.Overlay className="aid-dialog-overlay fixed inset-0 z-50" />
     <DialogPrimitive.Content
       ref={ref}
       // data-aid: окно Aid, мост для оригинальных компонентов его не трогает
       data-aid=""
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-tile bg-card p-6 text-card-foreground shadow-xl focus-visible:outline-none',
+        // По центру через inset и m-auto, а не translate: появление анимирует transform
+        'aid-glass aid-glass-pop fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-tile p-6 text-card-foreground focus-visible:outline-none',
         className,
       )}
       {...props}

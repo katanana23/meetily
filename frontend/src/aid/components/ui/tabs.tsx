@@ -1,4 +1,4 @@
-// shadcn/ui Tabs: таблетки высотой 48 px; выбранная Risd (роль «выделение»).
+// shadcn/ui Tabs: таблетки высотой 48 px; выбранная Mikado (роль «выделение»).
 'use client';
 
 import * as React from 'react';

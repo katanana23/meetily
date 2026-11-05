@@ -1,6 +1,6 @@
 // Сайдбар ShadeNotes: узкая плитка 72 px. Только иконки Phosphor fill в круглых
-// кнопках 48 px с подсказками; выбранный раздел Risd (роль «выделение»). Пока идёт
-// запись, а человек ушёл с главной, ниже кнопка Mikado с точкой записи: путь к
+// кнопках 48 px с подсказками; выбранный раздел Mikado с градиентом (роль «выделение»). Пока идёт
+// запись, а человек ушёл с главной, ниже кнопка Risd с точкой записи: путь к
 // «Остановить». Внизу приватность, знак ShadeNotes и переключатель темы таблеткой.
 //
 // Кнопки окна macOS (titleBarStyle Overlay, trafficLightPosition x 18, y 22 в
@@ -34,7 +34,7 @@ const NAV = [
 export const SIDEBAR_BUTTON =
   'flex size-12 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-/** Запись идёт, а пользователь ушёл с главной: кнопка Mikado с точкой записи ведёт к «Остановить». */
+/** Запись идёт, а пользователь ушёл с главной: кнопка Risd с точкой записи ведёт к «Остановить». */
 function RecordingLink({ pathname }: { pathname: string }) {
   const rec = useRecordingState();
   if (!rec.isRecording || pathname === '/') return null;
@@ -43,7 +43,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-role aid-role-mikado')}>
+        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-role aid-role-risd')}>
           <span className={cn('size-3 rounded-full bg-on-role', !rec.isPaused && 'aid-dock-dot')} aria-hidden />
         </Link>
       </TooltipTrigger>
@@ -76,7 +76,7 @@ export function AidSidebar() {
                   aria-current={active ? 'page' : undefined}
                   className={cn(
                     SIDEBAR_BUTTON,
-                    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    active ? 'aid-primary-fill text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
                   <Icon className="size-6" aria-hidden />

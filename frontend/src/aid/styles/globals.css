@@ -2,13 +2,13 @@
  * Токены ShadeNotes: «бенто с ролями цвета». Нейтральные плитки с крупным
  * радиусом и зазором 8 px; цвет только с ролью, на экране не больше двух
  * цветных плиток одновременно:
- *   Risd    #255BEC  главное действие и выделение;
- *   Mikado  #F6C74D  идёт запись (живая плитка записи);
+ *   Mikado  #F6C74D  главное действие и выделение (на кнопках с градиентом);
+ *   Risd    #255BEC  идёт запись (живая плитка записи);
  *   Indigo  #B49DF8  итоги и всё, что сделал ИИ;
  *   Giants  #EA6E38  «Не распознано» и предупреждения.
  * Красный только у «Остановить» и удаления. Текст на Mikado, Indigo и Giants
  * #111 (на Giants белый даёт 3,1:1, ниже AA), на Risd белый (5,6:1).
- * Без градиентов, стекла и свечений.
+ * Градиент только у заливки главного действия (.aid-primary-fill), без стекла и свечений.
  * Шрифт SF Pro: системный шрифт macOS (-apple-system выбирает SF Pro Text или
  * Display по размеру). В приложение он не встраивается (лицензия Apple), на Mac
  * он и так есть. Запасной для Windows и Linux Inter из next/font (--font-inter).
@@ -34,11 +34,12 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 7%;
 
-    /* Главное действие и выделение: Risd #255BEC, белый текст 5,6:1.
-       --primary-ink: Risd для текста и иконок на нейтральном фоне */
-    --primary: 224 84% 54%;
-    --primary-foreground: 0 0% 100%;
-    --primary-ink: 224 84% 54%;
+    /* Главное действие и выделение: Mikado #F6C74D, текст #111 (11,9:1).
+       --primary-ink: тёмный янтарь #8A6100 для текста и иконок на нейтральном
+       фоне (6:1 на белой плитке), сам Mikado на белом даёт только 1,6:1 */
+    --primary: 43 91% 63%;
+    --primary-foreground: 0 0% 7%;
+    --primary-ink: 42 100% 27%;
 
     /* Роли цвета. Заливки одинаковы в обеих темах; *-ink для текста и иконок
        роли на нейтральной плитке (в светлой теме темнее ради контраста AA) */
@@ -69,7 +70,7 @@
     --border: 60 5% 89%;
     /* Ступень темнее вложенной: наведение на вложенном */
     --input: 60 5% 90%;
-    --ring: 224 84% 54%;
+    --ring: 42 100% 27%;
 
     --loader: 0 0% 40%;
     --skeleton: 60 6% 93%;
@@ -102,11 +103,11 @@
     --popover: 0 0% 13%;
     --popover-foreground: 0 0% 100%;
 
-    /* Risd как заливка тот же; как текст и иконка на тёмной плитке светлее
-       (#7192F4, 6,7:1 на плитке), сам Risd на чёрной плитке даёт только 3,6:1 */
-    --primary: 224 84% 54%;
-    --primary-foreground: 0 0% 100%;
-    --primary-ink: 225 86% 70%;
+    /* Mikado как заливка тот же; как текст и иконка на чёрной плитке сам
+       Mikado (12:1) */
+    --primary: 43 91% 63%;
+    --primary-foreground: 0 0% 7%;
+    --primary-ink: 43 91% 63%;
 
     --mikado-ink: 43 91% 63%;
     --indigo-ink: 255 89% 79%;
@@ -126,7 +127,7 @@
 
     --border: 0 0% 14%;
     --input: 0 0% 15%;
-    --ring: 225 86% 70%;
+    --ring: 43 91% 63%;
 
     --loader: 0 0% 64%;
     --skeleton: 0 0% 12%;
@@ -197,18 +198,36 @@
 :root .aid-toaster [data-sonner-toast][data-styled='true'] {
   padding: 16px 44px 16px 16px;
   align-items: flex-start;
+  /* Кнопка действия переносится под текст: рядом с текстом она сжимала его в узкий столбик */
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 12px;
   font-size: 14px;
   box-shadow: 0 8px 24px hsl(0 0% 0% / 0.16);
 }
 
+/* Текст занимает всю строку справа от иконки 20 px (зазор 12 px) */
+.aid-toaster [data-sonner-toast][data-styled='true'] [data-content] {
+  flex: 1 1 calc(100% - 32px);
+  min-width: 0;
+}
+
+/* Заголовок одной строкой, описание не длиннее трёх строк */
 .aid-toaster [data-sonner-toast] [data-title] {
   font-weight: 600;
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .aid-toaster [data-sonner-toast] [data-description] {
   color: hsl(var(--muted-foreground));
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
@@ -259,6 +278,8 @@
 
 /* :root и data-styled: правило sonner для кнопки действия специфичнее нашего */
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-button] {
+  /* Под текстом, по его левому краю */
+  margin-left: 32px;
   height: 32px;
   border-radius: 9999px;
   padding: 0 12px;
@@ -481,6 +502,41 @@ html body[data-scroll-locked] {
 
 .aid-role-mikado {
   background: hsl(var(--mikado));
+}
+
+/* Идёт запись: плитка Risd, текст белый (5,6:1), приглушённый #E3EAFD (4,6:1) */
+.aid-role-risd {
+  background: hsl(var(--risd));
+  --on-role: 0 0% 100%;
+  --muted-foreground: 225 86% 94%;
+}
+
+/* Заливка главного действия: Mikado с мягким бликом слева сверху и переходом
+   в янтарь справа. При наведении градиент сдвигается, при нажатии темнеет.
+   Текст #111: на самом светлом участке 16,7:1, на янтаре 8,9:1.
+   Если у кнопки свой фон (класс bg-…), градиент не включается. */
+.aid-primary-fill:not([class*='bg-']) {
+  background-color: hsl(var(--primary));
+  background-image:
+    radial-gradient(120% 160% at 0% 0%, hsl(48 100% 86%) 0%, hsl(48 100% 86% / 0) 46%),
+    linear-gradient(115deg, hsl(46 95% 68%) 0%, hsl(43 91% 63%) 45%, hsl(34 88% 58%) 100%);
+  background-size: 100% 100%, 200% 100%;
+  background-position: 0 0, 0% 0;
+  transition: background-position 0.5s cubic-bezier(0.22, 1, 0.36, 1), filter 0.15s ease;
+}
+
+.aid-primary-fill:not([class*='bg-']):hover {
+  background-position: 0 0, 100% 0;
+}
+
+.aid-primary-fill:not([class*='bg-']):active {
+  filter: brightness(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-primary-fill {
+    transition: none;
+  }
 }
 
 .aid-role-indigo {

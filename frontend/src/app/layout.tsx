@@ -35,6 +35,7 @@ import { RecordDock } from '@/aid/components/RecordDock'
 import { LaunchScreen } from '@/aid/components/LaunchScreen'
 import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
+import { InPlaceMeetingRouter } from '@/aid/lib/in-place-router'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
@@ -299,6 +300,8 @@ export default function RootLayout({
         {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
         {isAidUI && <LaunchScreen />}
         <script dangerouslySetInnerHTML={{ __html: windowShowScript }} />
+        {/* Aid: встреча открывается на главной, без перехода между страницами */}
+        <InPlaceMeetingRouter enabled={isAidUI}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -367,6 +370,7 @@ export default function RootLayout({
             </TranscriptProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
+        </InPlaceMeetingRouter>
 
         {isAidUI ? (
           <>

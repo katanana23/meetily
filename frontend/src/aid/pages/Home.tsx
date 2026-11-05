@@ -3,7 +3,8 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
 import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning } from '@phosphor-icons/react';
@@ -25,6 +26,7 @@ import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeti
 import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
+import MeetingDetails from '@/aid/pages/MeetingDetails';
 import { type StartBlocker } from '@/aid/lib/recording';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { isDiscarded, isKept, isUnrecognized, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
@@ -290,7 +292,7 @@ function TrashPanel() {
 
 type Filter = 'all' | 'summary' | 'unrecognized' | 'trash';
 
-/** Чипы-фильтры таблетками: выбранный Risd (роль «выделение»), счётчик серым. */
+/** Чипы-фильтры таблетками: выбранный Mikado (роль «выделение»), счётчик серым. */
 function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f: Filter) => void; counts: Partial<Record<Filter, number>> }) {
   const items: Array<{ id: Filter; label: string }> = [
     { id: 'all', label: t('filterAll') },
@@ -665,21 +667,34 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
-export default function Home() {
+function HomeContent() {
   const rec = useRecordingControls();
+  // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
+  const meetingId = useSearchParams().get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
   const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
 
-  return showRecording ? (
-    <RecordingView
-      isPaused={rec.isPaused}
-      phase={rec.phase}
-      duration={rec.duration}
-      live={rec.live}
-      onBack={() => rec.setView('list')}
-      onStop={rec.stop}
-    />
-  ) : (
-    <HomeView onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />
+  if (showRecording) {
+    return (
+      <RecordingView
+        isPaused={rec.isPaused}
+        phase={rec.phase}
+        duration={rec.duration}
+        live={rec.live}
+        onBack={() => rec.setView('list')}
+        onStop={rec.stop}
+      />
+    );
+  }
+  if (meetingId) return <MeetingDetails key={meetingId} />;
+  return <HomeView onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
+}
+
+export default function Home() {
+  // useSearchParams в статической выгрузке требует границу Suspense
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   );
 }

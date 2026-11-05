@@ -2,8 +2,8 @@
 // на всех страницах. Это единственная большая цветная плитка на экране, и только
 // пока идёт запись.
 // Состояния:
-// - покой: нейтральная плитка; кнопка «Записать» Risd таблеткой 56 px и подсказка ⌘⇧R;
-// - запись: вся плитка Mikado (роль «идёт запись»): надзаголовок «Идёт запись»,
+// - покой: нейтральная плитка; кнопка «Записать» Mikado с градиентом таблеткой 56 px и подсказка ⌘⇧R;
+// - запись: вся плитка Risd (роль «идёт запись»): надзаголовок «Идёт запись»,
 //   таймер 32/36, уровень речи, подсказка «Не слышу речи» внутри, пауза и стоп
 //   таблетками (стоп красный: красный только у стопа и удаления);
 // - завершение: «Завершаем запись» со спиннером;
@@ -193,7 +193,7 @@ export function RecordDock() {
   // текста речью не считаются
   const showSpeechHint =
     state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
-  const role = state === 'recording' ? 'aid-role aid-role-mikado' : state === 'notice' && notice?.verdict === 'unrecognized' ? 'aid-role aid-role-giants' : 'bg-card';
+  const role = state === 'recording' ? 'aid-role aid-role-risd' : state === 'notice' && notice?.verdict === 'unrecognized' ? 'aid-role aid-role-giants' : 'bg-card';
 
   return (
     <section
@@ -268,7 +268,7 @@ export function RecordDock() {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="main" className="bg-record px-6 text-white hover:bg-record/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                  <Button size="main" className="bg-white px-6 text-record hover:bg-white/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
                     {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
                     {t('stopRecording')}
                   </Button>

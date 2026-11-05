@@ -3,10 +3,8 @@
 // и при фокусе с клавиатуры; те же действия есть в меню по правому клику.
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { guardNavigation, meetingHref, openMeeting } from '@/aid/lib/open-meeting';
+import { useState } from 'react';
+import { meetingHref, openMeeting } from '@/aid/lib/open-meeting';
 import {
   CaretRight,
   ChatText,
@@ -103,18 +101,7 @@ interface MeetingRowProps {
 }
 
 export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly, match }: MeetingRowProps) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // Встреча открывается: шеврон меняется на спиннер сразу после клика. Страница
-  // встречи может грузиться заметное время (в разработке Next её компилирует),
-  // и без отклика клик выглядел несработавшим. Если встреча так и не открылась,
-  // guardNavigation снимает спиннер (onFail); запасной сброс через 30 с.
-  const [opening, setOpening] = useState(false);
-  useEffect(() => {
-    if (!opening) return;
-    const timer = setTimeout(() => setOpening(false), 30_000);
-    return () => clearTimeout(timer);
-  }, [opening]);
   const d = meeting.details;
   const shown = shownTitle(meeting.title, d?.contentTitle);
   const kind = d?.status ?? 'unknown';
@@ -152,27 +139,23 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
           onClick={(e) => {
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             if ((e.target as HTMLElement).closest('a, button, input, [role="menuitem"]')) return;
-            setOpening(true);
-            openMeeting(router.push, meeting.id, () => setOpening(false));
+            openMeeting(meeting.id);
           }}
-          aria-busy={opening || undefined}
           className={cn(
             // Без вложенной карточки: строки разделены отступом, подложка только при наведении
             'group relative flex min-h-[64px] cursor-pointer select-none items-center gap-2 rounded-nested pr-3 transition-colors hover:bg-muted has-[:focus-visible]:bg-muted data-[state=open]:bg-muted',
-            opening && 'bg-muted',
           )}
         >
-          <Link
+          <a
             href={meetingHref(meeting.id)}
             // WebKit на macOS даёт тянуть ссылку: лёгкое движение при нажатии начинает
             // перетаскивание вместо клика (в Tauri его ещё перехватывает обработчик файлов)
             draggable={false}
             onClick={(e) => {
-              // Страховка: если переход внутри приложения не случится, откроем страницу напрямую
-              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
-                setOpening(true);
-                guardNavigation(meetingHref(meeting.id), () => setOpening(false));
-              }
+              // Встреча открывается на главной без перехода между страницами (open-meeting.ts)
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              openMeeting(meeting.id);
             }}
             className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-nested py-2 pl-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
@@ -198,7 +181,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
                 </span>
               )}
             </span>
-          </Link>
+          </a>
           {/* Только у строки под курсором или с фокусом от клавиатуры: после клика не залипают */}
           <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
             <IconAction label={t('rename')} ariaLabel={`${t('rename')}: ${shown}`} onClick={begin}>
@@ -208,12 +191,8 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               <Trash />
             </IconAction>
           </div>
-          {/* Шеврон: исключение из правила fill (CLAUDE.md); пока встреча открывается, спиннер */}
-          {opening ? (
-            <Spinner size={16} label={t('opening')} />
-          ) : (
-            <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          )}
+          {/* Шеврон: исключение из правила fill (CLAUDE.md) */}
+          <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </li>
       </ContextMenuTrigger>
       <ContextMenuContent>

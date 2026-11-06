@@ -1072,3 +1072,52 @@ html body[data-scroll-locked] {
     backdrop-filter: none;
   }
 }
+
+/* Поиск на главной (Home.tsx): круг 56 px вырастает влево в таблетку поля. Анимируется
+   ширина одного блока (кнопки справа на месте, растёт влево за счёт justify-end) */
+.aid-search {
+  width: 56px;
+  transition:
+    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease;
+}
+
+.aid-search:not(.is-open) {
+  cursor: pointer;
+}
+
+.aid-search.is-open {
+  width: min(320px, 32vw);
+}
+
+/* Фокус внутри поля: шапка срезала бы внешнюю обводку */
+.aid-search:focus-within {
+  box-shadow: inset 0 0 0 2px hsl(var(--ring));
+}
+
+/* Свёрнутый поиск с текстом подсвечен: список отфильтрован */
+.aid-search.has-query:not(.is-open) {
+  box-shadow: inset 0 0 0 2px hsl(var(--primary));
+}
+
+.aid-search-input,
+.aid-search-clear {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.aid-search.is-open .aid-search-input,
+.aid-search.is-open .aid-search-clear {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.08s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-search,
+  .aid-search-input,
+  .aid-search-clear {
+    transition: none;
+  }
+}

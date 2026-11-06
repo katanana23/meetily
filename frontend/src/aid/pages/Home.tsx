@@ -11,7 +11,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
@@ -436,9 +435,15 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
-  // Поиск кнопкой с лупой в шапке: по нажатию поле раскрывается на месте чипов
+  // Поиск кнопкой с лупой в шапке: по нажатию поле вырастает из неё влево
+  const inputRef = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    if (searchOpen) inputRef.current?.focus();
+  }, [searchOpen]);
   const closeSearch = () => {
+    // Снимаем фокус: иначе свёрнутая кнопка осталась бы с обводкой фокуса
+    inputRef.current?.blur();
     setSearchOpen(false);
     setQuery('');
   };
@@ -500,33 +505,73 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       : {};
 
   // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
-  // кнопками, ниже чипы-фильтры. Поиск раскрывается полем на месте чипов, Esc и крестик
-  // закрывают и очищают. Запись в капсуле внизу (RecordDock)
+  // кнопками, ниже чипы-фильтры. Поиск вырастает полем из лупы влево, чипы на месте;
+  // Esc и крестик сворачивают и очищают, пустое поле сворачивается при потере фокуса. Запись в капсуле внизу (RecordDock)
   const header = (
     <>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('homeSubtitle')}</p>
+        {/* Подпись в одну строку: когда поле поиска растёт, она обрезается, а не переносится (без скачка) */}
+        <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {showSearch && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* Лупа контуром (bold): залитая рисуется сплошным диском */}
-              <Button
-                variant="secondary"
-                size="icon"
-                className={cn('size-14 [&_svg]:size-6', searchOpen && 'bg-nav-active text-foreground')}
-                onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
-                aria-label={t('searchMeetings')}
-                aria-expanded={searchOpen}
-              >
-                <MagnifyingGlass weight="bold" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t('searchMeetings')}</TooltipContent>
-          </Tooltip>
+          // Поиск вырастает из лупы влево в той же строке (как в Finder и Музыке на macOS):
+          // круг 56 px растягивается в таблетку поля, чипы остаются на месте. Анимируется
+          // ширина одного блока, остальное не двигается. Обводка фокуса внутри (inset):
+          // снаружи её срезала бы шапка
+          <div
+            className={cn('aid-search relative h-14 rounded-full bg-secondary', searchOpen && 'is-open', query && 'has-query')}
+            onClick={() => !searchOpen && setSearchOpen(true)}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="absolute left-0 top-0 flex size-14 items-center justify-center rounded-full text-foreground focus-visible:outline-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (searchOpen) inputRef.current?.focus();
+                    else setSearchOpen(true);
+                  }}
+                  aria-label={t('searchMeetings')}
+                  aria-expanded={searchOpen}
+                  tabIndex={searchOpen ? -1 : 0}
+                >
+                  {/* Лупа контуром (bold): залитая рисуется сплошным диском */}
+                  <MagnifyingGlass weight="bold" className="size-6" />
+                </button>
+              </TooltipTrigger>
+              {!searchOpen && <TooltipContent side="bottom">{t('searchMeetings')}</TooltipContent>}
+            </Tooltip>
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
+              onBlur={() => !query && setSearchOpen(false)}
+              placeholder={t('searchShort')}
+              aria-label={t('searchMeetings')}
+              tabIndex={searchOpen ? 0 : -1}
+              disabled={state.kind !== 'ready'}
+              className="aid-search-input h-full w-full rounded-full bg-transparent pl-14 pr-12 text-[15px] outline-none placeholder:text-muted-foreground"
+            />
+            {/* Крестик: X в начертании bold (залитый нарисован квадратом) */}
+            <button
+              type="button"
+              className="aid-search-clear absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeSearch();
+              }}
+              aria-label={t('close')}
+              tabIndex={searchOpen ? 0 : -1}
+            >
+              <X weight="bold" className="size-4" />
+            </button>
+          </div>
         )}
         {betaFeatures.importAndRetranscribe && (
           <Tooltip>
@@ -542,34 +587,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     </div>
     {state.kind !== 'error' && (
       <div className="mt-5">
-        {searchOpen && showSearch ? (
-          <div className="aid-dock-in relative">
-            <MagnifyingGlass weight="bold" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              type="search"
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
-              placeholder={t('searchMeetings')}
-              aria-label={t('searchMeetings')}
-              className="pl-12 pr-14"
-              disabled={state.kind !== 'ready'}
-            />
-            {/* Крестик: X в начертании bold (залитый нарисован квадратом) */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground [&_svg]:size-4"
-              onClick={closeSearch}
-              aria-label={t('close')}
-            >
-              <X weight="bold" />
-            </Button>
-          </div>
-        ) : (
-          <FilterChips value={filter} onChange={setFilter} counts={counts} />
-        )}
+        <FilterChips value={filter} onChange={setFilter} counts={counts} />
       </div>
     )}
     </>

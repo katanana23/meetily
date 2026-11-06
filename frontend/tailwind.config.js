@@ -37,8 +37,8 @@ module.exports = {
   				foreground: 'hsl(var(--nav-active-foreground, 0 0% 100%))'
   			},
   			mikado: {
-  				DEFAULT: 'hsl(var(--mikado, 43 91% 63%))',
-  				ink: 'hsl(var(--mikado-ink, 42 100% 27%))'
+  				DEFAULT: 'hsl(var(--mikado, 70 94% 73%))',
+  				ink: 'hsl(var(--mikado-ink, 72 100% 22%))'
   			},
   			indigo: {
   				DEFAULT: 'hsl(var(--indigo, 255 89% 79%))',

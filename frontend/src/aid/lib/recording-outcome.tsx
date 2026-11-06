@@ -213,6 +213,14 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [closeNotice, hold, sync],
   );
 
+  // Только в разработке: показать карточку итога по ?notice=no-speech|too-little|unrecognized,
+  // чтобы смотреть её без записи. В сборке не работает
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    const v = new URLSearchParams(window.location.search).get('notice');
+    if (v === 'no-speech' || v === 'too-little' || v === 'unrecognized') showNotice(v as DiscardNotice['verdict']);
+  }, [showNotice]);
+
   // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
   // раз, и очистить корзину от записей старше 7 дней
   useEffect(() => {

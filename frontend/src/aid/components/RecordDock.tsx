@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Microphone, Pause, Play, SpeakerHigh, Stop, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -153,26 +153,23 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onPointerLeave={() => hold('hover', false)}
       onFocus={() => hold('focus', true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-center gap-4"
+      className="flex w-full min-w-0 items-center gap-3"
     >
-      <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
-        <div className="min-w-0">
-          <p className="text-[15px] font-semibold">{t(COPY[notice.verdict].title)}</p>
-          <p className="text-sm text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
-        </div>
-        {notice.verdict !== 'too-little' && (
-          <Button
-            variant="outline"
-            className={cn(notice.verdict === 'unrecognized' && 'bg-black/10 text-on-role hover:bg-black/15')}
-            onClick={() => setSoundCheck(true)}
-          >
-            <SpeakerHigh />
-            {t('soundCheck')}
-          </Button>
-        )}
+      {/* Минимально: стеклянная строка, роль «Не распознано» только знаком Giants слева,
+          без цветной заливки карточки. Текст основным цветом темы, подпись серым */}
+      {notice.verdict === 'unrecognized' && <Warning className="size-6 shrink-0 text-giants-ink" aria-hidden />}
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
+        <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
       </div>
+      {notice.verdict !== 'too-little' && (
+        <Button variant="secondary" className="h-10 shrink-0 px-4 [&_svg]:size-5" onClick={() => setSoundCheck(true)}>
+          <SpeakerHigh />
+          {t('soundCheck')}
+        </Button>
+      )}
       {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
-      <Button variant="ghost" size="icon" className="shrink-0 self-start text-muted-foreground hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
+      <Button variant="ghost" size="icon" className="size-10 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
         <X weight="bold" />
       </Button>
       <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
@@ -230,7 +227,6 @@ export function RecordDock() {
   // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
   const onFinishingScreen =
     state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
-  const unrecognized = state === 'notice' && notice?.verdict === 'unrecognized';
 
   return (
     <section
@@ -308,7 +304,7 @@ export function RecordDock() {
         )}
 
         {state === 'notice' && notice && (
-          <div className={cn('relative w-[min(600px,calc(100vw-8rem))] rounded-tile p-4', unrecognized ? 'aid-role aid-role-giants shadow-lg' : 'aid-glass')}>
+          <div className="aid-glass aid-glass-dense relative w-[min(680px,calc(100vw-8rem))] rounded-full py-2 pl-5 pr-2">
             <NoticeRow notice={notice} />
           </div>
         )}

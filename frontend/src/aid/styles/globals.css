@@ -62,7 +62,8 @@
     --secondary-foreground: 0 0% 7%;
     /* Вложенная поверхность внутри плитки: наведение, поля, вторичные кнопки */
     --muted: 60 8% 95%;
-    --muted-foreground: 0 0% 40%;
+    /* Подписи: #4D4D4D, 8,4:1 на белой плитке (было #666, 5,7:1) ради читаемости мелкого текста */
+    --muted-foreground: 0 0% 30%;
 
     --accent: 60 8% 95%;
     --accent-foreground: 0 0% 7%;
@@ -132,7 +133,8 @@
     --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 100%;
     --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 64%;
+    /* Подписи: #B3B3B3, 9,8:1 на чёрной плитке (было #A3A3A3, 7,9:1) */
+    --muted-foreground: 0 0% 70%;
 
     --accent: 0 0% 10%;
     --accent-foreground: 0 0% 100%;
@@ -1161,4 +1163,10 @@ html body[data-scroll-locked] {
   .aid-page-in {
     animation: none;
   }
+}
+
+/* Плотное стекло для текста поверх списка (итог записи, RecordDock): почти непрозрачное,
+   чтобы строки под ним не просвечивали сквозь текст. Размытие остаётся по краю */
+.aid-glass.aid-glass-dense {
+  background: hsl(var(--popover) / 0.97);
 }

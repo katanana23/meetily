@@ -1,5 +1,5 @@
-// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 32 px
-// в круглой кнопке 48 px, ведёт к списку встреч (вкладка одна, отдельного пункта
+// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 48 px,
+// по 12 px от краёв, ведёт к списку встреч (вкладка одна, отдельного пункта
 // «Встречи» нет). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
 // точкой записи: путь к «Остановить». Внизу «Настройки» (выбранный раздел тёмно-серой
 // таблеткой, --nav-active), «Локально» и переключатель темы таблеткой.
@@ -85,10 +85,11 @@ function BrandLink() {
           href="/"
           aria-label={`${t('appName')}: ${t('navMeetings')}`}
           onClick={() => c.setView('list')}
-          className={cn(SIDEBAR_BUTTON, 'hover:bg-muted')}
+          // 48 px, как остальные кнопки сайдбара: по 12 px от краёв (72 px) и сверху; радиус 12 = 24 у сайдбара минус 12 (концентрично)
+          className="block size-12 overflow-hidden rounded-[12px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
-          <img src={BRAND_MARK_SRC} width={32} height={32} alt="" draggable={false} className="size-8 rounded-[9px]" />
+          <img src={BRAND_MARK_SRC} width={48} height={48} alt="" draggable={false} className="size-12" />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{t('navMeetings')}</TooltipContent>

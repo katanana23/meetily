@@ -8,10 +8,9 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning } from '@phosphor-icons/react';
+import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
-import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
@@ -324,12 +323,15 @@ function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f:
             aria-checked={active}
             onClick={() => onChange(id)}
             className={cn(
-              'flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-input',
+              // Рамка 2 px у всех чипов (у невыбранных прозрачная): при выборе размер не прыгает
+              'flex h-10 items-center gap-2 rounded-full border-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              // Выбранный фильтр: рамка Mikado 2 px и лёгкое стекло внутри (.aid-chip-on), без сплошной заливки:
+              // это выбор, а не главное действие
+              active ? 'aid-chip-on border-primary text-foreground' : 'border-transparent bg-muted text-foreground hover:bg-input',
             )}
           >
             {label}
-            {n !== undefined && <span className={cn('tabular', active ? 'text-primary-foreground' : 'text-muted-foreground')}>{n}</span>}
+            {n !== undefined && <span className={cn('tabular', 'text-muted-foreground')}>{n}</span>}
           </button>
         );
       })}
@@ -433,6 +435,18 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
+  // Поиск кнопкой с лупой в шапке: по нажатию поле выезжает влево, лупа становится крестиком
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    if (searchOpen) inputRef.current?.focus();
+  }, [searchOpen]);
+  const closeSearch = () => {
+    // Снимаем фокус: иначе свёрнутая кнопка осталась бы с обводкой фокуса
+    inputRef.current?.blur();
+    setSearchOpen(false);
+    setQuery('');
+  };
   const [filter, setFilter] = useState<Filter>('all');
 
   // Записи без единой реплики в общий список не попадают: либо раздел «Не распознано»
@@ -490,25 +504,71 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       ? { all: groups.main.length, summary: groups.main.filter((m) => m.details?.status === 'summary').length, unrecognized: groups.unrecognized.length }
       : {};
 
-  // Шапка плитки: заголовок 36/40 с подписью, импорт аудио иконкой, чипы-фильтры.
-  // Запись в плитке записи внизу (RecordDock)
+  // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
+  // кнопками, ниже чипы-фильтры. Поле поиска выезжает влево, лупа становится крестиком, чипы на месте;
+  // Esc и крестик сворачивают и очищают, пустое поле сворачивается при потере фокуса. Запись в капсуле внизу (RecordDock)
   const header = (
     <>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('homeSubtitle')}</p>
+        {/* Подпись в одну строку: когда поле поиска растёт, она обрезается, а не переносится (без скачка) */}
+        <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
       </div>
-      {betaFeatures.importAndRetranscribe && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="secondary" size="icon" className="size-14 [&_svg]:size-6" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
-              <UploadSimple />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t('importAudio')}</TooltipContent>
-        </Tooltip>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {showSearch && (
+          // Поиск: поле выезжает влево отдельной таблеткой, а сама кнопка остаётся на месте,
+          // и лупа в ней превращается в крестик «Закрыть поиск» (как в Finder и Музыке на macOS).
+          // Анимируется ширина поля, остальное не двигается. Обводка фокуса внутри поля:
+          // снаружи её срезала бы шапка
+          <>
+            <div className={cn('aid-search-field h-14 overflow-hidden rounded-full bg-secondary', searchOpen && 'is-open')}>
+              <input
+                ref={inputRef}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
+                onBlur={() => !query && setSearchOpen(false)}
+                placeholder={t('searchShort')}
+                aria-label={t('searchMeetings')}
+                tabIndex={searchOpen ? 0 : -1}
+                disabled={state.kind !== 'ready'}
+                className="h-full w-full bg-transparent px-5 text-[15px] outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className={cn('aid-search-toggle relative size-14 [&_svg]:size-6', searchOpen && 'is-open', query && !searchOpen && 'has-query')}
+                  // Не отдаём фокус при нажатии: иначе пустое поле свернётся раньше клика
+                  onMouseDown={(e) => searchOpen && e.preventDefault()}
+                  onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+                  aria-label={searchOpen ? t('closeSearch') : t('searchMeetings')}
+                  aria-expanded={searchOpen}
+                >
+                  {/* Лупа контуром (bold): залитая рисуется сплошным диском; X bold: залитый нарисован квадратом */}
+                  <MagnifyingGlass weight="bold" className="aid-search-icon-find absolute" />
+                  <X weight="bold" className="aid-search-icon-close absolute" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{searchOpen ? t('closeSearch') : t('searchMeetings')}</TooltipContent>
+            </Tooltip>
+          </>
+        )}
+        {betaFeatures.importAndRetranscribe && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="secondary" size="icon" className="size-14 [&_svg]:size-6" onClick={() => openImportDialog()} aria-label={t('importAudio')}>
+                <UploadSimple />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t('importAudio')}</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     </div>
     {state.kind !== 'error' && (
       <div className="mt-5">
@@ -535,7 +595,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       )}
 
       {state.kind === 'error' ? (
-        <Alert variant="destructive" className={blocker || startError ? 'mt-2' : ''}>
+        <Alert variant="destructive">
           <Warning />
           <div>
             <AlertTitle>{t('meetingsError')}</AlertTitle>
@@ -553,7 +613,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
         </Alert>
       ) : (
         <div className={blocker || startError ? 'mt-2' : ''}>
-          {/* Список прямо на плитке контента: поиск и строки встреч, без вложенных карточек.
+          {/* Список в той же плитке под шапкой: строки встреч без вложенных карточек.
               @container: от 1100 px ширины списка строки в две колонки */}
           <section aria-label={t('meetingsList')} className="@container">
           {filter === 'unrecognized' && state.kind === 'ready' && (
@@ -561,21 +621,6 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
           {filter === 'trash' && <TrashPanel />}
           {listFilter && (<>
-          {showSearch && (
-            <div className="relative mb-3">
-              {/* Лупа контуром (bold): залитая рисуется сплошным диском и выглядит грубо */}
-              <MagnifyingGlass weight="bold" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('searchMeetings')}
-                aria-label={t('searchMeetings')}
-                className="pl-12"
-                disabled={state.kind !== 'ready'}
-              />
-            </div>
-          )}
           {state.kind === 'loading' && (
             <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>
               {/* Та же геометрия, что у MeetingRow: иконка 20 px, две строки, шеврон; без скачка.

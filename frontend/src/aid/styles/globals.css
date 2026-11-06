@@ -410,6 +410,20 @@ body {
   width: 8px;
 }
 
+.aid-scroll-edge::-webkit-scrollbar-thumb {
+  border-width: 2px;
+}
+
+/* Запас под капсулу записи (Page layout="bento"): полный, только если контент до неё
+   доходит; иначе обычный отступ плитки, и прокрутки нет (data-fits ставит Page) */
+.aid-scroll {
+  --dock-pad: var(--dock-space);
+}
+
+.aid-scroll[data-fits] {
+  --dock-pad: var(--tile-pad, 20px);
+}
+
 /* Обрезка колонки плиток по радиусу плитки (Page layout="bento"). Прокрутка шире
    колонки на 8 px (полоса в поле окна), поэтому overflow + border-radius не
    подходит: правые углы разошлись бы с краем плиток. Маска из двух полос и
@@ -829,15 +843,48 @@ html body[data-scroll-locked] {
   background: hsl(var(--card));
 }
 
-/* Главная: шапка часть плитки. При прокрутке стекло без рамки, блика, тени и
-   скруглений, снизу тонкая линия: отдельной карточкой поверх списка она не выглядит */
+/* Главная: шапка часть плитки, как в Я.Музыке. При прокрутке стекло без рамки, блика,
+   тени и скруглений. Нижний край без линии: под шапкой полоса 28 px (.aid-edge-fade, Page), где размытие и тон
+   плавно сходят на нет (scroll edge effect из Liquid Glass macOS 26). Маска затухания
+   это не декоративный градиент: он нужен, чтобы граница не резала строки. */
 .aid-head-flat.aid-glass {
-  background: hsl(var(--card) / 0.8);
-  box-shadow: 0 1px 0 0 hsl(var(--glass-edge));
+  background: hsl(var(--card) / 0.72);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
 }
 
 .aid-head-flat.aid-glass::before {
   display: none;
+}
+
+.aid-edge-fade {
+  position: sticky;
+  z-index: 19;
+  top: var(--head-h, 0px);
+  height: 28px;
+  margin-bottom: -28px;
+  pointer-events: none;
+  opacity: 0;
+  background: hsl(var(--card) / 0.72);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-mask: linear-gradient(#000, transparent);
+  mask: linear-gradient(#000, transparent);
+  transition: opacity 0.3s ease;
+}
+
+.aid-edge-fade[data-on] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .aid-head-flat.aid-glass,
+  .aid-edge-fade {
+    background: hsl(var(--card));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Всплывающее (меню, подсказки, диалоги): стекло плотнее, появляется из размытия */
@@ -1002,5 +1049,85 @@ html body[data-scroll-locked] {
   .aid-finish-bar,
   .aid-finish-pop {
     animation: none;
+  }
+}
+
+/* Поле поиска: свой крестик в Home.tsx, системный (WebKit) прячем, чтобы не было двух */
+.aid-font input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Выбранный чип-фильтр (Home.tsx): рамка Mikado 2 px, внутри лёгкое стекло с тёплым
+   оттенком: полупрозрачный тон и размытие того, что под шапкой при прокрутке */
+.aid-chip-on {
+  background: hsl(var(--primary) / 0.12);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .aid-chip-on {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Поиск на главной (Home.tsx): поле выезжает влево отдельной таблеткой (анимируется его
+   ширина, кнопки справа на месте), лупа в кнопке поворотом превращается в крестик */
+.aid-search-field {
+  width: 0;
+  opacity: 0;
+  margin-right: -8px; /* закрытое поле не добавляет зазор между кнопками */
+  transition:
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    margin 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease;
+}
+
+.aid-search-field.is-open {
+  width: min(280px, 30vw);
+  opacity: 1;
+  margin-right: 0;
+}
+
+/* Фокус внутри поля: шапка срезала бы внешнюю обводку */
+.aid-search-field:focus-within {
+  box-shadow: inset 0 0 0 2px hsl(var(--ring));
+}
+
+/* Свёрнутый поиск с текстом подсвечен: список отфильтрован */
+.aid-search-toggle.has-query {
+  box-shadow: inset 0 0 0 2px hsl(var(--primary));
+}
+
+.aid-search-icon-find,
+.aid-search-icon-close {
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.aid-search-icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.aid-search-toggle.is-open .aid-search-icon-find {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+
+.aid-search-toggle.is-open .aid-search-icon-close {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-search-field,
+  .aid-search-icon-find,
+  .aid-search-icon-close {
+    transition: none;
   }
 }

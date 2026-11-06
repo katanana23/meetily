@@ -1,7 +1,10 @@
-// Первый запуск ShadeNotes: три шага, около минуты.
-// 1. «Привет»: логотип, что делает приложение, «Начать» (сразу запускает загрузку моделей в фоне).
-// 2. «Доступ к звуку» (только macOS): микрофон обязателен, звук с компьютера по желанию.
-// 3. «Почти готово»: прогресс модели распознавания; пропускается, если она уже скачана.
+// Первый запуск ShadeNotes: два экрана, около минуты.
+// 1. Витрина (ShowcaseStep): бенто из плиток, что умеет приложение, лаймовая плитка «Начать».
+//    Загрузка моделей стартует уже здесь, пока человек читает.
+// 2. Путь (TasksStep): три плитки-задачи (микрофон, звук с компьютера, модель распознавания)
+//    «загораются» по мере выполнения; когда готово, появляется «Открыть ShadeNotes».
+//    На Windows и Linux доступ не нужен: остаётся только модель; если она уже скачана,
+//    «Начать» сразу открывает приложение.
 //
 // Логика и данные из OnboardingContext оригинала (useOnboarding): те же команды и события
 // ядра с теми же аргументами. Отличия от мастера оригинала:
@@ -11,7 +14,7 @@
 //   (key), чтобы они прочитали сохранённые настройки, а экран плавно уходит в приложение.
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useOnboarding } from '@/contexts/OnboardingContext';
@@ -22,9 +25,8 @@ import { Button } from '@/aid/components/ui/button';
 import { cn } from '@/aid/lib/utils';
 import { SLOW_MS, SlowError, detectMac, obLog, withTimeout } from '@/aid/lib/onboarding';
 import { t } from '@/aid/strings';
-import { HelloStep } from './HelloStep';
-import { AccessStep } from './AccessStep';
-import { ReadyStep, type SpeechModelState } from './ReadyStep';
+import { ShowcaseStep } from './ShowcaseStep';
+import { TasksStep } from './TasksStep';
 
 const PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 /** Уход шага (размытие и сдвиг) перед появлением следующего, мс; как .aid-ob-out в globals.css. */
@@ -33,9 +35,26 @@ const STEP_OUT_MS = 200;
 const EXIT_MS = 260;
 /** Загрузка не начинается: ни одного события прогресса за это время. */
 const STALL_MS = SLOW_MS * 2;
+/**
+ * Загрузка стартует, когда OnboardingContext прочитал состояние моделей с диска (иначе уже
+ * скачанная модель пошла бы качаться заново). Признак: ядро назвало модель для итогов.
+ * Если его нет, через это время всё равно стартуем.
+ */
+const START_FALLBACK_MS = 4000;
+/** Ширина колонки: витрина шире, путь уже. */
+const WIDTH = { showcase: 760, tasks: 680 } as const;
 
-type StepId = 'hello' | 'access' | 'ready';
+export type StepId = 'showcase' | 'tasks';
 export type FinishState = 'idle' | 'saving' | 'slow' | 'failed';
+
+export interface SpeechModelState {
+  ready: boolean;
+  percent: number;
+  downloadedMb: number;
+  totalMb: number;
+  failed: boolean;
+  retrying: boolean;
+}
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -47,32 +66,11 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
     void detectMac().then((mac) => {
       setIsMac(mac);
-      obLog(`платформа: ${mac ? 'macOS, шаг доступа нужен' : 'не macOS, шаг доступа пропускаем'}`);
+      obLog(`платформа: ${mac ? 'macOS, нужен доступ к звуку' : 'не macOS, доступ к звуку не нужен'}`);
     });
   }, []);
 
-  // ─── Шаги и плавная смена ───
-  const [step, setStep] = useState<StepId>('hello');
-  const [leaving, setLeaving] = useState(false);
-  const steps = useMemo<StepId[]>(() => {
-    const list: StepId[] = ['hello'];
-    if (isMac) list.push('access');
-    // «Почти готово» не нужен, если модель распознавания уже есть (но не убираем экран из-под человека)
-    if (!parakeetDownloaded || step === 'ready') list.push('ready');
-    return list;
-  }, [isMac, parakeetDownloaded, step]);
-
-  const goTo = useCallback((next: StepId) => {
-    obLog(`шаг: ${next}`);
-    const delay = reducedMotion() ? 0 : STEP_OUT_MS;
-    setLeaving(true);
-    window.setTimeout(() => {
-      setStep(next);
-      setLeaving(false);
-    }, delay);
-  }, []);
-
-  // ─── Загрузка моделей: как в DownloadProgressStep оригинала, но с первого шага ───
+  // ─── Загрузка моделей: как в DownloadProgressStep оригинала, но с первого экрана ───
   const downloadsStarted = useRef(false);
   const summaryStarted = useRef(false);
   const [downloadsOn, setDownloadsOn] = useState(false);
@@ -92,6 +90,17 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
       setSpeechError(true);
     });
   }, [parakeetDownloaded, startBackgroundDownloads]);
+
+  // Старт на первом экране: как только контекст прочитал модели с диска, или по запасному таймеру
+  useEffect(() => {
+    if (selectedSummaryModel) startDownloads();
+  }, [selectedSummaryModel, startDownloads]);
+  const startRef = useRef(startDownloads);
+  startRef.current = startDownloads;
+  useEffect(() => {
+    const timer = window.setTimeout(() => startRef.current(), START_FALLBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // Модель для итогов: как только ядро назвало рекомендованную (selectedSummaryModel)
   useEffect(() => {
@@ -114,8 +123,7 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
       if (event.payload.modelName !== PARAKEET_MODEL) return;
       lastProgressAt.current = Date.now();
       setStalled(false);
-      if (event.payload.status === 'cancelled') setSpeechError(true);
-      else setSpeechError(false);
+      setSpeechError(event.payload.status === 'cancelled');
     });
     return () => {
       void offError.then((off) => off());
@@ -211,41 +219,33 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
       });
   }, [ob, leave]);
 
-  const next = useCallback(() => {
-    const index = steps.indexOf(step);
-    const following = steps[index + 1];
-    if (following) goTo(following);
-    else complete();
-  }, [steps, step, goTo, complete]);
+  // ─── Экраны и плавная смена ───
+  const [step, setStep] = useState<StepId>('showcase');
+  const [leaving, setLeaving] = useState(false);
+  // Путь не нужен, только если доступ не нужен (не macOS) и модель уже скачана
+  const steps = useMemo<StepId[]>(
+    () => (isMac === false && parakeetDownloaded && step === 'showcase' ? ['showcase'] : ['showcase', 'tasks']),
+    [isMac, parakeetDownloaded, step],
+  );
+
+  const start = useCallback(() => {
+    startDownloads();
+    if (steps.length === 1) {
+      complete();
+      return;
+    }
+    obLog('экран: путь');
+    setLeaving(true);
+    window.setTimeout(
+      () => {
+        setStep('tasks');
+        setLeaving(false);
+      },
+      reducedMotion() ? 0 : STEP_OUT_MS,
+    );
+  }, [startDownloads, steps.length, complete]);
 
   const busy = finish === 'saving' || finish === 'slow';
-  const position = Math.max(0, steps.indexOf(step));
-
-  let content: ReactNode = null;
-  if (step === 'hello')
-    content = (
-      <HelloStep
-        isMac={isMac !== false}
-        ready={isMac !== null}
-        onStart={() => {
-          startDownloads();
-          next();
-        }}
-      />
-    );
-  else if (step === 'access')
-    content = (
-      <AccessStep
-        busy={busy}
-        last={steps[steps.length - 1] === 'access'}
-        onContinue={next}
-        onLater={() => {
-          ob.setPermissionsSkipped(true);
-          next();
-        }}
-      />
-    );
-  else content = <ReadyStep speech={speech} summaryReady={summaryModelDownloaded} busy={busy} onRetry={retry} onOpen={next} />;
 
   return (
     <AidIcons>
@@ -255,17 +255,29 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
         <div data-tauri-drag-region className="absolute left-2 top-2">
           <WindowBar />
         </div>
-        <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-12">
-          <div className={cn('m-auto w-full max-w-[520px]', exiting && 'aid-ob-exit')}>
-            <StepDots count={steps.length} current={position} />
-            <section className="mt-4 rounded-tile bg-card p-5">
-              <div key={step} className={leaving ? 'aid-ob-out' : 'aid-ob-in'}>
-                {content}
-              </div>
-              {(finish === 'slow' || finish === 'failed') && (
-                <FinishNote state={finish} onRetry={complete} onAnyway={() => leave('anyway')} />
+        <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-8">
+          <div className={cn('m-auto w-full', exiting && 'aid-ob-exit')} style={{ maxWidth: WIDTH[step] }}>
+            <StepDots count={steps.length} current={steps.indexOf(step)} />
+            <div key={step} className={cn('mt-4', leaving ? 'aid-ob-out' : 'aid-ob-in')}>
+              {step === 'showcase' ? (
+                <ShowcaseStep isMac={isMac !== false} ready={isMac !== null} busy={busy} onStart={start} />
+              ) : (
+                <TasksStep
+                  isMac={isMac !== false}
+                  speech={speech}
+                  summaryReady={summaryModelDownloaded}
+                  busy={busy}
+                  onRetry={retry}
+                  onMicLater={() => ob.setPermissionsSkipped(true)}
+                  onOpen={complete}
+                />
               )}
-            </section>
+            </div>
+            {(finish === 'slow' || finish === 'failed') && (
+              <section className="aid-ob-in mt-2 rounded-tile bg-card p-5">
+                <FinishNote state={finish} onRetry={complete} onAnyway={() => leave('anyway')} />
+              </section>
+            )}
           </div>
         </div>
       </div>
@@ -274,6 +286,7 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
 }
 
 function StepDots({ count, current }: { count: number; current: number }) {
+  if (count < 2) return null;
   const label = t('obStepOf').replace('{n}', String(current + 1)).replace('{total}', String(count));
   return (
     <div role="img" aria-label={label} className="flex items-center justify-center gap-2">
@@ -292,7 +305,7 @@ function StepDots({ count, current }: { count: number; current: number }) {
 
 function FinishNote({ state, onRetry, onAnyway }: { state: 'slow' | 'failed'; onRetry: () => void; onAnyway: () => void }) {
   return (
-    <div role="status" className="aid-ob-in mt-4 flex flex-col items-center gap-3 text-center">
+    <div role="status" className="flex flex-col items-center gap-3 text-center">
       <p className="text-[13px] leading-5 text-muted-foreground">
         {state === 'slow' ? t('obSaveSlow') : t('obSaveFailed')} {t('obNextRunNote')}
       </p>

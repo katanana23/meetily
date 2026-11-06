@@ -1188,9 +1188,9 @@ html body[data-scroll-locked] {
 }
 
 /* Первый запуск (components/onboarding/AidOnboarding.tsx). Только transform, opacity и filter.
-   Шаг уходит размытием и сдвигом влево за 0,2 с, следующий приходит справа за 0,3 с;
-   логотип и строки первого шага проявляются по очереди (--d задержка); в конце весь
-   экран растворяется (0,26 с), а приложение проявляется на том же фоне окна (.aid-app-enter). */
+   Экран уходит размытием и сдвигом влево за 0,2 с, следующий приходит справа за 0,3 с;
+   логотип и плитки проявляются по очереди (--d задержка); в конце весь экран растворяется
+   (0,26 с), а приложение проявляется на том же фоне окна (.aid-app-enter). */
 .aid-ob-in {
   animation: aid-ob-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1273,18 +1273,404 @@ html body[data-scroll-locked] {
   }
 }
 
+/* Витрина: живой показ (ShowcaseStep, цикл 6 с). Кнопка записи нажимается и превращается
+   в капсулу, по ходу разговора появляются строки текста, затем раскрываются итоги Indigo.
+   Плитки-подписи 1, 2, 3 подсвечиваются в такт. Без движения виден итоговый кадр: капсула,
+   три строки и итоги, подписи без подсветки. Полоски (.aid-ob-bar-wave) бегущая волна,
+   украшение, а не уровень звука. */
+.aid-ob-bar-wave {
+  transform-origin: center;
+  animation: aid-ob-bar-wave 1.1s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.12s);
+}
+
+@keyframes aid-ob-bar-wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.aid-ob-demo-rec {
+  opacity: 0;
+  animation: aid-ob-demo-rec 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-demo-cap {
+  animation: aid-ob-demo-cap 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-demo-l1 {
+  animation: aid-ob-demo-l1 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-demo-l2 {
+  animation: aid-ob-demo-l2 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-demo-l3 {
+  animation: aid-ob-demo-l3 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-demo-sum {
+  animation: aid-ob-demo-sum 6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+/* Подсветка подписи: тон роли под текстом. Без движения подсветки нет, подписи равны. */
+.aid-ob-legend-1,
+.aid-ob-legend-2,
+.aid-ob-legend-3 {
+  --ob-tint: 0.25;
+  --ob-tint-neutral: 0.06;
+  opacity: 0;
+}
+
+.dark .aid-ob-legend-1,
+.dark .aid-ob-legend-2,
+.dark .aid-ob-legend-3 {
+  --ob-tint: 0.18;
+  --ob-tint-neutral: 0.1;
+}
+
+.aid-ob-legend-1 {
+  animation: aid-ob-legend-1 6s ease-in-out infinite;
+}
+.aid-ob-legend-2 {
+  animation: aid-ob-legend-2 6s ease-in-out infinite;
+}
+.aid-ob-legend-3 {
+  animation: aid-ob-legend-3 6s ease-in-out infinite;
+}
+
+@keyframes aid-ob-demo-rec {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+  }
+  8% {
+    opacity: 1;
+    transform: scale(0.88);
+  }
+  15%,
+  93% {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+@keyframes aid-ob-demo-cap {
+  0%,
+  11% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+    filter: blur(6px);
+  }
+  17%,
+  90% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes aid-ob-demo-l1 {
+  0%,
+  22% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  27%,
+  58% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  64%,
+  90% {
+    opacity: 0.35;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-ob-demo-l2 {
+  0%,
+  32% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  37%,
+  58% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  64%,
+  90% {
+    opacity: 0.35;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-ob-demo-l3 {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  47%,
+  58% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  64%,
+  90% {
+    opacity: 0.35;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-ob-demo-sum {
+  0%,
+  56% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+    filter: blur(6px);
+  }
+  64%,
+  90% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+@keyframes aid-ob-legend-1 {
+  0%,
+  18%,
+  100% {
+    opacity: var(--ob-tint);
+  }
+  24%,
+  94% {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-ob-legend-2 {
+  0%,
+  18%,
+  58%,
+  100% {
+    opacity: 0;
+  }
+  24%,
+  54% {
+    opacity: var(--ob-tint-neutral);
+  }
+}
+
+@keyframes aid-ob-legend-3 {
+  0%,
+  54%,
+  94%,
+  100% {
+    opacity: 0;
+  }
+  60%,
+  90% {
+    opacity: var(--ob-tint);
+  }
+}
+
+/* Путь: показ запроса macOS (TasksStep, цикл 5 с): окно, указатель жмёт «Разрешить»,
+   «Доступ есть». Когда микрофон решён (data-done), стоит последний кадр. */
+.aid-ob-prompt-card {
+  animation: aid-ob-prompt-card 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-prompt-ok {
+  animation: aid-ob-prompt-ok 5s ease-in-out infinite;
+}
+.aid-ob-prompt-cursor {
+  transform: translate(53px, 40px);
+  animation: aid-ob-prompt-cursor 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.aid-ob-prompt-done {
+  opacity: 0;
+  animation: aid-ob-prompt-done 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.aid-ob-prompt[data-done] .aid-ob-prompt-card,
+.aid-ob-prompt[data-done] .aid-ob-prompt-cursor {
+  animation: none;
+  opacity: 0;
+}
+
+.aid-ob-prompt[data-done] .aid-ob-prompt-done {
+  animation: aid-ob-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  opacity: 1;
+}
+
+@keyframes aid-ob-prompt-card {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(6px);
+  }
+  10%,
+  50% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  60%,
+  100% {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+@keyframes aid-ob-prompt-ok {
+  0%,
+  40%,
+  50%,
+  100% {
+    transform: none;
+  }
+  45% {
+    transform: scale(0.94);
+  }
+}
+
+@keyframes aid-ob-prompt-cursor {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translate(124px, 70px);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(124px, 70px);
+  }
+  38% {
+    opacity: 1;
+    transform: translate(53px, 40px);
+  }
+  44% {
+    transform: translate(53px, 40px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(53px, 40px);
+  }
+  56%,
+  100% {
+    opacity: 0;
+    transform: translate(53px, 40px);
+  }
+}
+
+@keyframes aid-ob-prompt-done {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  68%,
+  90% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  97%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Путь: готовая задача «загорается» лаймовым тоном (.aid-ob-lit), иконка гаснет (.aid-ob-swap),
+   галочка появляется из размытия (.aid-ob-pop). */
+.aid-ob-pop {
+  animation: aid-ob-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes aid-ob-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+    filter: blur(4px);
+  }
+}
+
+.aid-ob-lit {
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aid-ob-swap {
+  transition:
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .aid-ob-in,
   .aid-ob-out,
   .aid-ob-logo,
   .aid-ob-rise,
   .aid-ob-exit,
-  .aid-app-enter {
+  .aid-app-enter,
+  .aid-ob-bar-wave,
+  .aid-ob-pop,
+  .aid-ob-demo-rec,
+  .aid-ob-demo-cap,
+  .aid-ob-demo-l1,
+  .aid-ob-demo-l2,
+  .aid-ob-demo-l3,
+  .aid-ob-demo-sum,
+  .aid-ob-legend-1,
+  .aid-ob-legend-2,
+  .aid-ob-legend-3,
+  .aid-ob-prompt-card,
+  .aid-ob-prompt-ok,
+  .aid-ob-prompt-cursor,
+  .aid-ob-prompt-done,
+  .aid-ob-prompt[data-done] .aid-ob-prompt-done {
     animation: none;
   }
 
   .aid-ob-bar,
-  .aid-ob-dot {
+  .aid-ob-dot,
+  .aid-ob-lit,
+  .aid-ob-swap {
     transition: none;
   }
 }

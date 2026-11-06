@@ -32,6 +32,7 @@ import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
 import { AidToaster } from '@/aid/components/AidToaster'
 import { RecordDock } from '@/aid/components/RecordDock'
+import { WindowBar } from '@/aid/components/WindowBar'
 import { LaunchScreen } from '@/aid/components/LaunchScreen'
 import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
@@ -330,17 +331,21 @@ export default function RootLayout({
                               ) : isAidUI ? (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
-                                    {/* Бенто с ролями цвета: фон окна, узкая плитка сайдбара 72 px и колонка
-                                        страницы (её плитки рисует сама страница) с плавающей капсулой записи.
-                                        8 px между плитками и от краёв окна. data-tauri-drag-region:
-                                        промежутки между плитками перетаскивают окно */}
+                                    {/* Бенто с ролями цвета: на macOS сверху полоса окна 38 px с кнопками окна
+                                        (WindowBar), ниже узкая плитка сайдбара 72 px и колонка страницы (её плитки
+                                        рисует сама страница) с плавающей капсулой записи. 8 px между плитками, от
+                                        краёв окна и от полосы. data-tauri-drag-region: полоса и промежутки между
+                                        плитками перетаскивают окно */}
                                     <AidRecordingControls>
-                                      <div data-tauri-drag-region className="aid-app flex h-screen gap-2 overflow-hidden bg-background p-2">
-                                        <AidSidebar />
-                                        {/* Капсула записи плавает внизу по центру поверх контента */}
-                                        <div data-tauri-drag-region className="relative flex min-h-0 min-w-0 flex-1">
-                                          {children}
-                                          <RecordDock />
+                                      <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
+                                        <WindowBar />
+                                        <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 p-2">
+                                          <AidSidebar />
+                                          {/* Капсула записи плавает внизу по центру поверх контента */}
+                                          <div data-tauri-drag-region className="relative flex min-h-0 min-w-0 flex-1">
+                                            {children}
+                                            <RecordDock />
+                                          </div>
                                         </div>
                                       </div>
                                     </AidRecordingControls>

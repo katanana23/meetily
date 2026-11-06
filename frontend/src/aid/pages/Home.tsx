@@ -5,6 +5,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
 import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning } from '@phosphor-icons/react';
@@ -252,7 +253,17 @@ function UnrecognizedList({
 }
 
 /** Пустой результат фильтра: иконка в круге, заголовок и подсказка, слева по краю списка. */
-function EmptyFilter({ title, hint, icon: Icon = Chats, children }: { title: string; hint: string; icon?: typeof Chats; children?: React.ReactNode }) {
+function EmptyFilter({
+  title,
+  hint,
+  icon: Icon = Chats,
+  children,
+}: {
+  title: string;
+  hint: string;
+  icon?: typeof Chats;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col items-start py-10">
       <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
@@ -669,8 +680,9 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 
 function HomeContent() {
   const rec = useRecordingControls();
+  const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
-  const meetingId = useSearchParams().get('id');
+  const meetingId = params.get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
   const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
 
@@ -683,6 +695,7 @@ function HomeContent() {
         live={rec.live}
         onBack={() => rec.setView('list')}
         onStop={rec.stop}
+        discardVerdict={rec.discardVerdict}
       />
     );
   }

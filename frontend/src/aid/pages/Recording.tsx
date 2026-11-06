@@ -35,6 +35,8 @@ interface RecordingViewProps {
   /** К списку встреч: запись продолжается, управление в кнопке записи внизу. */
   onBack: () => void;
   onStop: () => void;
+  /** Запись не сохраняется: тишина или пара фраз (заголовок экрана завершения). */
+  discardVerdict?: 'no-speech' | 'too-little' | null;
 }
 
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается.
@@ -60,12 +62,15 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
   );
 }
 
+// Заголовок по настроению маскота: пока решение не принято, «Слушаю последние секунды»;
+// итог (тишина или пара фраз) только после решения
 const PHASE: Record<FinishPhase, { title: string; hint: string }> = {
   transcribing: { title: t('finishTranscribing'), hint: t('finishTranscribingHint') },
   saving: { title: t('saving'), hint: t('savingHint') },
   opening: { title: t('saved'), hint: t('savedHint') },
-  discarding: { title: t('finishTranscribing'), hint: t('discardingHint') },
+  discarding: { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') },
 };
+const TOO_LITTLE = { title: t('discardedTooLittle'), hint: t('discardedTooLittleHint') };
 
 const NOTICE_KEY = 'show_recording_notification'; // тот же ключ, что у оригинала (recordingNotification.tsx)
 
@@ -134,7 +139,7 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, live, onBack, onStop }: RecordingViewProps) {
+export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, discardVerdict = null }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
@@ -156,7 +161,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop 
   const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
   if (phase) {
-    const copy = PHASE[phase];
+    const copy = phase === 'discarding' && discardVerdict === 'too-little' ? TOO_LITTLE : PHASE[phase];
     return (
       <Page>
         <FinishingScreen phase={phase} title={copy.title} hint={copy.hint} />

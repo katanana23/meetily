@@ -7,7 +7,9 @@
 //   плиток.
 //
 // В обеих шапка липкая и лежит поверх контента: в покое это обычная плитка, а при
-// прокрутке стекло (.aid-glass), и контент проходит под ним размытым. Область
+// прокрутке стекло (.aid-glass), и контент проходит под ним размытым. На главной шапка
+// часть самой плитки (.aid-head-flat): при прокрутке без своей рамки и скруглений,
+// только тонкая линия снизу; полоса прокрутки начинается под ней (--head-h). Область
 // прокрутки обрезана по радиусу плитки (на главной overflow hidden у самой плитки,
 // в бенто маска .aid-round-clip), поэтому плитки у краёв окна не обрываются
 // плоской линией, а уходят под скругление.
@@ -56,11 +58,20 @@ export const TILE = 'rounded-tile bg-card p-5';
 
 export function Page({ header, children, layout = 'tile', className }: PageProps) {
   const { ref, scrolled } = useScrollActivity<HTMLDivElement>();
+  // Высота шапки в --head-h у области прокрутки: полоса прокрутки начинается под шапкой, а не за стеклом
+  useEffect(() => {
+    const el = ref.current;
+    const head = el?.querySelector<HTMLElement>(':scope > .aid-sticky-head');
+    if (!el || !head) return;
+    const ro = new ResizeObserver(() => el.style.setProperty('--head-h', `${head.offsetHeight}px`));
+    ro.observe(head);
+    return () => ro.disconnect();
+  }, [ref, header]);
   // Шапка: в покое плитка, при прокрутке стекло
-  const head = (extra: string) =>
+  const head = (extra: string, flat = false) =>
     header && (
       // data-tauri-drag-region: поля шапки перетаскивают окно, двойной клик разворачивает
-      <header data-tauri-drag-region className={cn('aid-sticky-head sticky top-0 z-20 shrink-0 rounded-tile', scrolled && 'aid-glass', extra)}>
+      <header data-tauri-drag-region className={cn('aid-sticky-head sticky top-0 z-20 shrink-0', flat ? 'aid-head-flat' : 'rounded-tile', scrolled && 'aid-glass', extra)}>
         {header}
       </header>
     );
@@ -84,8 +95,8 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
 
   return (
     <main className={cn('relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
-      <div ref={ref} className="aid-scroll h-full overflow-y-auto">
-        {head('aid-gutter px-5 pb-4 pt-5')}
+      <div ref={ref} className="aid-scroll aid-scroll-under-head h-full overflow-y-auto">
+        {head('aid-gutter px-5 pb-4 pt-5', true)}
         <div className={cn('w-full px-5 pb-[var(--dock-space)]', header ? 'pt-1' : 'pt-5')}>{children}</div>
       </div>
     </main>

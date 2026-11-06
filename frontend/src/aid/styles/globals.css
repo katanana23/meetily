@@ -345,7 +345,7 @@ body {
 /*
  * Прокрутка контента. scrollbar-gutter: stable держит место под полосу всегда,
  * поэтому ширина не меняется, когда содержимое начинает прокручиваться.
- * Полоса: 10 px места, бегунок 6 px (рамка 2 px прозрачная), дорожки нет,
+ * Полоса: 10 px места, бегунок 4 px (рамка 3 px прозрачная), дорожки нет,
  * бегунок полупрозрачный и проявляется при прокрутке (is-scrolling) и наведении.
  * Только ::-webkit-scrollbar: его понимают WebKit (WKWebView в Tauri на macOS)
  * и Chromium; scrollbar-width/scrollbar-color не задаём, иначе Chromium
@@ -375,9 +375,19 @@ body {
   background: transparent;
 }
 
+/* Полоса не заходит в скругления плитки: иначе их край режет её на обрывки */
+.aid-scroll::-webkit-scrollbar-track {
+  margin-block: var(--tile-radius);
+}
+
+/* Главная: полоса начинается под липкой шапкой, а не за стеклом */
+.aid-scroll-under-head::-webkit-scrollbar-track {
+  margin-top: calc(var(--head-h, 0px) + 8px);
+}
+
 .aid-scroll::-webkit-scrollbar-thumb {
   min-height: 40px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   border-radius: 9999px;
   background-clip: content-box;
   background-color: transparent;
@@ -616,47 +626,6 @@ html body[data-scroll-locked] {
   text-wrap: balance;
 }
 
-/* «Завершаем запись» (FinishingScreen): полосы звука затухающей волной, галочка
-   появляется с мягким увеличением. Только transform и opacity. */
-.aid-finish-bar {
-  transform: scaleY(calc(var(--bar, 1) * 0.6));
-  animation: aid-finish-bar 1.6s ease-in-out infinite;
-}
-
-@keyframes aid-finish-bar {
-  0%,
-  100% {
-    transform: scaleY(calc(var(--bar, 1) * 0.25));
-    opacity: 0.45;
-  }
-  50% {
-    transform: scaleY(var(--bar, 1));
-    opacity: 1;
-  }
-}
-
-.aid-finish-pop {
-  animation: aid-finish-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes aid-finish-pop {
-  from {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aid-finish-bar,
-  .aid-finish-pop {
-    animation: none;
-  }
-}
-
 /* Заставка запуска (LaunchScreen): маскот мягко «дышит», три точки бегут волной,
    уход растворением. Только transform и opacity. */
 .aid-launch-mark {
@@ -860,6 +829,17 @@ html body[data-scroll-locked] {
   background: hsl(var(--card));
 }
 
+/* Главная: шапка часть плитки. При прокрутке стекло без рамки, блика, тени и
+   скруглений, снизу тонкая линия: отдельной карточкой поверх списка она не выглядит */
+.aid-head-flat.aid-glass {
+  background: hsl(var(--card) / 0.8);
+  box-shadow: 0 1px 0 0 hsl(var(--glass-edge));
+}
+
+.aid-head-flat.aid-glass::before {
+  display: none;
+}
+
 /* Всплывающее (меню, подсказки, диалоги): стекло плотнее, появляется из размытия */
 .aid-glass-pop {
   --glass-alpha: 0.72;
@@ -959,6 +939,68 @@ html body[data-scroll-locked] {
     transition: none;
   }
   .aid-glass-pop[data-state] {
+    animation: none;
+  }
+}
+
+/* ─── Полоса окна (WindowBar) ───
+   В браузере на заглушках кнопки окна нарисованы, как на Mac (x 18, по центру полосы 38 px).
+   Только для разработки: в Tauri кнопки системные. */
+.aid-titlebar-mock .aid-window-bar {
+  position: relative;
+}
+.aid-titlebar-mock .aid-window-bar::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 13px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #ff5f57;
+  box-shadow:
+    20px 0 0 #febc2e,
+    40px 0 0 #28c840;
+  pointer-events: none;
+}
+
+/* «Завершаем запись» (FinishingScreen): полосы звука затухающей волной, галочка
+   появляется с мягким увеличением. Только transform и opacity. */
+.aid-finish-bar {
+  transform: scaleY(calc(var(--bar, 1) * 0.6));
+  animation: aid-finish-bar 1.6s ease-in-out infinite;
+}
+
+@keyframes aid-finish-bar {
+  0%,
+  100% {
+    transform: scaleY(calc(var(--bar, 1) * 0.25));
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(var(--bar, 1));
+    opacity: 1;
+  }
+}
+
+.aid-finish-pop {
+  animation: aid-finish-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes aid-finish-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-finish-bar,
+  .aid-finish-pop {
     animation: none;
   }
 }

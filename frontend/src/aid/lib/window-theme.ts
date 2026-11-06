@@ -21,12 +21,19 @@ function inTauri(): boolean {
 
 /**
  * macOS в Tauri: заголовок окна в режиме Overlay (tauri.conf.json), кнопки окна
- * поверх нашего фона. Класс на <html> включает место под них в сайдбаре
- * (.aid-titlebar-overlay). В браузере и на других системах места не нужно.
+ * поверх нашего фона. Класс на <html> включает верхнюю полосу окна 38 px
+ * (WindowBar, .aid-titlebar-overlay), плитки начинаются ниже неё. В браузере на
+ * заглушках полоса тоже есть, с нарисованными кнопками (.aid-titlebar-mock).
+ * На Windows и Linux заголовок системный, полоса не нужна.
  */
 export function markTitlebarOverlay() {
-  if (!inTauri()) return;
-  if (/Mac/i.test(navigator.platform || navigator.userAgent)) document.documentElement.classList.add('aid-titlebar-overlay');
+  if (typeof window === 'undefined') return;
+  const root = document.documentElement;
+  if (inTauri()) {
+    if (/Mac/i.test(navigator.platform || navigator.userAgent)) root.classList.add('aid-titlebar-overlay');
+  } else if (/[?&]mock=/.test(window.location.search)) {
+    root.classList.add('aid-titlebar-overlay', 'aid-titlebar-mock');
+  }
 }
 
 export async function syncWindowTheme(mode: ThemeMode = getStoredTheme()) {

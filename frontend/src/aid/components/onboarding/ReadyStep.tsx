@@ -8,6 +8,7 @@ import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
+import { HINT_CLASS, TITLE_CLASS, mainButtonClass } from './ui';
 
 export interface SpeechModelState {
   ready: boolean;
@@ -44,15 +45,15 @@ export function ReadyStep({
 
   return (
     <div className="flex flex-col">
-      <h1 className="text-[22px] font-bold leading-7">{t('obReadyTitle')}</h1>
-      <p className="mt-1 text-[15px] leading-6 text-muted-foreground">{t('obReadyHint')}</p>
+      <h1 className={TITLE_CLASS}>{t('obReadyTitle')}</h1>
+      <p className={`mt-2 ${HINT_CLASS}`}>{t('obReadyHint')}</p>
 
-      <div className="mt-6 rounded-nested bg-muted px-4 py-4">
+      <div className="mt-6 rounded-nested bg-muted py-4 pl-4 pr-3">
         <div className="flex items-center gap-3">
           <UserSound className="size-6 shrink-0 text-foreground" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-semibold leading-6">{t('obSpeechModel')}</p>
-            <p role="status" className={cn('text-[13px] leading-5', speech.failed ? 'text-giants-ink' : 'text-muted-foreground')}>
+            <p role="status" className={cn('text-pretty text-[13px] leading-5', speech.failed ? 'text-giants-ink' : 'text-muted-foreground')}>
               {caption}
             </p>
           </div>
@@ -74,7 +75,7 @@ export function ReadyStep({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percent}
-          className="mt-3 h-2 overflow-hidden rounded-full bg-foreground/10"
+          className="mr-1 mt-3 h-2 overflow-hidden rounded-full bg-foreground/10"
         >
           <div
             className={cn('aid-ob-bar h-full w-full rounded-full', speech.failed ? 'bg-giants' : 'bg-[hsl(var(--primary-edge))]')}
@@ -83,12 +84,12 @@ export function ReadyStep({
         </div>
       </div>
 
-      <p className="mt-3 flex items-center gap-2 px-1 text-[13px] leading-5 text-muted-foreground">
+      <p className="mt-3 flex items-center gap-2 pl-4 text-[13px] leading-5 text-muted-foreground">
         <Sparkle className="size-4 shrink-0 text-indigo-ink" aria-hidden />
         {summaryReady ? t('obSummaryReady') : t('obSummaryLater')}
       </p>
 
-      <Button size="main" className={cn('mt-8 w-full', busy && 'disabled:opacity-100')} aria-busy={busy} disabled={!speech.ready || busy} onClick={onOpen}>
+      <Button size="main" className={mainButtonClass(busy, 'mt-6')} aria-busy={busy} disabled={!speech.ready || busy} onClick={onOpen}>
         {busy && <Spinner size={20} tone="inherit" />}
         {busy ? t('obOpening') : t('obOpenApp')}
       </Button>

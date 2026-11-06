@@ -244,10 +244,10 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
         <div data-tauri-drag-region className="absolute left-2 top-2">
           <WindowBar />
         </div>
-        <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-8">
+        <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <div className={cn('m-auto w-full max-w-[600px]', exiting && 'aid-ob-exit')}>
             <StepDots count={steps.length} current={Math.max(0, steps.indexOf(step))} />
-            <section className="mt-4 rounded-tile bg-card p-5">
+            <section className="mt-4 rounded-tile bg-card p-6">
               <div key={step} className={leaving ? 'aid-ob-out' : 'aid-ob-in'}>
                 {step === 'hello' ? (
                   <HelloStep
@@ -273,7 +273,7 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
                 )}
               </div>
               {(finish === 'slow' || finish === 'failed') && (
-                <div className="aid-ob-in mt-4">
+                <div className="aid-ob-in mt-6">
                   <FinishNote state={finish} onRetry={complete} onAnyway={() => leave('anyway')} />
                 </div>
               )}

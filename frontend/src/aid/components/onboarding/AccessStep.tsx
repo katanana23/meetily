@@ -11,6 +11,7 @@ import { cn } from '@/aid/lib/utils';
 import type { AccessKind, AccessState } from '@/aid/lib/onboarding';
 import { t } from '@/aid/strings';
 import { accessSettled, useAccessChecks } from './useAccessChecks';
+import { HINT_CLASS, TITLE_CLASS, mainButtonClass } from './ui';
 
 const LOGO_SRC = '/brand/shadenotes.svg';
 const ICON = { microphone: Microphone, systemAudio: SpeakerHigh } as const;
@@ -30,13 +31,16 @@ export function AccessStep({ busy, last, onContinue, onLater }: Props) {
   const { state, ask, openSettings } = useAccessChecks();
   const mic = state.microphone;
   const continueLabel = mic === 'slow' ? t('obContinueAnyway') : last ? t('obOpenApp') : t('obContinue');
+  // Показ: крутится, пока микрофон не решён; «Доступ есть» только при настоящем доступе,
+  // при отказе или непроверенном ответе стоит окно запроса без указателя
+  const demo: DemoState = mic === 'granted' ? 'granted' : mic === 'idle' || mic === 'pending' ? 'loop' : 'still';
 
   return (
     <div className="flex flex-col">
-      <DemoPrompt done={accessSettled(mic)} />
-      <h1 className="mt-6 text-[22px] font-bold leading-7">{t('obAccessTitle')}</h1>
-      <p className="mt-1 text-[15px] leading-6 text-muted-foreground">{t('obAccessHint')}</p>
-      <div className="mt-4 flex flex-col gap-2">
+      <DemoPrompt state={demo} />
+      <h1 className={`mt-6 ${TITLE_CLASS}`}>{t('obAccessTitle')}</h1>
+      <p className={`mt-2 ${HINT_CLASS}`}>{t('obAccessHint')}</p>
+      <div className="mt-6 flex flex-col gap-2">
         {(['microphone', 'systemAudio'] as const).map((kind) => (
           <AccessCard
             key={kind}
@@ -48,13 +52,7 @@ export function AccessStep({ busy, last, onContinue, onLater }: Props) {
           />
         ))}
       </div>
-      <Button
-        size="main"
-        className={cn('mt-6 w-full', busy && 'disabled:opacity-100')}
-        aria-busy={busy}
-        disabled={!accessSettled(mic) || busy}
-        onClick={onContinue}
-      >
+      <Button size="main" className={mainButtonClass(busy, 'mt-6')} aria-busy={busy} disabled={!accessSettled(mic) || busy} onClick={onContinue}>
         {busy && <Spinner size={20} tone="inherit" />}
         {busy ? t('obOpening') : continueLabel}
       </Button>
@@ -62,7 +60,7 @@ export function AccessStep({ busy, last, onContinue, onLater }: Props) {
         type="button"
         disabled={busy}
         onClick={onLater}
-        className="mx-auto mt-2 h-12 rounded-full px-5 text-[15px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        className="mx-auto mt-2 h-10 rounded-full px-5 text-[15px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       >
         {t('obLater')}
       </button>
@@ -70,28 +68,44 @@ export function AccessStep({ busy, last, onContinue, onLater }: Props) {
   );
 }
 
+type DemoState = 'loop' | 'granted' | 'still';
+
 /**
- * Показ запроса macOS (цикл 5 с): окно «ShadeNotes просит доступ к микрофону», указатель
- * нажимает «Разрешить», затем «Доступ есть». Иллюстрация, а не настоящий статус: настоящий
- * в карточке «Микрофон» ниже. done: доступ решён, цикл останавливается на последнем кадре.
+ * Показ запроса macOS (цикл 5,6 с, .aid-ob-prompt-* в globals.css): стилизованное окно
+ * «ShadeNotes просит доступ к микрофону» на подложке обложки, указатель подходит сбоку
+ * по кривой и нажимает «Разрешить» (кнопка сжимается), окно гаснет, «Доступ есть» стоит
+ * около 2 с и плавно уходит перед повтором. Иллюстрация, а не системное окно: без рамки
+ * и тени macOS, чуть меньше настоящего; настоящий статус в карточке «Микрофон» ниже.
+ * granted: стоит «Доступ есть»; still: стоит окно без указателя (отказ, проверим позже).
  */
-function DemoPrompt({ done }: { done: boolean }) {
+function DemoPrompt({ state }: { state: DemoState }) {
   return (
-    <div aria-hidden data-done={done || undefined} className="aid-ob-prompt relative flex h-[156px] items-center justify-center overflow-hidden rounded-nested bg-muted">
-      <div className="aid-ob-prompt-card w-[232px] rounded-[14px] bg-card p-3.5 shadow-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
-        <img src={LOGO_SRC} width={24} height={24} alt="" className="size-6" />
-        <p className="mt-1.5 text-[13px] font-semibold leading-5">{t('obDemoPrompt')}</p>
-        <div className="mt-2.5 grid grid-cols-2 gap-2 text-[13px]">
+    <div aria-hidden data-state={state} className="aid-ob-prompt relative flex h-[176px] items-center justify-center overflow-hidden rounded-nested bg-muted p-6">
+      <div className="aid-ob-prompt-card -mt-1 w-[288px] rounded-[16px] bg-card p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
+          <img src={LOGO_SRC} width={32} height={32} alt="" className="size-8 shrink-0" />
+          <p className="text-balance text-[15px] font-semibold leading-5">{t('obDemoPrompt')}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 text-[13px] font-medium">
           <span className="rounded-full bg-muted py-1.5 text-center">{t('obDemoDeny')}</span>
-          <span className="aid-ob-prompt-ok rounded-full bg-primary py-1.5 text-center text-on-role">{t('obAllow')}</span>
+          <span className="relative">
+            <span className="aid-ob-prompt-ok block rounded-full bg-primary py-1.5 text-center text-on-role">{t('obAllow')}</span>
+            {/* Указатель: кончик у правого края кнопки, надпись не закрывает */}
+            <span className="aid-ob-prompt-cursor-x absolute left-[calc(100%-14px)] top-[60%]">
+              <span className="aid-ob-prompt-cursor-y block">
+                <svg viewBox="0 0 16 22" className="aid-ob-prompt-cursor block h-[22px] w-4 drop-shadow-sm">
+                  <path d="M1 1v17.5l4.6-4.4 3 6.7 2.9-1.3-3-6.6H15L1 1Z" fill="hsl(var(--foreground))" stroke="hsl(var(--card))" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </span>
+          </span>
         </div>
       </div>
-      <span className="aid-ob-prompt-done absolute flex items-center gap-2 text-[15px] font-semibold text-primary-ink">
+      <span className="aid-ob-prompt-done absolute flex items-center gap-2 text-[17px] font-semibold text-primary-ink">
         <Check weight="bold" className="size-6" />
         {t('obGranted')}
       </span>
-      <span className="aid-ob-prompt-cursor absolute size-4 rounded-full bg-foreground/80 ring-4 ring-foreground/15" />
     </div>
   );
 }
@@ -125,14 +139,14 @@ function AccessCard({
   const needsSettings = state === 'denied' || state === 'unverified' || state === 'slow';
 
   return (
-    <div className="flex min-h-[80px] items-center gap-3 rounded-nested bg-muted px-4 py-3">
+    <div className="flex min-h-[80px] items-center gap-3 rounded-nested bg-muted py-4 pl-4 pr-3">
       <Icon className="size-6 shrink-0 text-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-semibold leading-6">{TITLE[kind]}</p>
         <p
           role="status"
           className={cn(
-            'flex items-center gap-1 text-[13px] leading-5',
+            'flex items-center gap-1 text-pretty text-[13px] leading-5',
             state === 'granted' ? 'text-primary-ink' : state === 'denied' ? 'text-giants-ink' : 'text-muted-foreground',
           )}
         >

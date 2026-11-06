@@ -1273,10 +1273,11 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Шаг 1: живой показ (HelloStep, цикл 6 с). Кнопка записи нажимается и превращается
-   в капсулу, по ходу разговора появляются строки текста, затем раскрываются итоги Indigo.
-   Без движения виден итоговый кадр: капсула, три строки и итоги. Полоски (.aid-ob-bar-wave) бегущая волна,
-   украшение, а не уровень звука. */
+/* Шаг 1: живой показ (HelloStep, цикл 6 с). Кнопка «Записать» появляется (0–0,3 с) и
+   нажимается (0,75 с), на её месте капсула (0,9–1,2 с); реплики по очереди со сдвигом 150 мс,
+   по 300 мс каждая (1,4–2 с); их сменяют итоги (3–3,3 с); итоговый кадр стоит до 5 с и гаснет
+   за 0,4 с, затем цикл заново. Появление ease-out. Без движения стоит итоговый кадр:
+   капсула и итоги. Полоски (.aid-ob-bar-wave) бегущая волна, украшение, а не уровень звука. */
 .aid-ob-bar-wave {
   transform-origin: center;
   animation: aid-ob-bar-wave 1.1s ease-in-out infinite;
@@ -1315,66 +1316,63 @@ html body[data-scroll-locked] {
 
 @keyframes aid-ob-demo-rec {
   0% {
+    opacity: 0;
+    transform: scale(0.9);
+    filter: blur(4px);
+  }
+  5%,
+  10% {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
     filter: none;
   }
-  8% {
+  12.5% {
     opacity: 1;
     transform: scale(0.88);
   }
   15%,
-  93% {
-    opacity: 0;
-    transform: scale(0.6);
-    filter: blur(4px);
-  }
   100% {
-    opacity: 1;
-    transform: scale(1);
-    filter: none;
+    opacity: 0;
+    transform: scale(0.8);
+    filter: blur(4px);
   }
 }
 
 @keyframes aid-ob-demo-cap {
   0%,
-  11% {
+  15% {
     opacity: 0;
-    transform: translateY(8px) scale(0.9);
+    transform: translateY(8px) scale(0.96);
     filter: blur(6px);
   }
-  17%,
-  90% {
+  20%,
+  83.3% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  96%,
+  90%,
   100% {
     opacity: 0;
-    transform: translateY(4px);
+    transform: none;
     filter: blur(4px);
   }
 }
 
 @keyframes aid-ob-demo-l1 {
   0%,
-  22% {
+  23.3% {
     opacity: 0;
     transform: translateY(6px);
     filter: blur(4px);
   }
-  27%,
-  58% {
+  28.3%,
+  48.3% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  64%,
-  90% {
-    opacity: 0.35;
-  }
-  96%,
+  53.3%,
   100% {
     opacity: 0;
   }
@@ -1382,22 +1380,18 @@ html body[data-scroll-locked] {
 
 @keyframes aid-ob-demo-l2 {
   0%,
-  32% {
+  25.8% {
     opacity: 0;
     transform: translateY(6px);
     filter: blur(4px);
   }
-  37%,
-  58% {
+  30.8%,
+  48.3% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  64%,
-  90% {
-    opacity: 0.35;
-  }
-  96%,
+  53.3%,
   100% {
     opacity: 0;
   }
@@ -1405,22 +1399,18 @@ html body[data-scroll-locked] {
 
 @keyframes aid-ob-demo-l3 {
   0%,
-  42% {
+  28.3% {
     opacity: 0;
     transform: translateY(6px);
     filter: blur(4px);
   }
-  47%,
-  58% {
+  33.3%,
+  48.3% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  64%,
-  90% {
-    opacity: 0.35;
-  }
-  96%,
+  53.3%,
   100% {
     opacity: 0;
   }
@@ -1428,128 +1418,165 @@ html body[data-scroll-locked] {
 
 @keyframes aid-ob-demo-sum {
   0%,
-  56% {
+  50% {
     opacity: 0;
-    transform: translateY(16px) scale(0.96);
+    transform: translateY(8px) scale(0.97);
     filter: blur(6px);
   }
-  64%,
-  90% {
+  55%,
+  83.3% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  96%,
+  90%,
   100% {
     opacity: 0;
+    transform: none;
     filter: blur(4px);
   }
 }
 
-/* Шаг 2: показ запроса macOS (AccessStep, цикл 5 с): окно, указатель жмёт «Разрешить»,
-   «Доступ есть». Когда микрофон решён (data-done), стоит последний кадр. */
+/* Шаг 2: показ запроса macOS (AccessStep, цикл 5,6 с). Окно появляется (0–0,4 с), указатель
+   подходит снизу справа по кривой (0,6–1,5 с: сдвиг по X с ease-out, по Y с ease-in-out),
+   нажимает (1,6–1,85 с, кнопка сжимается), окно гаснет (2,3–2,7 с), «Доступ есть» стоит
+   2,6–4,6 с и плавно уходит. data-state: granted стоит «Доступ есть», still стоит окно
+   без указателя (отказ, проверим позже); без движения тоже стоит окно. */
 .aid-ob-prompt-card {
-  animation: aid-ob-prompt-card 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation: aid-ob-prompt-card 5.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 .aid-ob-prompt-ok {
-  animation: aid-ob-prompt-ok 5s ease-in-out infinite;
+  animation: aid-ob-prompt-ok 5.6s ease-out infinite;
+}
+.aid-ob-prompt-cursor-x {
+  animation: aid-ob-prompt-cursor-x 5.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.aid-ob-prompt-cursor-y {
+  animation: aid-ob-prompt-cursor-y 5.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 .aid-ob-prompt-cursor {
-  transform: translate(53px, 40px);
-  animation: aid-ob-prompt-cursor 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  opacity: 0;
+  transform-origin: 1px 1px;
+  animation: aid-ob-prompt-cursor 5.6s ease-out infinite;
 }
 .aid-ob-prompt-done {
   opacity: 0;
-  animation: aid-ob-prompt-done 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation: aid-ob-prompt-done 5.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
-.aid-ob-prompt[data-done] .aid-ob-prompt-card,
-.aid-ob-prompt[data-done] .aid-ob-prompt-cursor {
+.aid-ob-prompt[data-state='granted'] .aid-ob-prompt-card,
+.aid-ob-prompt[data-state='granted'] .aid-ob-prompt-cursor {
   animation: none;
   opacity: 0;
 }
 
-.aid-ob-prompt[data-done] .aid-ob-prompt-done {
-  animation: aid-ob-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+.aid-ob-prompt[data-state='granted'] .aid-ob-prompt-done {
+  animation: aid-ob-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   opacity: 1;
+}
+
+.aid-ob-prompt[data-state='still'] * {
+  animation: none !important;
 }
 
 @keyframes aid-ob-prompt-card {
   0% {
     opacity: 0;
-    transform: scale(0.94);
+    transform: scale(0.96);
     filter: blur(6px);
   }
-  10%,
-  50% {
+  7%,
+  41% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  60%,
+  48%,
   100% {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.98);
     filter: blur(4px);
   }
 }
 
 @keyframes aid-ob-prompt-ok {
   0%,
-  40%,
-  50%,
+  28.5%,
+  34%,
   100% {
     transform: none;
   }
-  45% {
-    transform: scale(0.94);
+  31% {
+    transform: scale(0.92);
+  }
+}
+
+@keyframes aid-ob-prompt-cursor-x {
+  0%,
+  10.7% {
+    transform: translateX(64px);
+  }
+  26.8%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes aid-ob-prompt-cursor-y {
+  0%,
+  10.7% {
+    transform: translateY(44px);
+  }
+  26.8%,
+  100% {
+    transform: none;
   }
 }
 
 @keyframes aid-ob-prompt-cursor {
   0%,
-  12% {
+  10.7% {
     opacity: 0;
-    transform: translate(124px, 70px);
+    transform: none;
   }
-  18% {
+  15%,
+  28.5% {
     opacity: 1;
-    transform: translate(124px, 70px);
+    transform: none;
   }
-  38% {
+  31% {
     opacity: 1;
-    transform: translate(53px, 40px);
+    transform: scale(0.82);
   }
-  44% {
-    transform: translate(53px, 40px) scale(0.8);
-  }
-  50% {
+  34%,
+  40% {
     opacity: 1;
-    transform: translate(53px, 40px);
+    transform: none;
   }
-  56%,
+  46%,
   100% {
     opacity: 0;
-    transform: translate(53px, 40px);
+    transform: none;
   }
 }
 
 @keyframes aid-ob-prompt-done {
   0%,
-  60% {
+  46% {
     opacity: 0;
     transform: translateY(6px);
     filter: blur(4px);
   }
-  68%,
-  90% {
+  52%,
+  82% {
     opacity: 1;
     transform: none;
     filter: none;
   }
-  97%,
+  89%,
   100% {
     opacity: 0;
+    transform: none;
   }
 }
 
@@ -1583,9 +1610,11 @@ html body[data-scroll-locked] {
   .aid-ob-demo-sum,
   .aid-ob-prompt-card,
   .aid-ob-prompt-ok,
+  .aid-ob-prompt-cursor-x,
+  .aid-ob-prompt-cursor-y,
   .aid-ob-prompt-cursor,
   .aid-ob-prompt-done,
-  .aid-ob-prompt[data-done] .aid-ob-prompt-done {
+  .aid-ob-prompt[data-state='granted'] .aid-ob-prompt-done {
     animation: none;
   }
 

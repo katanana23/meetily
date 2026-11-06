@@ -38,6 +38,7 @@ import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
 import { AidRecordingControls } from '@/aid/lib/recording-controls'
 import { InPlaceMeetingRouter } from '@/aid/lib/in-place-router'
 import { LegacyBridge } from '@/aid/components/LegacyBridge'
+import { AidOnboarding } from '@/aid/components/onboarding/AidOnboarding'
 import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
 import { AidIcons } from '@/aid/components/AidIcons'
 import { installTauriEventGuard } from '@/aid/lib/tauri-events'
@@ -124,6 +125,12 @@ export default function RootLayout({
 }) {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
+  // Aid: приложение рисуется, только когда известно, нужен ли первый запуск (до этого видна
+  // заставка LaunchScreen), иначе на мгновение мелькал бы список встреч. Оригинал как был.
+  const [onboardingChecked, setOnboardingChecked] = useState(!isAidUI)
+  // Aid: после первого запуска провайдеры монтируются заново (вместо window.location.reload),
+  // чтобы прочитать сохранённые настройки; appKey > 0 значит «пришли из первого запуска»
+  const [appKey, setAppKey] = useState(0)
 
   // Import audio state
   const [showDropOverlay, setShowDropOverlay] = useState(false)
@@ -148,13 +155,18 @@ export default function RootLayout({
         } else {
           console.log('[Layout] Onboarding completed, showing main app')
         }
+        setOnboardingChecked(true)
       })
       .catch((error) => {
         console.error('[Layout] Failed to check onboarding status:', error)
         // Default to showing onboarding if we can't check
         setShowOnboarding(true)
         setOnboardingCompleted(false)
+        setOnboardingChecked(true)
       })
+    // Aid: страховка, если ядро не ответит: через 3 с показать приложение как есть
+    const fallback = isAidUI ? setTimeout(() => setOnboardingChecked(true), 3000) : undefined
+    return () => clearTimeout(fallback)
   }, [])
 
   // Disable context menu in production
@@ -282,6 +294,16 @@ export default function RootLayout({
   }, []);
 
   const handleOnboardingComplete = () => {
+    if (isAidUI) {
+      // Без перезагрузки: в окне Tauri на macOS window.location.reload() зависал.
+      // Новый key заново монтирует провайдеры (настройки, модели, запись), заставка
+      // LaunchScreen вне этого дерева и второй раз не появляется.
+      console.info('[aid] onboarding завершён, провайдеры монтируются заново без перезагрузки')
+      setShowOnboarding(false)
+      setOnboardingCompleted(true)
+      setAppKey((key) => key + 1)
+      return
+    }
     console.log('[Layout] Onboarding completed, reloading app')
     setShowOnboarding(false)
     setOnboardingCompleted(true)
@@ -304,7 +326,7 @@ export default function RootLayout({
         {/* Aid: встреча открывается на главной, без перехода между страницами */}
         <InPlaceMeetingRouter enabled={isAidUI}>
         <AnalyticsProvider>
-          <RecordingStateProvider>
+          <RecordingStateProvider key={appKey}>
             <TranscriptProvider>
               <ConfigProvider>
                 <OllamaDownloadProvider>
@@ -321,14 +343,13 @@ export default function RootLayout({
                               {/* Show onboarding or main app */}
                               {showOnboarding ? (
                                 isAidUI ? (
-                                  // мастер оригинала в токенах Aid и на русском (LegacyBridge)
-                                  <div className="aid-legacy aid-onboarding">
-                                    <OnboardingFlow onComplete={handleOnboardingComplete} />
-                                  </div>
+                                  // свой первый запуск на логике оригинала (useOnboarding)
+                                  <AidOnboarding onComplete={handleOnboardingComplete} />
                                 ) : (
                                   <OnboardingFlow onComplete={handleOnboardingComplete} />
                                 )
                               ) : isAidUI ? (
+                                !onboardingChecked ? null : (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
                                     {/* Бенто с ролями цвета: слева колонка 72 px (на macOS сверху подложка
@@ -337,7 +358,7 @@ export default function RootLayout({
                                         между плитками и от краёв окна. data-tauri-drag-region: подложка и промежутки
                                         между плитками перетаскивают окно */}
                                     <AidRecordingControls>
-                                      <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
+                                      <div className={`aid-app flex h-screen flex-col overflow-hidden bg-background ${appKey > 0 ? 'aid-app-enter' : ''}`}>
                                         <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 p-2">
                                           {/* Колонка сайдбара: на macOS сверху подложка с кнопками окна (WindowBar), ниже сайдбар */}
                                           <div data-tauri-drag-region className="flex min-h-0 shrink-0 flex-col gap-2">
@@ -356,6 +377,7 @@ export default function RootLayout({
                                     </AidRecordingControls>
                                   </AidTooltipProvider>
                                 </AidIcons>
+                                )
                               ) : (
                                 <div className="flex">
                                   <Sidebar />

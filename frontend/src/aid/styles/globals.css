@@ -323,15 +323,10 @@
   color: hsl(var(--primary-foreground));
 }
 
-/* Пока открыт мастер первого запуска, прогресс загрузки моделей виден
+/* Пока открыт первый запуск (components/onboarding), прогресс загрузки моделей виден
    на самом экране; тосты загрузки (toast.custom оригинала) его дублируют. */
 body:has(.aid-onboarding) .aid-toaster [data-sonner-toast][data-styled='false'] {
   display: none;
-}
-
-/* Фон мастера первого запуска: фон страницы, а не приглушённая поверхность */
-.aid-legacy.aid-onboarding .fixed.inset-0.bg-gray-50 {
-  background-color: hsl(var(--background));
 }
 
 /* Фон темы на всём окне: при растягивании и «резиновой» прокрутке WebKit
@@ -1189,5 +1184,107 @@ html body[data-scroll-locked] {
   .aid-dock-out {
     animation: none;
     opacity: 0;
+  }
+}
+
+/* Первый запуск (components/onboarding/AidOnboarding.tsx). Только transform, opacity и filter.
+   Шаг уходит размытием и сдвигом влево за 0,2 с, следующий приходит справа за 0,3 с;
+   логотип и строки первого шага проявляются по очереди (--d задержка); в конце весь
+   экран растворяется (0,26 с), а приложение проявляется на том же фоне окна (.aid-app-enter). */
+.aid-ob-in {
+  animation: aid-ob-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aid-ob-out {
+  animation: aid-ob-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.aid-ob-logo {
+  animation: aid-ob-logo 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aid-ob-rise {
+  animation: aid-ob-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.aid-ob-exit {
+  animation: aid-ob-exit 0.26s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.aid-app-enter {
+  animation: aid-app-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.aid-ob-bar {
+  transform-origin: left center;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aid-ob-dot {
+  transition: background-color 0.3s;
+}
+
+@keyframes aid-ob-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes aid-ob-out {
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes aid-ob-logo {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+    filter: blur(12px);
+  }
+}
+
+@keyframes aid-ob-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(6px);
+  }
+}
+
+@keyframes aid-ob-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+    filter: blur(8px);
+  }
+}
+
+@keyframes aid-app-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+    filter: blur(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-ob-in,
+  .aid-ob-out,
+  .aid-ob-logo,
+  .aid-ob-rise,
+  .aid-ob-exit,
+  .aid-app-enter {
+    animation: none;
+  }
+
+  .aid-ob-bar,
+  .aid-ob-dot {
+    transition: none;
   }
 }

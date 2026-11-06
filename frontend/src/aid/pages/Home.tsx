@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { openTrash } from '@/aid/lib/recording-trash';
+import { openPrivacySettings } from '@/aid/lib/onboarding';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
@@ -140,7 +141,8 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
     } catch {
       /* откроем системные настройки */
     }
-    await invoke('open_system_settings').catch(() => undefined);
+    // Без preferencePane команда ядра отклоняет вызов, и настройки не открывались
+    await openPrivacySettings('microphone');
   };
 
   return (

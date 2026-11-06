@@ -990,10 +990,10 @@ html body[data-scroll-locked] {
   }
 }
 
-/* ─── Полоса окна (WindowBar) ───
-   В браузере на заглушках кнопки окна нарисованы, как на Mac (x 18, центр на 19 px).
-   Сама полоса бенто-плиткой: таблетка 26 px с отступом 8 px по бокам и 6 px сверху,
-   цвет между фоном окна и плитками, чтобы не спорила с контентом.
+/* ─── Подложка кнопок окна (WindowBar) ───
+   В браузере на заглушках кнопки окна нарисованы, как на Mac (x 18, центр на 19 px от
+   верха окна; в подложке, которая начинается с 8 px, это left 11 и top 5).
+   Подложка 72 × 22 над сайдбаром, цвет между фоном окна и плитками.
    Только для разработки: в Tauri кнопки системные. */
 .aid-titlebar-mock .aid-window-bar {
   position: relative;
@@ -1001,8 +1001,8 @@ html body[data-scroll-locked] {
 .aid-titlebar-mock .aid-window-bar::before {
   content: '';
   position: absolute;
-  left: 19px;
-  top: 13px;
+  left: 11px;
+  top: 5px;
   width: 12px;
   height: 12px;
   border-radius: 9999px;

@@ -331,16 +331,21 @@ export default function RootLayout({
                               ) : isAidUI ? (
                                 <AidIcons>
                                   <AidTooltipProvider delayDuration={300}>
-                                    {/* Бенто с ролями цвета: на macOS сверху полоса окна 38 px с кнопками окна
-                                        (WindowBar), ниже узкая плитка сайдбара 72 px и колонка страницы (её плитки
-                                        рисует сама страница) с плавающей капсулой записи. 8 px между плитками, от
-                                        краёв окна и от полосы. data-tauri-drag-region: полоса и промежутки между
-                                        плитками перетаскивают окно */}
+                                    {/* Бенто с ролями цвета: слева колонка 72 px (на macOS сверху подложка
+                                        с кнопками окна, WindowBar, ниже сайдбар), справа колонка страницы во всю
+                                        высоту (её плитки рисует сама страница) с плавающей капсулой записи. 8 px
+                                        между плитками и от краёв окна. data-tauri-drag-region: подложка и промежутки
+                                        между плитками перетаскивают окно */}
                                     <AidRecordingControls>
                                       <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
-                                        <WindowBar />
                                         <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 p-2">
-                                          <AidSidebar />
+                                          {/* Колонка сайдбара: на macOS сверху подложка с кнопками окна (WindowBar), ниже сайдбар */}
+                                          <div data-tauri-drag-region className="flex min-h-0 shrink-0 flex-col gap-2">
+                                            <WindowBar />
+                                            <div className="min-h-0 flex-1">
+                                              <AidSidebar />
+                                            </div>
+                                          </div>
                                           {/* Капсула записи плавает внизу по центру поверх контента */}
                                           <div data-tauri-drag-region className="relative flex min-h-0 min-w-0 flex-1">
                                             {children}

@@ -324,13 +324,15 @@ function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f:
             aria-checked={active}
             onClick={() => onChange(id)}
             className={cn(
-              'flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              // Выбранный фильтр нейтральный (инверсия текста и фона), не Mikado: это выбор, а не главное действие
-              active ? 'bg-foreground text-background' : 'bg-muted text-foreground hover:bg-input',
+              // Рамка 2 px у всех чипов (у невыбранных прозрачная): при выборе размер не прыгает
+              'flex h-10 items-center gap-2 rounded-full border-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              // Выбранный фильтр: рамка Mikado 2 px и лёгкое стекло внутри (.aid-chip-on), без сплошной заливки:
+              // это выбор, а не главное действие
+              active ? 'aid-chip-on border-primary text-foreground' : 'border-transparent bg-muted text-foreground hover:bg-input',
             )}
           >
             {label}
-            {n !== undefined && <span className={cn('tabular', active ? 'text-background/60' : 'text-muted-foreground')}>{n}</span>}
+            {n !== undefined && <span className={cn('tabular', 'text-muted-foreground')}>{n}</span>}
           </button>
         );
       })}

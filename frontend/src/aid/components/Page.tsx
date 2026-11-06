@@ -67,6 +67,38 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
     ro.observe(head);
     return () => ro.disconnect();
   }, [ref, header]);
+
+  // Запас снизу под капсулу записи только когда контент до неё доходит. Если всё
+  // помещается, запаса нет: прокручивать нечего, полоса не появляется. Конец контента
+  // меряем по последнему элементу внутри последней плитки: его место не зависит от того,
+  // растянута плитка до низа или нет, поэтому замер не зацикливается.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || layout !== 'bento') return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const column = el.querySelector<HTMLElement>(':scope > .aid-page-column');
+      const end = column?.lastElementChild?.lastElementChild ?? column?.lastElementChild;
+      if (!end) return;
+      const dock = parseFloat(getComputedStyle(el).getPropertyValue('--dock-space')) || 112;
+      const bottom = end.getBoundingClientRect().bottom - el.getBoundingClientRect().top + el.scrollTop;
+      el.toggleAttribute('data-fits', bottom + dock <= el.clientHeight);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    const ro = new ResizeObserver(schedule);
+    ro.observe(el);
+    const mo = new MutationObserver(schedule);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    schedule();
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [ref, layout]);
   // Шапка: в покое плитка, при прокрутке стекло
   const head = (extra: string, flat = false) =>
     header && (
@@ -81,11 +113,11 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
       <main className={cn('relative h-full min-w-0 flex-1', className)}>
         {/* -mr-2: прокрутка заходит в правое поле окна, полоса 8 px живёт там.
             .aid-round-clip обрезает контент по радиусу плитки у краёв плиток, не задевая полосу */}
-        <div ref={ref} className="aid-scroll aid-scroll-edge aid-round-clip -mr-2 flex h-full flex-col gap-2 overflow-y-auto">
+        <div ref={ref} className="aid-scroll aid-scroll-edge aid-scroll-under-head aid-round-clip -mr-2 flex h-full flex-col gap-2 overflow-y-auto">
           {head('p-5')}
           {/* Последняя нейтральная плитка тянется до низа окна, под капсулу записи, с запасом снизу.
               Цветную плитку (.aid-role) не тянем: большое цветное пятно хуже пустоты */}
-          <div className="flex flex-1 flex-col gap-2 has-[>.aid-role:last-child]:pb-[var(--dock-space)] [&>*:last-child:not(.aid-role)]:grow [&>*:last-child:not(.aid-role)]:pb-[var(--dock-space)]">
+          <div className="aid-page-column flex flex-1 flex-col gap-2 has-[>.aid-role:last-child]:pb-[var(--dock-pad)] [&>*:last-child:not(.aid-role)]:grow [&>*:last-child:not(.aid-role)]:pb-[var(--dock-pad)]">
             {children}
           </div>
         </div>

@@ -410,6 +410,20 @@ body {
   width: 8px;
 }
 
+.aid-scroll-edge::-webkit-scrollbar-thumb {
+  border-width: 2px;
+}
+
+/* Запас под капсулу записи (Page layout="bento"): полный, только если контент до неё
+   доходит; иначе обычный отступ плитки, и прокрутки нет (data-fits ставит Page) */
+.aid-scroll {
+  --dock-pad: var(--dock-space);
+}
+
+.aid-scroll[data-fits] {
+  --dock-pad: var(--tile-pad, 20px);
+}
+
 /* Обрезка колонки плиток по радиусу плитки (Page layout="bento"). Прокрутка шире
    колонки на 8 px (полоса в поле окна), поэтому overflow + border-radius не
    подходит: правые углы разошлись бы с краем плиток. Маска из двух полос и
@@ -1003,4 +1017,10 @@ html body[data-scroll-locked] {
   .aid-finish-pop {
     animation: none;
   }
+}
+
+/* Поле поиска: свой крестик в Home.tsx, системный (WebKit) прячем, чтобы не было двух */
+.aid-font input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }

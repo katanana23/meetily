@@ -14,7 +14,7 @@ import {
   Sparkle,
   Trash,
   type Icon,
-} from '@phosphor-icons/react';
+} from '@/aid/components/icons';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';

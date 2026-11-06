@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Moon, Sun } from '@phosphor-icons/react';
+import { Moon, Sun } from '@/aid/components/icons';
 import { getStoredTheme, onThemeChange, setTheme, type ThemeMode } from '@/aid/lib/theme';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';

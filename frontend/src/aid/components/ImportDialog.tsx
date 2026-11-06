@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowClockwise, FileAudio, UploadSimple, Warning } from '@phosphor-icons/react';
+import { ArrowClockwise, FileAudio, UploadSimple, Warning } from '@/aid/components/icons';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { Button } from '@/aid/components/ui/button';
 import { Input } from '@/aid/components/ui/input';

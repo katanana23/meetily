@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
+import { SpeakerHigh, Stop, Warning } from '@/aid/components/icons';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';

@@ -11,7 +11,7 @@
 import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { GearSix } from '@phosphor-icons/react';
+import { GearSix } from '@/aid/components/icons';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { BRAND_MARK_SRC } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';

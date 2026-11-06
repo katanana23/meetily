@@ -4,7 +4,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CaretLeft } from '@phosphor-icons/react';
+import { CaretLeft } from '@/aid/components/icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 
 const CLASS =

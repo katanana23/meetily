@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, X } from '@phosphor-icons/react';
+import { Check, X } from '@/aid/components/icons';
 import { Button } from '@/aid/components/ui/button';
 import { Input } from '@/aid/components/ui/input';
 import { Spinner } from '@/aid/components/ui/spinner';

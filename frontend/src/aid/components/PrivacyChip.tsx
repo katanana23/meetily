@@ -2,7 +2,7 @@
 // Смысл передают текст и иконка, цвет только поддерживает.
 'use client';
 
-import { Cloud, ShieldCheck, ShieldWarning, Sparkle, Waveform } from '@phosphor-icons/react';
+import { Cloud, ShieldCheck, ShieldWarning, Sparkle, Waveform } from '@/aid/components/icons';
 import { Badge } from '@/aid/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import type { PrivacyInfo, PrivacyLevel, ProviderPrivacy } from '@/aid/lib/privacy';

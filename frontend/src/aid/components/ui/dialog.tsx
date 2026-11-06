@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { X } from '@phosphor-icons/react';
+import { X } from '@/aid/components/icons';
 import { cn } from '@/aid/lib/utils';
 
 const Dialog = DialogPrimitive.Root;

@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Check, GearSix, Warning } from '@phosphor-icons/react';
+import { Check, GearSix, Warning } from '@/aid/components/icons';
 import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { cn } from '@/aid/lib/utils';

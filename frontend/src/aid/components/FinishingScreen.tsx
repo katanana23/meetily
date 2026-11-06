@@ -5,7 +5,7 @@
 // оставляет полосы неподвижными (globals.css, .aid-finish-*).
 'use client';
 
-import { Check } from '@phosphor-icons/react';
+import { Check } from '@/aid/components/icons';
 import { Spinner } from '@/aid/components/ui/spinner';
 import type { FinishPhase } from '@/aid/lib/recording';
 import { cn } from '@/aid/lib/utils';

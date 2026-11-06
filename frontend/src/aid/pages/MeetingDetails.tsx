@@ -21,7 +21,7 @@ import {
   Sparkle,
   Trash,
   Warning,
-} from '@phosphor-icons/react';
+} from '@/aid/components/icons';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';

@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
-import { Bell, Check, Warning } from '@phosphor-icons/react';
+import { Bell, Check, Warning } from '@/aid/components/icons';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { getStoredTheme, onThemeChange, type ThemeMode } from '@/aid/lib/theme';
 import { installAidToasts } from '@/aid/lib/toasts';

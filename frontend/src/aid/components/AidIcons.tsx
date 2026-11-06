@@ -1,12 +1,9 @@
-// Все иконки Aid залитые: weight="fill" по умолчанию для @phosphor-icons/react.
-// regular не используем; размер задаётся классом (16 или 20 px).
+// Иконки ShadeNotes: Solar Bold из components/icons.tsx (залитые, размер 1em, задаётся
+// классом). Обёртка осталась, чтобы не менять разметку каркаса; контекст иконкам не нужен.
 'use client';
 
 import type { ReactNode } from 'react';
-import { IconContext } from '@phosphor-icons/react';
-
-const VALUE = { weight: 'fill' as const, size: '1em' };
 
 export function AidIcons({ children }: { children: ReactNode }) {
-  return <IconContext.Provider value={VALUE}>{children}</IconContext.Provider>;
+  return <>{children}</>;
 }

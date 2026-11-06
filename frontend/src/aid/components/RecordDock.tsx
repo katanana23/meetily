@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Microphone, Pause, Play, SpeakerHigh, Stop, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, Pause, Play, SpeakerHigh, Stop, Waveform, X } from '@/aid/components/icons';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';

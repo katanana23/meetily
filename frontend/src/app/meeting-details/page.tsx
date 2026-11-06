@@ -6,7 +6,9 @@
 import dynamic from 'next/dynamic';
 import AidMeetingDetails from '@/aid/pages/MeetingDetails';
 
-const OriginalMeetingDetails = dynamic(() => import('./page-original'), { ssr: false });
+// В интерфейсе Aid условие постоянно (next.config.js env), и ветка оригинала не компилируется
+const OriginalMeetingDetails =
+  process.env.NEXT_PUBLIC_UI === 'original' ? dynamic(() => import('./page-original'), { ssr: false }) : () => null;
 
 export default function MeetingDetails() {
   return process.env.NEXT_PUBLIC_UI === 'original' ? <OriginalMeetingDetails /> : <AidMeetingDetails />;

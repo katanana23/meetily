@@ -30,6 +30,20 @@ import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioF
 import { themeScript } from '@/aid/lib/theme'
 import { AidSidebar } from '@/aid/components/AidSidebar'
 import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
+import { AidToaster } from '@/aid/components/AidToaster'
+import { RecordDock } from '@/aid/components/RecordDock'
+import { WindowBar } from '@/aid/components/WindowBar'
+import { LaunchScreen } from '@/aid/components/LaunchScreen'
+import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
+import { AidRecordingControls } from '@/aid/lib/recording-controls'
+import { InPlaceMeetingRouter } from '@/aid/lib/in-place-router'
+import { LegacyBridge } from '@/aid/components/LegacyBridge'
+import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
+import { AidIcons } from '@/aid/components/AidIcons'
+import { installTauriEventGuard } from '@/aid/lib/tauri-events'
+import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
+import { installNavDebug } from '@/aid/lib/nav-debug'
+import { showWindow, windowBootScript, windowShowScript } from '@/aid/lib/window-boot'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -38,14 +52,28 @@ if (process.env.NEXT_PUBLIC_UI === 'original') {
   require('./globals.css')
 } else {
   require('@/aid/styles/globals.css')
+  // мост: зашитые цвета оригинальных компонентов → токены Aid
+  require('@/aid/styles/legacy.css')
 }
 const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
+const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingProvider
+// Aid: страховка от падения unregisterListener при ранней отписке в оригинальных хуках
+// и окно в цвет темы с самого старта
+if (isAidUI) {
+  installTauriEventGuard()
+  if (typeof window !== 'undefined') markTitlebarOverlay()
+  // ВРЕМЕННО: журнал кликов по списку встреч для проверки на Mac (nav-debug.ts)
+  if (typeof window !== 'undefined') installNavDebug()
+  void syncWindowTheme()
+}
 
-// Оба шрифта пишут в одну переменную --font-ui, на body ставится класс только одного
+// Aid: SF Pro (системный шрифт macOS) через стек -apple-system в .aid-font
+// (globals.css); Inter запасной для Windows и Linux, в переменной --font-inter.
+// Оригинал: Source Sans 3 в --font-ui
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
   weight: ['400', '500', '600'],
-  variable: '--font-ui',
+  variable: '--font-inter',
   display: 'swap',
 })
 
@@ -74,6 +102,10 @@ function ConditionalImportDialog({
     return null;
   }
 
+  // Aid: своё окно импорта в бенто на тех же хуках оригинала (aid/components/ImportDialog)
+  if (isAidUI) {
+    return <AidImportDialog open={showImportDialog} onOpenChange={handleImportDialogClose} preselectedFile={importFilePath} />;
+  }
   return (
     <ImportAudioDialog
       open={showImportDialog}
@@ -97,6 +129,11 @@ export default function RootLayout({
   const [showDropOverlay, setShowDropOverlay] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
+
+  // Страховка: окно стартует скрытым, показать его, даже если скрипт в разметке не сработал
+  useEffect(() => {
+    void showWindow()
+  }, [])
 
   useEffect(() => {
     // Check onboarding status first
@@ -255,9 +292,17 @@ export default function RootLayout({
   return (
     <html lang={isAidUI ? 'ru' : 'en'} suppressHydrationWarning>
       <head>
+        {isAidUI && <title>ShadeNotes</title>}
         {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
+        {/* Окно Tauri стартует скрытым (tauri.conf.json): фон по теме, затем показ (window-boot.ts) */}
+        <script dangerouslySetInnerHTML={{ __html: windowBootScript }} />
       </head>
-      <body className={`${isAidUI ? inter.variable : sourceSans3.variable} font-sans antialiased`}>
+      <body className={`${isAidUI ? `${inter.variable} aid-font` : sourceSans3.variable} font-sans antialiased`}>
+        {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
+        {isAidUI && <LaunchScreen />}
+        <script dangerouslySetInnerHTML={{ __html: windowShowScript }} />
+        {/* Aid: встреча открывается на главной, без перехода между страницами */}
+        <InPlaceMeetingRouter enabled={isAidUI}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -267,21 +312,45 @@ export default function RootLayout({
                     <UpdateCheckProvider>
                       <SidebarProvider>
                         <TooltipProvider>
-                          <RecordingPostProcessingProvider>
+                          {/* Aid: свой провайдер остановки (решение по содержанию записи, тот же путь для трея) */}
+                          <PostProcessing>
                             <ImportDialogProvider onOpen={handleOpenImportDialog}>
                               {/* Download progress toast provider - listens for background downloads */}
                               <DownloadProgressToastProvider />
 
                               {/* Show onboarding or main app */}
                               {showOnboarding ? (
-                                <OnboardingFlow onComplete={handleOnboardingComplete} />
-                              ) : isAidUI ? (
-                                <AidTooltipProvider delayDuration={300}>
-                                  <div className="flex h-screen overflow-hidden">
-                                    <AidSidebar />
-                                    {children}
+                                isAidUI ? (
+                                  // мастер оригинала в токенах Aid и на русском (LegacyBridge)
+                                  <div className="aid-legacy aid-onboarding">
+                                    <OnboardingFlow onComplete={handleOnboardingComplete} />
                                   </div>
-                                </AidTooltipProvider>
+                                ) : (
+                                  <OnboardingFlow onComplete={handleOnboardingComplete} />
+                                )
+                              ) : isAidUI ? (
+                                <AidIcons>
+                                  <AidTooltipProvider delayDuration={300}>
+                                    {/* Бенто с ролями цвета: на macOS сверху полоса окна 38 px с кнопками окна
+                                        (WindowBar), ниже узкая плитка сайдбара 72 px и колонка страницы (её плитки
+                                        рисует сама страница) с плавающей капсулой записи. 8 px между плитками, от
+                                        краёв окна и от полосы. data-tauri-drag-region: полоса и промежутки между
+                                        плитками перетаскивают окно */}
+                                    <AidRecordingControls>
+                                      <div className="aid-app flex h-screen flex-col overflow-hidden bg-background">
+                                        <WindowBar />
+                                        <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 p-2">
+                                          <AidSidebar />
+                                          {/* Капсула записи плавает внизу по центру поверх контента */}
+                                          <div data-tauri-drag-region className="relative flex min-h-0 min-w-0 flex-1">
+                                            {children}
+                                            <RecordDock />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </AidRecordingControls>
+                                  </AidTooltipProvider>
+                                </AidIcons>
                               ) : (
                                 <div className="flex">
                                   <Sidebar />
@@ -296,7 +365,7 @@ export default function RootLayout({
                                 importFilePath={importFilePath}
                               />
                             </ImportDialogProvider>
-                          </RecordingPostProcessingProvider>
+                          </PostProcessing>
                         </TooltipProvider>
                       </SidebarProvider>
                     </UpdateCheckProvider>
@@ -307,8 +376,16 @@ export default function RootLayout({
             </TranscriptProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
+        </InPlaceMeetingRouter>
 
-        <Toaster position="bottom-center" richColors closeButton />
+        {isAidUI ? (
+          <>
+            <AidToaster />
+            <LegacyBridge />
+          </>
+        ) : (
+          <Toaster position="bottom-center" richColors closeButton />
+        )}
       </body>
     </html>
   )

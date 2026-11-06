@@ -36,15 +36,17 @@ pub const WHISPER_MODEL_CATALOG: &[(&str, &str, u32, &str, &str, &str)] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Fork identity (Aid Meetings). Single place for the fork's name in the Rust
-// core: change the literal in `fork_app_name!` to rename tray tooltip,
-// notification titles and the hardcoded data folders below.
+// Fork identity (ShadeNotes, formerly Aid Meetings). Single place for the
+// fork's visible name in the Rust core: tray tooltip and notification titles.
 // Must stay in sync with `productName` in tauri.conf.json.
+// Data folders below keep their old names on purpose: renaming them would
+// orphan existing user data (custom templates, notification settings,
+// recordings). The `identifier` in tauri.conf.json is not changed either.
 // ---------------------------------------------------------------------------
 #[macro_export]
 macro_rules! fork_app_name {
     () => {
-        "Aid Meetings"
+        "ShadeNotes"
     };
 }
 
@@ -55,7 +57,8 @@ pub const APP_DISPLAY_NAME: &str = fork_app_name!();
 pub const APP_ERROR_TITLE: &str = concat!(fork_app_name!(), " Error");
 
 /// Folder name under the OS data/config dir (custom templates, notification settings).
-pub const APP_DATA_DIR_NAME: &str = fork_app_name!();
+/// Stays "Aid Meetings" after the rename to ShadeNotes: existing data lives there.
+pub const APP_DATA_DIR_NAME: &str = "Aid Meetings";
 
 /// Default recordings folder name (inside ~/Movies, ~/Music or ~/Documents).
 pub const RECORDINGS_DIR_NAME: &str = "aid-meetings-recordings";

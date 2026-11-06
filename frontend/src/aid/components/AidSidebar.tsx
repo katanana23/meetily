@@ -1,58 +1,122 @@
-// Сайдбар Aid: название, навигация, тема и индикатор приватности.
+// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 48 px,
+// по 12 px от краёв, ведёт к списку встреч (вкладка одна, отдельного пункта
+// «Встречи» нет). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
+// точкой записи: путь к «Остановить». Внизу «Настройки» (выбранный раздел тёмно-серой
+// таблеткой, --nav-active), «Локально» и переключатель темы таблеткой.
+//
+// Кнопки окна macOS стоят в отдельной полосе окна над плитками (WindowBar), поэтому
+// своего места под них в сайдбаре нет.
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Settings } from 'lucide-react';
+import { GearSix } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { BRAND_MARK_SRC } from './BrandMark';
 import { PrivacyChip } from './PrivacyChip';
+import { Skeleton } from './ui/skeleton';
+import { markTitlebarOverlay } from '@/aid/lib/window-theme';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { usePrivacy } from '@/aid/lib/privacy';
+import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
+import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useRecordingControls } from '@/aid/lib/recording-controls';
 
-const NAV = [
-  { label: t('navMeetings'), href: '/', icon: MessagesSquare, match: (p: string) => p === '/' || p.startsWith('/meeting-details') },
-  { label: t('navSettings'), href: '/settings', icon: Settings, match: (p: string) => p.startsWith('/settings') },
-];
+type NavItem = { label: string; href: string; icon: typeof GearSix; match: (p: string) => boolean };
+
+const SETTINGS: NavItem = { label: t('navSettings'), href: '/settings', icon: GearSix, match: (p) => p.startsWith('/settings') };
+
+/** Раздел сайдбара: выбранный тёмно-серой таблеткой, остальные серой иконкой. */
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = item.match(pathname);
+  const Icon = item.icon;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href={item.href}
+          aria-label={item.label}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            SIDEBAR_BUTTON,
+            active ? 'bg-nav-active text-nav-active-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          )}
+        >
+          <Icon className="size-6" aria-hidden />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Круглая кнопка сайдбара 48 px. */
+export const SIDEBAR_BUTTON =
+  'flex size-12 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** Запись идёт, а пользователь ушёл с главной: кнопка с красной точкой записи ведёт к «Остановить». */
+function RecordingLink({ pathname }: { pathname: string }) {
+  const rec = useRecordingState();
+  if (!rec.isRecording || pathname === '/') return null;
+  const seconds = rec.activeDuration ?? rec.recordingDuration ?? 0;
+  const label = `${rec.isPaused ? t('paused') : t('recording')}, ${formatTimer(seconds)}`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'bg-muted hover:bg-input')}>
+          <span className={cn('size-3 rounded-full', rec.isPaused ? 'bg-foreground/40' : 'aid-dock-dot aid-record-dot')} aria-hidden />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Знак ShadeNotes: логотип, ведёт к списку встреч (и с экрана записи, и со встречи). */
+function BrandLink() {
+  const c = useRecordingControls();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/"
+          aria-label={`${t('appName')}: ${t('navMeetings')}`}
+          onClick={() => c.setView('list')}
+          // 48 px, как остальные кнопки сайдбара: по 12 px от краёв (72 px) и сверху; радиус 12 = 24 у сайдбара минус 12 (концентрично)
+          className="block size-12 overflow-hidden rounded-[12px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
+          <img src={BRAND_MARK_SRC} width={48} height={48} alt="" draggable={false} className="size-12" />
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right">{t('navMeetings')}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function AidSidebar() {
   const pathname = usePathname() ?? '/';
-  const { privacy } = usePrivacy();
+  const { privacy, loading: privacyLoading } = usePrivacy();
+  // Страховка к скрипту в <head> (theme.ts): класс полосы окна macOS (WindowBar)
+  useEffect(() => markTitlebarOverlay(), []);
 
   return (
-    <aside className="flex h-screen w-[240px] shrink-0 flex-col border-r border-border bg-card">
-      <div className="flex h-16 items-center gap-3 px-5">
-        <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground" aria-hidden>
-          A
-        </span>
-        <span className="text-[15px] font-semibold">{t('appName')}</span>
-      </div>
-
-      <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Основная навигация">
-        {NAV.map((item) => {
-          const active = item.match(pathname);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-              )}
-            >
-              <Icon className={cn('size-[18px]', active && 'text-primary')} />
-              {item.label}
-            </Link>
-          );
-        })}
+    <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-tile bg-card py-3">
+      <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Основная навигация">
+        <BrandLink />
+        <RecordingLink pathname={pathname} />
+        {/* Настройки внизу, над приватностью */}
+        <div className="mt-auto">
+          <NavLink item={SETTINGS} pathname={pathname} />
+        </div>
       </nav>
 
-      <div className="space-y-2 border-t border-border p-3">
-        <div className="px-3 py-1">
-          <PrivacyChip privacy={privacy} />
-        </div>
+      <div className="mt-3 flex flex-col items-center gap-3">
+        {/* Пока провайдеры не прочитаны, не «Неизвестно», а скелетон знака */}
+        {privacyLoading ? <Skeleton className="size-12 rounded-full" /> : <PrivacyChip privacy={privacy} compact />}
         <ThemeSwitcher />
       </div>
     </aside>

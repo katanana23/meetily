@@ -14,6 +14,8 @@ declare global {
       calledCommands: Set<string>;
       unknownCommands: Set<string>;
       listenedEvents: Set<string>;
+      /** Двойные отписки, пойманные заглушкой (в Tauri они бросают TypeError). */
+      doubleUnlistens: string[];
       handledCommands: string[];
       /** Отправить событие «от ядра» вручную, например emit('mic-unavailable'). */
       emit: (event: string, payload?: unknown) => Promise<void>;
@@ -33,6 +35,8 @@ export function installMockTauri() {
   const be = new MockBackend(scenario);
 
   const calledCommands = new Set<string>();
+  /** Двойные отписки (event#id): в настоящем Tauri каждая роняет unregisterListener. */
+  const doubleUnlistens: string[] = [];
   const unknownCommands = new Set<string>();
   const listenedEvents = new Set<string>();
 
@@ -80,8 +84,33 @@ export function installMockTauri() {
   // Подсматриваем подписки на события (для отчёта о покрытии).
   const internals = window.__TAURI_INTERNALS__ as { invoke: (cmd: string, args?: Record<string, unknown>, o?: unknown) => Promise<unknown> };
   const originalInvoke = internals.invoke;
+  // Активные подписки: как в настоящем Tauri, повторная отписка (или отписка
+  // неизвестного id) бросает ту же ошибку, что user-script unregisterListener:
+  // TypeError: undefined is not an object (evaluating 'listeners[eventId].handlerId').
+  const activeListeners = new Set<unknown>();
+  const eventInternals = (window as unknown as {
+    __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (event: string, id: unknown) => void };
+  }).__TAURI_EVENT_PLUGIN_INTERNALS__;
+  const mockUnregister = eventInternals.unregisterListener;
+  eventInternals.unregisterListener = (event, id) => {
+    if (!activeListeners.has(id)) {
+      doubleUnlistens.push(`${event}#${String(id)}`);
+      throw new TypeError("undefined is not an object (evaluating 'listeners[eventId].handlerId')");
+    }
+    activeListeners.delete(id);
+    mockUnregister(event, id);
+  };
+
   internals.invoke = (cmd, args, options) => {
-    if (cmd === 'plugin:event|listen' && typeof args?.event === 'string') listenedEvents.add(args.event);
+    if (cmd === 'plugin:event|listen' && typeof args?.event === 'string') {
+      listenedEvents.add(args.event);
+      return originalInvoke(cmd, args, options).then((id) => {
+        // Tauri записывает слушателя в свою таблицу на странице чуть позже, чем
+        // разрешается listen(): отписка в тот же такт падает так же, как повторная.
+        setTimeout(() => activeListeners.add(id), 0);
+        return id;
+      });
+    }
     // Обход ошибки в @tauri-apps/api/mocks 2.11: отписка ищет args.id, а event.js
     // присылает eventId. Без этого отписанные обработчики остаются в списке и
     // каждое событие сыплет предупреждениями "Couldn't find callback id".
@@ -97,6 +126,7 @@ export function installMockTauri() {
     calledCommands,
     unknownCommands,
     listenedEvents,
+    doubleUnlistens,
     handledCommands: Object.keys(handlers),
     emit: (event, payload) => be.emit(event, payload),
     presets: {
@@ -137,7 +167,7 @@ export function installMockTauri() {
 
   console.info(
     `%c[mock-tauri]%c Режим заглушек: сценарий "${scenario.id}" — ${scenario.description}. ` +
-      'Переключить: ?mock=empty|full|long|recording|error|onboarding, отключить: ?mock=off. ' +
+      `Переключить: ?mock=${Object.keys(SCENARIOS).join('|')}, отключить: ?mock=off. ` +
       'Состояние: window.__MEETILY_MOCK__',
     'background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px',
     'color:inherit',

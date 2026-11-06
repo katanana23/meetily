@@ -270,7 +270,9 @@ export const handlers: Record<string, Handler> = {
   },
 
   // ---------- устройства и звук ----------
-  get_audio_devices: ok(audioDevices),
+  // без доступа к микрофону ядро не видит входных устройств
+  get_audio_devices: (_a, be) =>
+    be.scenario.micPermission === false ? audioDevices.filter((d) => d.device_type !== 'Input') : audioDevices,
   // настоящего звука нет: уровни синтетические
   start_audio_level_monitoring: (a, be) => be.startAudioLevels(a?.deviceNames ?? []),
   stop_audio_level_monitoring: (_a, be) => be.stopAudioLevels(),
@@ -278,8 +280,8 @@ export const handlers: Record<string, Handler> = {
   get_audio_backend_info: ok(audioBackends),
   get_current_audio_backend: ok('screencapturekit'),
   set_audio_backend: NULL,
-  trigger_microphone_permission: TRUE,
-  trigger_system_audio_permission_command: TRUE,
+  trigger_microphone_permission: (_a, be) => be.scenario.micPermission !== false,
+  trigger_system_audio_permission_command: (_a, be) => be.scenario.micPermission !== false,
   open_system_settings: warnNative('Открытие системных настроек'),
 
   // ---------- настройки ----------
@@ -287,7 +289,7 @@ export const handlers: Record<string, Handler> = {
   set_recording_preferences: NULL,
   get_default_recordings_folder_path: ok(`${MOCK_ROOT}/recordings`),
   open_recordings_folder: warnNative('Открытие папки записей'),
-  get_notification_settings: ok(notificationSettings()),
+  get_notification_settings: (_a, be) => notificationSettings(be.scenario.notificationsCoreDefault),
   set_notification_settings: NULL,
 
   // ---------- импорт и ретранскрипция (бета) ----------

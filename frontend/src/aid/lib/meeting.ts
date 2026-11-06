@@ -33,7 +33,11 @@ const SPEAKER_PREFIX = /^([A-ZА-ЯЁ][^:\n]{0,39}):\s+([\s\S]+)$/;
 export function toSegment(t: Transcript): Segment {
   const raw = (t.text ?? '').trim();
   const match = raw.match(SPEAKER_PREFIX);
-  const looksLikeName = match && match[1].split(/\s+/).length <= 4 && !/[.!?]/.test(match[1]);
+  // Имя: до 4 слов, каждое с заглавной буквы или число («Глеб Сомов», «Спикер 2»).
+  // «Давайте договоримся: …» и «Предлагаю так: …» остаются текстом реплики.
+  const parts = match ? match[1].trim().split(/\s+/) : [];
+  const looksLikeName =
+    match && parts.length <= 4 && !/[.!?,]/.test(match[1]) && parts.every((w) => /^[A-ZА-ЯЁ]/.test(w) || /^\d+$/.test(w));
   return {
     id: t.id,
     speaker: looksLikeName ? match![1].trim() : null,
@@ -113,11 +117,132 @@ function blocksToMarkdown(blocks: BlockNoteBlock[], depth = 0): string {
   return out.join('\n');
 }
 
+// Заглушки, которые модель пишет в пустой раздел итогов: такой раздел не показываем
+const PLACEHOLDER =
+  /^(?:(?:в\s+этом\s+разделе|по\s+этому\s+разделу|здесь|пока)\s+)?(?:ничего(?:\s+(?:не\s+)?(?:было\s+)?(?:отмечено|обсуждалось|зафиксировано|принято|решено|назначено|выявлено|упоминалось))?|нет(?:\s+(?:данных|информации|решений|задач|пунктов|вопросов|рисков|блокеров))?|не\s+(?:указано|указаны|отмечено|отмечены|обсуждалось|обсуждались|зафиксировано|выявлено|выявлены|определено|упоминалось|упоминались|назначено|назначены|принято|приняты)|отсутству(?:ет|ют)|пока\s+нет|нет\s+данных|n\/?a|none(?:\s+(?:noted|mentioned|identified|recorded))?|not\s+(?:mentioned|discussed|specified|applicable)|no\s+(?:decisions|action\s+items|items|risks|blockers)(?:\s+(?:noted|recorded|mentioned|identified))?|tbd|[-–—]+)$/i;
+
+function isTableSeparator(line: string): boolean {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line);
+}
+
+function isPlaceholder(text: string): boolean {
+  const core = text
+    .replace(/^\s*(?:[-*+•]|\d+[.)])\s+/, '') // маркер списка
+    .replace(/^\s*>\s*/, '') // цитата
+    .replace(/\[[ xX]\]\s*/, '') // чекбокс
+    .replace(/[*_`~]/g, '') // выделение
+    .replace(/[.!…]+$/, '')
+    .trim();
+  return core === '' || PLACEHOLDER.test(core);
+}
+
+/**
+ * Убирает из итогов пустые разделы: заголовок, под которым нет ничего, кроме
+ * заглушек вроде «Ничего не отмечено», «Нет», «—», или таблица только из шапки
+ * и пустых строк. Раздел с непустым подразделом остаётся. Если пусто всё, null.
+ */
+export function pruneEmptySections(md: string): string | null {
+  const lines = md
+    .split('\n')
+    // Раздел строкой «**Резюме** В этом разделе ничего не отмечено.»: жирная
+    // подпись и заглушка в одном абзаце, без заголовка. Такая строка убирается
+    .filter((line) => {
+      const m = /^\s*(?:\*\*|__)([^*_]+)(?:\*\*|__)\s*:?\s+(.+)$/.exec(line);
+      return !(m && isPlaceholder(m[2]));
+    })
+    // Строка таблицы, где осмысленна не больше одной ячейки из трёх и более
+    // («Нет данных | Нет данных | Нет данных | цитата | Нет данных»): пустая
+    .filter((line, i, all) => {
+      if (!line.includes('|') || isTableSeparator(line) || (i + 1 < all.length && isTableSeparator(all[i + 1]))) return true;
+      const cells = line.split('|').map((c) => c.trim()).filter(Boolean);
+      if (cells.length < 3) return true;
+      return cells.filter((c) => !isPlaceholder(c)).length > 1;
+    });
+  type Node = { level: number; start: number; end: number; children: Node[]; own: number[] };
+  const root: Node = { level: 0, start: -1, end: lines.length, children: [], own: [] };
+  const stack: Node[] = [root];
+  lines.forEach((line, i) => {
+    const h = /^(#{1,6})\s+\S/.exec(line);
+    if (h) {
+      const level = h[1].length;
+      while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop()!.end = i;
+      const node: Node = { level, start: i, end: lines.length, children: [], own: [] };
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+    } else {
+      stack[stack.length - 1].own.push(i);
+    }
+  });
+
+  const isSeparator = (l: string) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l);
+  const hasContent = (idx: number[]) =>
+    idx.some((i) => {
+      const line = lines[i];
+      if (isSeparator(line)) return false;
+      if (line.includes('|')) {
+        // шапка таблицы (строка перед разделителем) содержанием не считается
+        if (i + 1 < lines.length && isSeparator(lines[i + 1])) return false;
+        return line
+          .split('|')
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .some((c) => !isPlaceholder(c));
+      }
+      return !isPlaceholder(line);
+    });
+
+  const drop = new Set<number>();
+  const empty = (node: Node): boolean => {
+    const childEmpty = node.children.map(empty);
+    const allChildrenEmpty = childEmpty.every(Boolean);
+    const isEmpty = !hasContent(node.own) && allChildrenEmpty;
+    if (isEmpty && node.level > 0) for (let i = node.start; i < node.end; i++) drop.add(i);
+    return isEmpty;
+  };
+  empty(root);
+  const kept = lines.filter((_, i) => !drop.has(i)).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  // Остался только заголовок H1 без содержания: итогов фактически нет
+  if (!kept || kept.split('\n').every((l) => /^#{1,6}\s/.test(l) || !l.trim())) return null;
+  return kept;
+}
+
 /**
  * Приводит данные итогов из api_get_summary к Markdown.
  * Ядро хранит три формата: markdown, summary_json (блоки BlockNote) и старые секции.
  */
+/**
+ * Итоги для показа на странице встречи: без того, что уже есть в шапке. Срезаются
+ * верхний заголовок H1, если он повторяет название встречи (модель начинает итоги
+ * с названия), и строки «Дата:» и «Дата и время:» до первого раздела: дату шапка
+ * берёт из записи, а модель её угадывает. Для копирования итоги остаются целыми.
+ */
+export function summaryForPage(md: string, title: string): string {
+  const norm = (x: string) =>
+    x
+      .toLocaleLowerCase('ru-RU')
+      .replace(/ё/g, 'е')
+      .replace(/[«»"“”„'*_`.,:;!?()…-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const lines = md.split('\n');
+  const firstSection = lines.findIndex((l) => /^#{2,6}\s/.test(l));
+  const top = firstSection === -1 ? lines.length : firstSection;
+  const out = lines.filter((line, i) => {
+    if (i >= top) return true;
+    const h1 = /^#\s+(.+)$/.exec(line);
+    if (h1 && norm(h1[1]) === norm(title)) return false;
+    if (/^\s*(\*\*|__)?Дата( и время)?:?(\*\*|__)?:?\s/i.test(line)) return false;
+    return true;
+  });
+  return out.join('\n').replace(/^\s*\n+/, '');
+}
+
 export function summaryToMarkdown(data: unknown): string | null {
+  const md = rawSummaryToMarkdown(data);
+  return md ? pruneEmptySections(md) : null;
+}
+
+function rawSummaryToMarkdown(data: unknown): string | null {
   let value = data;
   if (typeof data === 'string') {
     try {
@@ -183,7 +308,7 @@ export function friendlyError(error: unknown, fallback: string): FriendlyError {
   const lower = raw.toLowerCase();
   let message = fallback;
   if (lower.includes('database is locked')) {
-    message = 'База встреч сейчас занята другим процессом. Закройте другие окна Aid Meetings и нажмите «Повторить».';
+    message = 'База встреч сейчас занята другим процессом. Закройте другие окна ShadeNotes и нажмите «Повторить».';
   } else if (lower.includes('no rows returned') || lower.includes('model not configured') || lower.includes('not configured')) {
     message = 'Модель для итогов не выбрана. Откройте «Настройки» и выберите модель.';
   } else if (lower.includes('connection refused') || lower.includes('ollama') || lower.includes('error sending request')) {
@@ -422,9 +547,15 @@ export function useMeeting(meetingId: string | null) {
     }
   }, [meetingId, loadAll, fetchSummary]);
 
+  /** Новое название после переименования (команда в meeting-actions.ts). */
+  const setTitle = useCallback((title: string) => {
+    setMeeting((prev) => (prev.kind === 'ready' ? { kind: 'ready', meta: { ...prev.meta, title } } : prev));
+  }, []);
+
   return {
     meeting,
     segments,
+    setTitle,
     total,
     hasMore,
     loadingMore,

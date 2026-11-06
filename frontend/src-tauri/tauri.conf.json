@@ -1,6 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "Aid Meetings",
+    "productName": "ShadeNotes",
+    "mainBinaryName": "ShadeNotes",
     "version": "0.4.1",
     "identifier": "io.github.katanana23.aid-meetings",
     "build": {
@@ -12,13 +13,17 @@
     "app": {
         "windows": [
             {
-                "title": "Aid Meetings",
+                "title": "ShadeNotes",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
                 "fullscreen": false,
-                "theme": "Light",
-                "decorations": true
+                "backgroundColor": "#F7F7F8",
+                "titleBarStyle": "Overlay",
+                "hiddenTitle": true,
+                "trafficLightPosition": { "x": 18, "y": 22 },
+                "decorations": true,
+                "visible": false
             }
         ],
         "macOSPrivateApi": true,
@@ -60,6 +65,12 @@
                         "core:menu:default",
                         "core:tray:default",
                         "core:window:allow-set-title",
+                        "core:window:allow-set-theme",
+                        "core:window:allow-show",
+                        "core:window:allow-start-dragging",
+                        "core:window:allow-internal-toggle-maximize",
+                        "core:window:allow-set-background-color",
+                        "core:webview:allow-set-webview-background-color",
                         "store:default",
                         "notification:default",
                         "notification:allow-is-permission-granted",
@@ -70,6 +81,24 @@
                             "allow": [
                                 {
                                     "path": "$APPDATA/*"
+                                },
+                                {
+                                    "path": "$VIDEO/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$VIDEO/aid-meetings-recordings/**"
+                                },
+                                {
+                                    "path": "$AUDIO/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$AUDIO/aid-meetings-recordings/**"
+                                },
+                                {
+                                    "path": "$DOCUMENT/aid-meetings-recordings"
+                                },
+                                {
+                                    "path": "$DOCUMENT/aid-meetings-recordings/**"
                                 }
                             ]
                         }

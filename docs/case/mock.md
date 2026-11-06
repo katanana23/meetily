@@ -18,6 +18,8 @@ pnpm dev            # http://localhost:3118
 
 Без параметра `?mock` берётся последний выбранный сценарий, а если его нет, то `full`. Выбор хранится в `sessionStorage`: при переходах внутри приложения `router.push` теряет query-параметр, а сценарий остаётся. `?mock=off` отключает заглушки до закрытия вкладки.
 
+Лист эмоций маскота: `http://localhost:3118/?mock=full&mascot=sheet` (только в разработке, `&still=1` без движения). В режиме заглушек сверху полоса окна с нарисованными кнопками, как в приложении на macOS.
+
 В правом нижнем углу висит плашка `MOCK · <сценарий>`. По клику она раскрывается в список сценариев, клик по сценарию перезагружает текущую страницу с ним. Плашка появляется только в режиме заглушек.
 
 ### Когда заглушки включаются
@@ -46,6 +48,19 @@ pnpm dev            # http://localhost:3118
 | `recording` | Идёт запись. На главной запись стартует сама через событие трея `request-recording-toggle`, то есть по настоящему пути приложения. Реплики приходят событием `transcript-update` раз в 1,8 с вместе с `speech-detected`. Пауза, возобновление и стоп работают; после стопа встреча сохраняется и открываются её детали. На других страницах ядро «уже пишет» с момента загрузки |
 | `error` | Команды ядра падают с текстами, похожими на настоящие (`database is locked`, `Parakeet model not loaded…`). Старт записи сначала шлёт `transcription-error`, потом отклоняется, как в `recording_commands.rs`. Список команд, которые падают: `FAILING_COMMANDS` в `handlers.ts` |
 | `onboarding` | Первый запуск: `get_onboarding_status` возвращает `null`, модели не скачаны. Мастер проходится целиком: загрузки идут с прогрессом около 6 секунд, разрешения выдаются по кнопке Enable. После Finish Setup открывается приложение |
+| `silence-5s` | Запись стартует сама, VAD молчит, реплик нет. Остановите через 5 секунд: текста нет, решает уровень звука. Заглушка `read_audio_file` отдаёт пустой файл, уровень не измерить, поэтому встреча сохраняется в «Не распознано». Чтобы увидеть удаление и карточку «Тишина», подмените `read_audio_file` в консоли на WAV с тишиной (так делает самопроверка) |
+| `silence-hallucination` | Три минуты тишины (`startOffsetSec: 180`); на один шумовой сегмент модель выдаёт «Продолжение следует...». После стопа: как тишина, встреча не сохраняется |
+| `words-3` | Одна реплика «Да, хорошо, давай.» (3 слова). После стопа: слов меньше порога, но текст есть, поэтому встреча сохраняется обычной |
+| `words-12` | Три реплики, 12 слов. После стопа: меньше порога 15 слов, встреча не сохраняется |
+| `words-20` | Четыре реплики, 20 слов и около 12 секунд речи. После стопа встреча сохраняется |
+| `heard-no-text` | VAD слышит речь (`transcription-progress` идут), но `transcript-update` нет. Длины речи ядро не присылает, явной причины (нет модели, ошибка распознавания) нет, поэтому решает уровень звука: в заглушке он не измеряется, встреча сохраняется в «Не распознано» |
+| `noise-30s` | 30 секунд тишины с шумом (`startOffsetSec: 25`). Детектор ложно срабатывает три раза на 2 секунды в сумме, модель выдаёт «...», «Продолжение следует...», «♪». После стопа: текста нет, решает уровень звука; в заглушке он не измеряется, встреча сохраняется в «Не распознано». С подменённым WAV тишины: удаление, папка в корзину, карточка «Тишина» |
+| `recognition-failed` | Три короткие реплики на 12 секунд речи, затем `transcription-warning` (флаги сценария `scriptSeconds: 4`, `warnAfterScript: true`). Детектор слышал не меньше 10 секунд и есть явная причина: встреча сохраняется с блоком «Речь не распознана» |
+| `mid-silence` | Пять реплик, потом время «перематывается» на 130 секунд (`silenceJumpSec`): на экране записи «Похоже, встреча закончилась. Остановить?» |
+| `long-empty` | Запись «идёт» уже 5 минут (`startOffsetSec: 300`), VAD молчит: на экране записи «Не слышу речи». В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
+| `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
+| `no-model` | Мастер пройден, но модель распознавания не скачана: «Начать запись» ведёт к загрузке модели. Уведомления как в ядре по умолчанию: согласие есть, показ выключен |
+| `no-permission` | Нет доступа к микрофону: в `get_audio_devices` нет входов, `trigger_*_permission` возвращают `false` |
 
 Во всех сценариях, как и в настоящем приложении, всегда падают две команды, которых нет в `generate_handler!` ядра: `api_get_auto_generate_setting` и `builtin_ai_get_models_directory`. Ошибка такая же, как у Tauri 2: `command <имя> not found`. Первую видно в Настройках → Summary: в консоли появляется `Failed to fetch auto-generate setting`.
 
@@ -59,7 +74,7 @@ pnpm dev            # http://localhost:3118
 
 **События.** Интерфейс подписан на 38 событий. Одно из них, `model-config-updated`, отправляет сам интерфейс; оно проходит через ту же шину заглушек. Из 37 событий ядра:
 
-- 22 заглушка шлёт сама в ответ на действия: `recording-starting/started/paused/resumed/stopped`, `transcript-update`, `speech-detected`, `transcription-complete`, `transcription-error` (error-сценарий), `request-recording-toggle` (автостарт в сценарии recording), прогресс и завершение загрузок `parakeet-*`, `model-download-*`, `builtin-ai-download-progress`, `ollama-model-download-*`, `import-progress/complete`, `retranscription-progress/complete`, `audio-levels`;
+- 25 заглушка шлёт сама в ответ на действия: `recording-starting/started/paused/resumed/stopped`, `transcript-update`, `speech-detected`, `transcription-progress` (речевой сегмент после VAD), `transcription-queue-complete` и `recording-saved` (при стопе, в том же порядке, что ядро), `transcription-complete`, `transcription-error` (error-сценарий), `request-recording-toggle` (автостарт в сценарии recording), прогресс и завершение загрузок `parakeet-*`, `model-download-*`, `builtin-ai-download-progress`, `ollama-model-download-*`, `import-progress/complete`, `retranscription-progress/complete`, `audio-levels`;
 - 15 можно вызвать вручную из консоли (см. ниже): `recording-stop-complete` (стоп «из трея»), `mic-unavailable`, `mic-device-switched`, `mic-swap-failed`, `mic-recovery-exhausted`, `chunk-drop-warning`, `transcript-error`, `parakeet-model-download-error`, `model-download-error`, `ollama-model-download-error`, `import-error`, `retranscription-error`, `tauri://drag-enter/drop/leave`.
 
 ### Консоль
@@ -70,11 +85,14 @@ pnpm dev            # http://localhost:3118
 __MEETILY_MOCK__.calledCommands      // какие команды вызывались
 __MEETILY_MOCK__.unknownCommands     // вызовы без заглушки
 __MEETILY_MOCK__.listenedEvents      // на что подписан интерфейс
+__MEETILY_MOCK__.doubleUnlistens     // отписки, которые настоящий Tauri не пережил бы
 __MEETILY_MOCK__.backend.meetings    // «база» встреч (можно править на лету)
 __MEETILY_MOCK__.emit('chunk-drop-warning', 'текст')   // любое событие ядра
 __MEETILY_MOCK__.presets.micUnavailable()              // готовые события
 __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из трея»
 ```
+
+Ловушка отписок: как и настоящий Tauri, заглушка бросает `TypeError: undefined is not an object (evaluating 'listeners[eventId].handlerId')` из `unregisterListener`, если отписка пришла дважды или раньше, чем слушатель записан (в тот же такт, что разрешился `listen`). Каждый такой случай попадает в `doubleUnlistens`. Подписки Aid идут через `src/aid/lib/tauri-events.ts` и в ловушку не попадают; оригинальный `useRecordingStop` попадает, его страхует `installTauriEventGuard`.
 
 Готовые пресеты: `micUnavailable`, `micSwitched`, `micSwapFailed`, `micRecoveryExhausted`, `chunkDrop`, `transcriptError`, `transcriptionError`, `parakeetDownloadError`, `whisperDownloadError`, `ollamaDownloadError`, `importError`, `retranscriptionError`, `stopFromTray`, `trayToggle`, `dragEnter`, `dragDrop`, `dragLeave`.
 
@@ -86,7 +104,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
 |---|---|
 | Захват звука, Whisper/Parakeet | Звука нет. Транскрипт — заранее написанные реплики по таймеру. `whisper_transcribe_audio`, `parakeet_transcribe_audio` ничего не делают |
 | Уровень звука (`audio-levels`) | Синусоида вместо реального сигнала |
-| Системные разрешения macOS | `trigger_*_permission` всегда возвращает `true`. `open_system_settings` пишет предупреждение |
+| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценарии `no-permission` `false`. `open_system_settings` пишет предупреждение |
 | Файловая система | Пути вымышленные (`/mock/Meetily/...`). «Открыть папку» (`open_*_folder`, `open_meeting_folder`) пишет предупреждение. `read_audio_file` отдаёт пустой массив |
 | Диалоги выбора файлов | `select_and_validate_audio_command`, `select_legacy_database_path` возвращают `null`, как при отмене |
 | Перетаскивание файлов из Finder | Работает только через пресеты `dragEnter` / `dragDrop` |
@@ -111,7 +129,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
    },
    ```
 
-2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
+2. Флаги `onboardingCompleted`, `modelsReady`, `recordingOnLoad`, `failing`, `live`, `startOffsetSec`, `silenceJumpSec`, `script`, `micPermission`, `notificationsCoreDefault` уже понимает `backend.ts` / `install.ts`. Если нужно новое поведение, добавьте флаг в интерфейс `Scenario` и проверьте его в `install.ts` (общая логика) или в нужном обработчике `handlers.ts` (обработчик получает `be.scenario`).
 3. Кнопка в плавающей панели появится сама, адрес — `?mock=slow`.
 
 ## Как добавить фикстуру
@@ -135,6 +153,7 @@ frontend/src/dev/mock-tauri/
     ├── types.ts      типы и buildTranscript
     ├── meetings.ts   9 встреч сценария full (все 6 шаблонов)
     ├── long.ts       длинная встреча и 45 встреч для сайдбара
+    ├── edge.ts       пустая длинная запись и почти пустая встреча
     ├── recording.ts  реплики живой записи
     └── settings.ts   модели, устройства, шаблоны, настройки
 ```

@@ -1,4 +1,6 @@
-// shadcn/ui Tooltip.
+// shadcn/ui Tooltip. Подсказка в цвете всплывающих панелей темы (в тёмной тёмная,
+// в светлой светлая) с тонкой обводкой; строки переносятся ровно (text-wrap: balance),
+// без лесенки.
 'use client';
 
 import * as React from 'react';
@@ -18,7 +20,7 @@ const TooltipContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 max-w-xs overflow-hidden rounded-xl bg-foreground px-3 py-2 text-xs leading-relaxed text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+        'aid-glass aid-glass-pop relative z-50 max-w-xs overflow-hidden rounded-xl px-3 py-2 text-xs leading-relaxed text-popover-foreground [text-wrap:balance]',
         className,
       )}
       {...props}

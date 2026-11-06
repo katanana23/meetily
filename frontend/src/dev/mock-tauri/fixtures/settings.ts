@@ -69,7 +69,9 @@ export const templates = [
   { id: 'psychatric_session', name: 'Psychiatric Session Note (SOAP + AI Hybrid)', description: 'AI-assisted psychiatric progress note template based on SOAP, with clinical metadata and AI summary.' },
 ];
 
-export function notificationSettings() {
+/** coreDefault: как NotificationSettings::default() в ядре после онбординга: согласие есть, показ выключен. */
+export function notificationSettings(coreDefault = false) {
+  const show = !coreDefault;
   return {
     recording_notifications: true,
     time_based_reminders: false,
@@ -80,8 +82,8 @@ export function notificationSettings() {
     consent_given: true,
     manual_dnd_mode: false,
     notification_preferences: {
-      show_recording_started: true,
-      show_recording_stopped: true,
+      show_recording_started: show,
+      show_recording_stopped: show,
       show_recording_paused: true,
       show_recording_resumed: true,
       show_transcription_complete: true,

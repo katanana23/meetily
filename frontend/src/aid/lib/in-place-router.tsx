@@ -14,12 +14,21 @@ import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared
 type Router = NonNullable<React.ContextType<typeof AppRouterContext>>;
 
 const MEETING_PATH = /^\/meeting-details(?:\.html)?\/?(?=\?|#|$)/;
+const SETTINGS_PATH = /^\/settings(?:\.html)?\/?(?=\?|#|$)/;
 
-/** /meeting-details?id=… → /?id=…; null, если адрес не к встрече. */
+/**
+ * /meeting-details?id=… → /?id=…; /settings?tab=… → /?view=settings&tab=…;
+ * null, если адрес не к встрече и не к настройкам. Настройки тоже открываются на
+ * главной: переход на отдельную страницу в окне Tauri на macOS зависал, кнопка
+ * «Настройки» казалась ненажимающейся.
+ */
 export function inPlaceHref(href: string): string | null {
-  if (!MEETING_PATH.test(href)) return null;
-  const rest = href.replace(MEETING_PATH, '');
-  return `/${rest}`;
+  if (MEETING_PATH.test(href)) return `/${href.replace(MEETING_PATH, '')}`;
+  if (SETTINGS_PATH.test(href)) {
+    const rest = href.replace(SETTINGS_PATH, '');
+    return rest.startsWith('?') ? `/?view=settings&${rest.slice(1)}` : `/?view=settings${rest}`;
+  }
+  return null;
 }
 
 function onHome(): boolean {
@@ -45,7 +54,7 @@ export function InPlaceMeetingRouter({ enabled, children }: { enabled: boolean; 
       ...router,
       push: (href, options) => route(href, 'push', options),
       replace: (href, options) => route(href, 'replace', options),
-      // Страницу встречи заранее не грузим: она открывается на главной
+      // Страницы встречи и настроек заранее не грузим: они открываются на главной
       prefetch: (href, options) => (inPlaceHref(href) === null ? router.prefetch(href, options) : undefined),
     };
   }, [router, enabled]);

@@ -8,9 +8,9 @@
 // своего места под них в сайдбаре нет.
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { GearSix } from '@phosphor-icons/react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { BRAND_MARK_SRC } from './BrandMark';
@@ -51,6 +51,12 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       <TooltipContent side="right">{item.label}</TooltipContent>
     </Tooltip>
   );
+}
+
+/** «Настройки»: открываются на главной по ?view=settings (in-place-router.tsx), выбранность по параметру. */
+function SettingsNav({ pathname }: { pathname: string }) {
+  const params = useSearchParams();
+  return <NavLink item={SETTINGS} pathname={params.get('view') === 'settings' ? '/settings' : pathname} />;
 }
 
 /** Круглая кнопка сайдбара 48 px. */
@@ -110,7 +116,10 @@ export function AidSidebar() {
         <RecordingLink pathname={pathname} />
         {/* Настройки внизу, над приватностью */}
         <div className="mt-auto">
-          <NavLink item={SETTINGS} pathname={pathname} />
+          {/* useSearchParams в статической выгрузке требует границу Suspense */}
+          <Suspense fallback={<NavLink item={SETTINGS} pathname={pathname} />}>
+            <SettingsNav pathname={pathname} />
+          </Suspense>
         </div>
       </nav>
 

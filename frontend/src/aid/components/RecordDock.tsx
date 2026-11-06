@@ -1,6 +1,6 @@
 // Запись: плавает внизу по центру поверх контента на всех страницах.
 // Состояния:
-// - покой: круглая кнопка Mikado 72 px с микрофоном, от неё расходятся две мягкие
+// - покой: круглая кнопка Mikado 88 px, на 28 px от низа с микрофоном, от неё расходятся две мягкие
 //   волны; сочетание клавиш в подсказке;
 // - запись: стеклянная капсула (.aid-glass): красная точка с кольцом на речь,
 //   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
@@ -180,13 +180,13 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
   );
 }
 
-/** Кнопка записи в покое: круг 72 px, сплошной Mikado, от него расходятся две волны. */
+/** Кнопка записи в покое: круг 88 px, сплошной Mikado, от него расходятся две волны. */
 function RecordButton() {
   const c = useRecordingControls();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="group relative inline-flex size-[72px] shrink-0">
+        <span className="group relative inline-flex size-[88px] shrink-0">
           {!c.isStarting && (
             <>
               <span className="aid-record-wave pointer-events-none absolute inset-0 rounded-full" aria-hidden />
@@ -201,7 +201,7 @@ function RecordButton() {
             aria-keyshortcuts="Meta+Shift+R Control+Shift+R"
             className="aid-record-button relative flex size-full items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-95 disabled:opacity-80"
           >
-            {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-7" aria-hidden />}
+            {c.isStarting ? <Spinner tone="inherit" /> : <Microphone className="size-8" aria-hidden />}
           </button>
         </span>
       </TooltipTrigger>
@@ -235,7 +235,7 @@ export function RecordDock() {
   return (
     <section
       aria-label={t('recordingTile')}
-      className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex flex-col items-center gap-2 px-4"
+      className="pointer-events-none absolute inset-x-0 bottom-7 z-30 flex flex-col items-center gap-2 px-4"
     >
       {showSpeechHint && (
         <div key="hint" className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">

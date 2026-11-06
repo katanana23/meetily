@@ -345,7 +345,7 @@ body {
 /*
  * Прокрутка контента. scrollbar-gutter: stable держит место под полосу всегда,
  * поэтому ширина не меняется, когда содержимое начинает прокручиваться.
- * Полоса: 10 px места, бегунок 6 px (рамка 2 px прозрачная), дорожки нет,
+ * Полоса: 10 px места, бегунок 4 px (рамка 3 px прозрачная), дорожки нет,
  * бегунок полупрозрачный и проявляется при прокрутке (is-scrolling) и наведении.
  * Только ::-webkit-scrollbar: его понимают WebKit (WKWebView в Tauri на macOS)
  * и Chromium; scrollbar-width/scrollbar-color не задаём, иначе Chromium
@@ -375,9 +375,19 @@ body {
   background: transparent;
 }
 
+/* Полоса не заходит в скругления плитки: иначе их край режет её на обрывки */
+.aid-scroll::-webkit-scrollbar-track {
+  margin-block: var(--tile-radius);
+}
+
+/* Главная: полоса начинается под липкой шапкой, а не за стеклом */
+.aid-scroll-under-head::-webkit-scrollbar-track {
+  margin-top: calc(var(--head-h, 0px) + 8px);
+}
+
 .aid-scroll::-webkit-scrollbar-thumb {
   min-height: 40px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   border-radius: 9999px;
   background-clip: content-box;
   background-color: transparent;
@@ -817,6 +827,17 @@ html body[data-scroll-locked] {
 
 .aid-sticky-head:not(.aid-glass) {
   background: hsl(var(--card));
+}
+
+/* Главная: шапка часть плитки. При прокрутке стекло без рамки, блика, тени и
+   скруглений, снизу тонкая линия: отдельной карточкой поверх списка она не выглядит */
+.aid-head-flat.aid-glass {
+  background: hsl(var(--card) / 0.8);
+  box-shadow: 0 1px 0 0 hsl(var(--glass-edge));
+}
+
+.aid-head-flat.aid-glass::before {
+  display: none;
 }
 
 /* Всплывающее (меню, подсказки, диалоги): стекло плотнее, появляется из размытия */

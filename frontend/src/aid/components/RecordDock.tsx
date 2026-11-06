@@ -18,10 +18,10 @@
 // кольцо вокруг точки вспыхивает на каждый сигнал.
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Microphone, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
+import { ChatText, Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -124,6 +124,15 @@ const COPY = {
   unrecognized: { title: 'unrecognizedNoticeTitle', hint: 'unrecognizedNoticeHint' },
 } as const;
 
+/** Карточка итога: плотное стекло, скругление плитки, воздух внутри. */
+function NoticeCard({ notice }: { notice: DiscardNotice }) {
+  return (
+    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile py-4 pl-4 pr-3">
+      <NoticeRow notice={notice} />
+    </div>
+  );
+}
+
 function NoticeRow({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
   const { hold } = notice;
@@ -153,23 +162,30 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onPointerLeave={() => hold('hover', false)}
       onFocus={() => hold('focus', true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-center gap-3"
+      className="flex w-full min-w-0 items-center gap-4"
     >
-      {/* Минимально: стеклянная строка, роль «Не распознано» только знаком Giants слева,
-          без цветной заливки карточки. Текст основным цветом темы, подпись серым */}
-      {notice.verdict === 'unrecognized' && <Warning className="size-6 shrink-0 text-giants-ink" aria-hidden />}
+      {/* Спокойно и с воздухом: знак в круге 44 px слева (что случилось), две короткие строки,
+          справа тихое действие текстом и крестик. Цвет роли только у знака «Не распознано» */}
+      <span
+        className={cn(
+          'flex size-11 shrink-0 items-center justify-center rounded-full [&_svg]:size-5',
+          notice.verdict === 'unrecognized' ? 'bg-[hsl(var(--giants)/0.16)] text-giants-ink' : 'bg-muted text-muted-foreground',
+        )}
+        aria-hidden
+      >
+        {notice.verdict === 'unrecognized' ? <Warning /> : notice.verdict === 'no-speech' ? <MicrophoneSlash /> : <ChatText />}
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
-        <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
+        <p className="truncate text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
+        <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
       </div>
       {notice.verdict !== 'too-little' && (
-        <Button variant="secondary" className="h-10 shrink-0 px-4 [&_svg]:size-5" onClick={() => setSoundCheck(true)}>
-          <SpeakerHigh />
+        <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
           {t('soundCheck')}
         </Button>
       )}
       {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
-      <Button variant="ghost" size="icon" className="size-10 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
+      <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
         <X weight="bold" />
       </Button>
       <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
@@ -227,6 +243,23 @@ export function RecordDock() {
   // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
   const onFinishingScreen =
     state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
+
+  // Итог уходит плавно: последний показанный держим ещё 280 мс с анимацией ухода
+  const [leaving, setLeaving] = useState<DiscardNotice | null>(null);
+  const lastNotice = useRef<DiscardNotice | null>(null);
+  useEffect(() => {
+    if (state === 'notice' && notice) {
+      lastNotice.current = notice;
+      setLeaving(null);
+      return;
+    }
+    const gone = lastNotice.current;
+    if (!gone) return;
+    lastNotice.current = null;
+    setLeaving(gone);
+    const id = window.setTimeout(() => setLeaving(null), 280);
+    return () => window.clearTimeout(id);
+  }, [state, notice]);
 
   return (
     <section
@@ -303,12 +336,17 @@ export function RecordDock() {
           </div>
         )}
 
-        {state === 'notice' && notice && (
-          <div className="aid-glass aid-glass-dense relative w-[min(680px,calc(100vw-8rem))] rounded-full py-2 pl-5 pr-2">
-            <NoticeRow notice={notice} />
-          </div>
-        )}
+        {state === 'notice' && notice && <NoticeCard notice={notice} />}
       </div>
+
+      {/* Уходящий итог: тот же вид, плавно гаснет и опускается, пока на его месте проявляется кнопка записи */}
+      {leaving && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4" aria-hidden>
+          <div className="aid-dock-out">
+            <NoticeCard notice={leaving} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

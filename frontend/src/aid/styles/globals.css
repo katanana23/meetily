@@ -1170,3 +1170,23 @@ html body[data-scroll-locked] {
 .aid-glass.aid-glass-dense {
   background: hsl(var(--popover) / 0.97);
 }
+
+/* Уход итога записи (RecordDock): плавно гаснет, чуть опускается и размывается */
+.aid-dock-out {
+  animation: aid-dock-out 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes aid-dock-out {
+  to {
+    transform: translateY(10px) scale(0.97);
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-dock-out {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -80,7 +80,7 @@ type DemoState = 'loop' | 'granted' | 'still';
  */
 function DemoPrompt({ state }: { state: DemoState }) {
   return (
-    <div aria-hidden data-state={state} className="aid-ob-prompt relative flex h-[176px] items-center justify-center overflow-hidden rounded-nested bg-muted p-6">
+    <div aria-hidden data-state={state} className="aid-ob-prompt relative flex h-[176px] items-center justify-center overflow-hidden rounded-nested bg-muted p-5">
       <div className="aid-ob-prompt-card -mt-1 w-[288px] rounded-[16px] bg-card p-4 shadow-sm">
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}

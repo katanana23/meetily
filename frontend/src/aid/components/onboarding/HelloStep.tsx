@@ -71,11 +71,11 @@ function useDemoSeconds() {
   return sec;
 }
 
-/** Обложка с показом. Отступ внутри как у плитки (24 px), группа по оптическому центру. */
+/** Обложка с показом. Отступ внутри как у плитки (20 px), группа по оптическому центру. */
 function DemoRecording() {
   const sec = useDemoSeconds();
   return (
-    <div aria-hidden className="flex h-[256px] items-center justify-center rounded-nested bg-muted p-6">
+    <div aria-hidden className="flex h-[256px] items-center justify-center rounded-nested bg-muted p-5">
       <div className="-mt-2 flex w-[72%] flex-col items-center gap-4">
         {/* Реплики, затем на их месте итоги */}
         <div className="relative h-[96px] w-full">

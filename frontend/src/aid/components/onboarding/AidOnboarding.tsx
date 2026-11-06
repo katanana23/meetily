@@ -247,7 +247,7 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
         <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <div className={cn('m-auto w-full max-w-[600px]', exiting && 'aid-ob-exit')}>
             <StepDots count={steps.length} current={Math.max(0, steps.indexOf(step))} />
-            <section className="mt-4 rounded-tile bg-card p-6">
+            <section className="mt-4 rounded-tile bg-card p-5">
               <div key={step} className={leaving ? 'aid-ob-out' : 'aid-ob-in'}>
                 {step === 'hello' ? (
                   <HelloStep

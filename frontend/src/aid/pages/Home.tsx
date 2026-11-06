@@ -325,11 +325,12 @@ function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f:
             onClick={() => onChange(id)}
             className={cn(
               'flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-input',
+              // Выбранный фильтр нейтральный (инверсия текста и фона), не Mikado: это выбор, а не главное действие
+              active ? 'bg-foreground text-background' : 'bg-muted text-foreground hover:bg-input',
             )}
           >
             {label}
-            {n !== undefined && <span className={cn('tabular', active ? 'text-primary-foreground' : 'text-muted-foreground')}>{n}</span>}
+            {n !== undefined && <span className={cn('tabular', active ? 'text-background/60' : 'text-muted-foreground')}>{n}</span>}
           </button>
         );
       })}

@@ -997,7 +997,8 @@ html body[data-scroll-locked] {
 
 /* ─── Подложка кнопок окна (WindowBar) ───
    В браузере на заглушках кнопки окна нарисованы, как на Mac (по центру подложки).
-   Подложка 72 × 35 над сайдбаром, цвет между фоном окна и плитками.
+   Подложка 72 × 26 над сайдбаром, кнопки 14 pt через 9 pt (как в macOS 26), со всех
+   сторон по 6 pt; цвет между фоном окна и плитками.
    Только для разработки: в Tauri кнопки системные. */
 .aid-titlebar-mock .aid-window-bar {
   position: relative;
@@ -1005,15 +1006,15 @@ html body[data-scroll-locked] {
 .aid-titlebar-mock .aid-window-bar::before {
   content: '';
   position: absolute;
-  left: 11px;
-  top: 11.5px;
-  width: 12px;
-  height: 12px;
+  left: 6px;
+  top: 6px;
+  width: 14px;
+  height: 14px;
   border-radius: 9999px;
   background: #ff5f57;
   box-shadow:
-    20px 0 0 #febc2e,
-    40px 0 0 #28c840;
+    23px 0 0 #febc2e,
+    46px 0 0 #28c840;
   pointer-events: none;
 }
 

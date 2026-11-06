@@ -113,7 +113,7 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
 
   if (layout === 'bento') {
     return (
-      <main className={cn('relative h-full min-w-0 flex-1', className)}>
+      <main className={cn('aid-page-in relative h-full min-w-0 flex-1', className)}>
         {/* -mr-2: прокрутка заходит в правое поле окна, полоса 8 px живёт там.
             .aid-round-clip обрезает контент по радиусу плитки у краёв плиток, не задевая полосу */}
         <div ref={ref} className="aid-scroll aid-scroll-edge aid-scroll-under-head aid-round-clip -mr-2 flex h-full flex-col gap-2 overflow-y-auto">
@@ -129,7 +129,7 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
   }
 
   return (
-    <main className={cn('relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
+    <main className={cn('aid-page-in relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
       <div ref={ref} className="aid-scroll aid-scroll-under-head h-full overflow-y-auto">
         {head('aid-gutter px-5 pb-4 pt-5', true)}
         {header && <div className="aid-edge-fade" data-on={scrolled ? '' : undefined} aria-hidden />}

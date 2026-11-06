@@ -15,6 +15,7 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { Page } from '@/aid/components/Page';
+import AidSettings from '@/aid/pages/Settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
@@ -745,6 +746,8 @@ function HomeContent() {
     );
   }
   if (meetingId) return <MeetingDetails key={meetingId} />;
+  // Настройки тоже здесь, по ?view=settings (in-place-router.tsx): отдельная страница в Tauri зависала
+  if (params.get('view') === 'settings') return <AidSettings />;
   return <HomeView onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
 }
 

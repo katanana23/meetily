@@ -90,7 +90,7 @@
     --nested-radius: calc(var(--tile-radius) - var(--inner-gap));
     --radius: var(--tile-radius);
     /* Запас снизу у прокручиваемого контента: над ним плавает капсула записи */
-    --dock-space: 112px;
+    --dock-space: 136px;
 
     /* Выбранный раздел сайдбара: тёмно-серая таблетка, белая иконка */
     --nav-active: 0 0% 20%;
@@ -942,7 +942,7 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Кнопка записи в покое: круглая 72 px, сплошной Mikado, тёмный микрофон.
+/* Кнопка записи в покое: круглая 88 px, сплошной Mikado, тёмный микрофон.
    От круга расходятся две мягкие волны, как от звука (transform и opacity). */
 .aid-record-button {
   background: hsl(var(--primary));
@@ -990,8 +990,9 @@ html body[data-scroll-locked] {
   }
 }
 
-/* ─── Полоса окна (WindowBar) ───
-   В браузере на заглушках кнопки окна нарисованы, как на Mac (x 18, по центру полосы 38 px).
+/* ─── Подложка кнопок окна (WindowBar) ───
+   В браузере на заглушках кнопки окна нарисованы, как на Mac (по центру подложки).
+   Подложка 72 × 35 над сайдбаром, цвет между фоном окна и плитками.
    Только для разработки: в Tauri кнопки системные. */
 .aid-titlebar-mock .aid-window-bar {
   position: relative;
@@ -999,8 +1000,8 @@ html body[data-scroll-locked] {
 .aid-titlebar-mock .aid-window-bar::before {
   content: '';
   position: absolute;
-  left: 19px;
-  top: 13px;
+  left: 11px;
+  top: 11.5px;
   width: 12px;
   height: 12px;
   border-radius: 9999px;
@@ -1129,5 +1130,31 @@ html body[data-scroll-locked] {
   .aid-search-icon-find,
   .aid-search-icon-close {
     transition: none;
+  }
+}
+
+.aid-window-strip {
+  background: color-mix(in srgb, hsl(var(--background)) 55%, hsl(var(--card)));
+}
+
+/* Переход между экранами (Page): новый экран мягко проявляется вместо резкой подмены */
+.aid-page-in {
+  animation: aid-page-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes aid-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-page-in {
+    animation: none;
   }
 }

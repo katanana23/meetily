@@ -40,6 +40,7 @@ const ru = {
   importAudio: 'Импортировать аудио',
   searchMeetings: 'Найти по названию или тексту встречи',
   searchShort: 'Название или текст',
+  closeSearch: 'Закрыть поиск',
   foundInText: 'в тексте',
   searchProgress: 'Ищем и в текстах встреч, прочитано',
   groupToday: 'Сегодня',

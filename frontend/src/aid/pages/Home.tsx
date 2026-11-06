@@ -523,15 +523,15 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           // снаружи её срезала бы шапка
           <div
             className={cn('aid-search relative h-14 rounded-full bg-secondary', searchOpen && 'is-open', query && 'has-query')}
-            onClick={() => !searchOpen && setSearchOpen(true)}
           >
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   className="absolute left-0 top-0 flex size-14 items-center justify-center rounded-full text-foreground focus-visible:outline-none"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  // Не отдаём фокус при нажатии: иначе поле теряет фокус и пустое сворачивается раньше клика
+                  onMouseDown={(e) => searchOpen && e.preventDefault()}
+                  onClick={() => {
                     if (searchOpen) inputRef.current?.focus();
                     else setSearchOpen(true);
                   }}
@@ -558,19 +558,24 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
               disabled={state.kind !== 'ready'}
               className="aid-search-input h-full w-full rounded-full bg-transparent pl-14 pr-12 text-[15px] outline-none placeholder:text-muted-foreground"
             />
-            {/* Крестик: X в начертании bold (залитый нарисован квадратом) */}
-            <button
-              type="button"
-              className="aid-search-clear absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeSearch();
-              }}
-              aria-label={t('close')}
-              tabIndex={searchOpen ? 0 : -1}
-            >
-              <X weight="bold" className="size-4" />
-            </button>
+            {/* Крестик закрывает поиск (и очищает): так его и читают. Подсказка это говорит.
+                X в начертании bold (залитый нарисован квадратом) */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="aid-search-clear absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-input hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  // Без этого нажатие снимает фокус с поля, пустое поле сворачивается и клик уходит мимо
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={closeSearch}
+                  aria-label={t('closeSearch')}
+                  tabIndex={searchOpen ? 0 : -1}
+                >
+                  <X weight="bold" className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t('closeSearch')}</TooltipContent>
+            </Tooltip>
           </div>
         )}
         {betaFeatures.importAndRetranscribe && (

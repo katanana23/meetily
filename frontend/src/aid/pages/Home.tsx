@@ -15,7 +15,7 @@ import { Input } from '@/aid/components/ui/input';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
-import { Page, TILE } from '@/aid/components/Page';
+import { Page } from '@/aid/components/Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
@@ -496,7 +496,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       ? { all: groups.main.length, summary: groups.main.filter((m) => m.details?.status === 'summary').length, unrecognized: groups.unrecognized.length }
       : {};
 
-  // Шапка отдельной плиткой: заголовок 36/40 с подписью, справа поиск и импорт круглыми
+  // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
   // кнопками, ниже чипы-фильтры. Поиск раскрывается полем на месте чипов, Esc и крестик
   // закрывают и очищают. Запись в капсуле внизу (RecordDock)
   const header = (
@@ -573,7 +573,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 
   return (
-    <Page header={header} layout="bento">
+    <Page header={header}>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">
@@ -606,8 +606,8 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           </div>
         </Alert>
       ) : (
-        <div className={TILE}>
-          {/* Список отдельной плиткой под шапкой: строки встреч без вложенных карточек.
+        <div className={blocker || startError ? 'mt-2' : ''}>
+          {/* Список в той же плитке под шапкой: строки встреч без вложенных карточек.
               @container: от 1100 px ширины списка строки в две колонки */}
           <section aria-label={t('meetingsList')} className="@container">
           {filter === 'unrecognized' && state.kind === 'ready' && (

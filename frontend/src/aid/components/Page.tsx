@@ -8,8 +8,9 @@
 //
 // В обеих шапка липкая и лежит поверх контента: в покое это обычная плитка, а при
 // прокрутке стекло (.aid-glass), и контент проходит под ним размытым. На главной шапка
-// часть самой плитки (.aid-head-flat): при прокрутке без своей рамки и скруглений,
-// только тонкая линия снизу; полоса прокрутки начинается под ней (--head-h). Область
+// часть самой плитки (.aid-head-flat): при прокрутке стекло без рамки и скруглений,
+// нижний край мягко растворяется (как scroll edge effect в macOS 26), без линии;
+// полоса прокрутки начинается под шапкой (--head-h). Область
 // прокрутки обрезана по радиусу плитки (на главной overflow hidden у самой плитки,
 // в бенто маска .aid-round-clip), поэтому плитки у краёв окна не обрываются
 // плоской линией, а уходят под скругление.
@@ -74,12 +75,14 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
   // растянута плитка до низа или нет, поэтому замер не зацикливается.
   useEffect(() => {
     const el = ref.current;
-    if (!el || layout !== 'bento') return;
+    if (!el) return;
     let frame = 0;
     const measure = () => {
       frame = 0;
-      const column = el.querySelector<HTMLElement>(':scope > .aid-page-column');
-      const end = column?.lastElementChild?.lastElementChild ?? column?.lastElementChild;
+      // bento: последний элемент внутри последней плитки; tile: последний элемент контента
+      const column = el.querySelector<HTMLElement>(':scope > .aid-page-column, :scope > .aid-page-content');
+      const last = column?.lastElementChild;
+      const end = layout === 'bento' ? (last?.lastElementChild ?? last) : last;
       if (!end) return;
       const dock = parseFloat(getComputedStyle(el).getPropertyValue('--dock-space')) || 112;
       const bottom = end.getBoundingClientRect().bottom - el.getBoundingClientRect().top + el.scrollTop;
@@ -129,7 +132,8 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
     <main className={cn('relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
       <div ref={ref} className="aid-scroll aid-scroll-under-head h-full overflow-y-auto">
         {head('aid-gutter px-5 pb-4 pt-5', true)}
-        <div className={cn('w-full px-5 pb-[var(--dock-space)]', header ? 'pt-1' : 'pt-5')}>{children}</div>
+        {header && <div className="aid-edge-fade" data-on={scrolled ? '' : undefined} aria-hidden />}
+        <div className={cn('aid-page-content w-full px-5 pb-[var(--dock-pad)]', header ? 'pt-1' : 'pt-5')}>{children}</div>
       </div>
     </main>
   );

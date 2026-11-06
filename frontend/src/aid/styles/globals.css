@@ -843,15 +843,48 @@ html body[data-scroll-locked] {
   background: hsl(var(--card));
 }
 
-/* Главная: шапка часть плитки. При прокрутке стекло без рамки, блика, тени и
-   скруглений, снизу тонкая линия: отдельной карточкой поверх списка она не выглядит */
+/* Главная: шапка часть плитки, как в Я.Музыке. При прокрутке стекло без рамки, блика,
+   тени и скруглений. Нижний край без линии: под шапкой полоса 28 px (.aid-edge-fade, Page), где размытие и тон
+   плавно сходят на нет (scroll edge effect из Liquid Glass macOS 26). Маска затухания
+   это не декоративный градиент: он нужен, чтобы граница не резала строки. */
 .aid-head-flat.aid-glass {
-  background: hsl(var(--card) / 0.8);
-  box-shadow: 0 1px 0 0 hsl(var(--glass-edge));
+  background: hsl(var(--card) / 0.72);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
 }
 
 .aid-head-flat.aid-glass::before {
   display: none;
+}
+
+.aid-edge-fade {
+  position: sticky;
+  z-index: 19;
+  top: var(--head-h, 0px);
+  height: 28px;
+  margin-bottom: -28px;
+  pointer-events: none;
+  opacity: 0;
+  background: hsl(var(--card) / 0.72);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-mask: linear-gradient(#000, transparent);
+  mask: linear-gradient(#000, transparent);
+  transition: opacity 0.3s ease;
+}
+
+.aid-edge-fade[data-on] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .aid-head-flat.aid-glass,
+  .aid-edge-fade {
+    background: hsl(var(--card));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Всплывающее (меню, подсказки, диалоги): стекло плотнее, появляется из размытия */

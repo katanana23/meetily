@@ -1,10 +1,7 @@
-// Первый запуск ShadeNotes: два экрана, около минуты.
-// 1. Витрина (ShowcaseStep): бенто из плиток, что умеет приложение, лаймовая плитка «Начать».
-//    Загрузка моделей стартует уже здесь, пока человек читает.
-// 2. Путь (TasksStep): три плитки-задачи (микрофон, звук с компьютера, модель распознавания)
-//    «загораются» по мере выполнения; когда готово, появляется «Открыть ShadeNotes».
-//    На Windows и Linux доступ не нужен: остаётся только модель; если она уже скачана,
-//    «Начать» сразу открывает приложение.
+// Первый запуск ShadeNotes: до трёх шагов, около минуты, одна плитка по центру.
+// 1. Живой показ работы (запись → текст → итоги) и «Начать». Загрузка моделей стартует уже здесь.
+// 2. «Доступ к звуку» (только macOS): показ запроса macOS и две карточки, микрофон обязателен.
+// 3. «Почти готово»: прогресс модели распознавания; пропускается, если она уже скачана.
 //
 // Логика и данные из OnboardingContext оригинала (useOnboarding): те же команды и события
 // ядра с теми же аргументами. Отличия от мастера оригинала:
@@ -25,8 +22,9 @@ import { Button } from '@/aid/components/ui/button';
 import { cn } from '@/aid/lib/utils';
 import { SLOW_MS, SlowError, detectMac, obLog, withTimeout } from '@/aid/lib/onboarding';
 import { t } from '@/aid/strings';
-import { ShowcaseStep } from './ShowcaseStep';
-import { TasksStep } from './TasksStep';
+import { HelloStep } from './HelloStep';
+import { AccessStep } from './AccessStep';
+import { ReadyStep, type SpeechModelState } from './ReadyStep';
 
 const PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 /** Уход шага (размытие и сдвиг) перед появлением следующего, мс; как .aid-ob-out в globals.css. */
@@ -41,20 +39,9 @@ const STALL_MS = SLOW_MS * 2;
  * Если его нет, через это время всё равно стартуем.
  */
 const START_FALLBACK_MS = 4000;
-/** Ширина колонки: витрина шире, путь уже. */
-const WIDTH = { showcase: 760, tasks: 680 } as const;
-
-export type StepId = 'showcase' | 'tasks';
+type StepId = 'hello' | 'access' | 'ready';
 export type FinishState = 'idle' | 'saving' | 'slow' | 'failed';
 
-export interface SpeechModelState {
-  ready: boolean;
-  percent: number;
-  downloadedMb: number;
-  totalMb: number;
-  failed: boolean;
-  retrying: boolean;
-}
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -219,31 +206,33 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
       });
   }, [ob, leave]);
 
-  // ─── Экраны и плавная смена ───
-  const [step, setStep] = useState<StepId>('showcase');
+  // ─── Шаги и плавная смена ───
+  const [step, setStep] = useState<StepId>('hello');
   const [leaving, setLeaving] = useState(false);
-  // Путь не нужен, только если доступ не нужен (не macOS) и модель уже скачана
-  const steps = useMemo<StepId[]>(
-    () => (isMac === false && parakeetDownloaded && step === 'showcase' ? ['showcase'] : ['showcase', 'tasks']),
-    [isMac, parakeetDownloaded, step],
-  );
+  const steps = useMemo<StepId[]>(() => {
+    const list: StepId[] = ['hello'];
+    if (isMac) list.push('access');
+    // «Почти готово» не нужен, если модель распознавания уже есть (но не убираем экран из-под человека)
+    if (!parakeetDownloaded || step === 'ready') list.push('ready');
+    return list;
+  }, [isMac, parakeetDownloaded, step]);
 
-  const start = useCallback(() => {
-    startDownloads();
-    if (steps.length === 1) {
+  const next = useCallback(() => {
+    const following = steps[steps.indexOf(step) + 1];
+    if (!following) {
       complete();
       return;
     }
-    obLog('экран: путь');
+    obLog(`шаг: ${following}`);
     setLeaving(true);
     window.setTimeout(
       () => {
-        setStep('tasks');
+        setStep(following);
         setLeaving(false);
       },
       reducedMotion() ? 0 : STEP_OUT_MS,
     );
-  }, [startDownloads, steps.length, complete]);
+  }, [steps, step, complete]);
 
   const busy = finish === 'saving' || finish === 'slow';
 
@@ -256,28 +245,39 @@ export function AidOnboarding({ onComplete }: { onComplete: () => void }) {
           <WindowBar />
         </div>
         <div data-tauri-drag-region className="flex min-h-0 flex-1 overflow-y-auto px-4 py-8">
-          <div className={cn('m-auto w-full', exiting && 'aid-ob-exit')} style={{ maxWidth: WIDTH[step] }}>
-            <StepDots count={steps.length} current={steps.indexOf(step)} />
-            <div key={step} className={cn('mt-4', leaving ? 'aid-ob-out' : 'aid-ob-in')}>
-              {step === 'showcase' ? (
-                <ShowcaseStep isMac={isMac !== false} ready={isMac !== null} busy={busy} onStart={start} />
-              ) : (
-                <TasksStep
-                  isMac={isMac !== false}
-                  speech={speech}
-                  summaryReady={summaryModelDownloaded}
-                  busy={busy}
-                  onRetry={retry}
-                  onMicLater={() => ob.setPermissionsSkipped(true)}
-                  onOpen={complete}
-                />
+          <div className={cn('m-auto w-full max-w-[600px]', exiting && 'aid-ob-exit')}>
+            <StepDots count={steps.length} current={Math.max(0, steps.indexOf(step))} />
+            <section className="mt-4 rounded-tile bg-card p-5">
+              <div key={step} className={leaving ? 'aid-ob-out' : 'aid-ob-in'}>
+                {step === 'hello' ? (
+                  <HelloStep
+                    ready={isMac !== null}
+                    busy={busy}
+                    onStart={() => {
+                      startDownloads();
+                      next();
+                    }}
+                  />
+                ) : step === 'access' ? (
+                  <AccessStep
+                    busy={busy}
+                    last={steps[steps.length - 1] === 'access'}
+                    onContinue={next}
+                    onLater={() => {
+                      ob.setPermissionsSkipped(true);
+                      next();
+                    }}
+                  />
+                ) : (
+                  <ReadyStep speech={speech} summaryReady={summaryModelDownloaded} busy={busy} onRetry={retry} onOpen={next} />
+                )}
+              </div>
+              {(finish === 'slow' || finish === 'failed') && (
+                <div className="aid-ob-in mt-4">
+                  <FinishNote state={finish} onRetry={complete} onAnyway={() => leave('anyway')} />
+                </div>
               )}
-            </div>
-            {(finish === 'slow' || finish === 'failed') && (
-              <section className="aid-ob-in mt-2 rounded-tile bg-card p-5">
-                <FinishNote state={finish} onRetry={complete} onAnyway={() => leave('anyway')} />
-              </section>
-            )}
+            </section>
           </div>
         </div>
       </div>

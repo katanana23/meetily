@@ -435,7 +435,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [query, setQuery] = useState('');
-  // Поиск кнопкой с лупой в шапке: по нажатию поле вырастает из неё влево
+  // Поиск кнопкой с лупой в шапке: по нажатию поле выезжает влево, лупа становится крестиком
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => {
@@ -505,7 +505,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       : {};
 
   // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
-  // кнопками, ниже чипы-фильтры. Поиск вырастает полем из лупы влево, чипы на месте;
+  // кнопками, ниже чипы-фильтры. Поле поиска выезжает влево, лупа становится крестиком, чипы на месте;
   // Esc и крестик сворачивают и очищают, пустое поле сворачивается при потере фокуса. Запись в капсуле внизу (RecordDock)
   const header = (
     <>
@@ -517,66 +517,46 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {showSearch && (
-          // Поиск вырастает из лупы влево в той же строке (как в Finder и Музыке на macOS):
-          // круг 56 px растягивается в таблетку поля, чипы остаются на месте. Анимируется
-          // ширина одного блока, остальное не двигается. Обводка фокуса внутри (inset):
+          // Поиск: поле выезжает влево отдельной таблеткой, а сама кнопка остаётся на месте,
+          // и лупа в ней превращается в крестик «Закрыть поиск» (как в Finder и Музыке на macOS).
+          // Анимируется ширина поля, остальное не двигается. Обводка фокуса внутри поля:
           // снаружи её срезала бы шапка
-          <div
-            className={cn('aid-search relative h-14 rounded-full bg-secondary', searchOpen && 'is-open', query && 'has-query')}
-          >
+          <>
+            <div className={cn('aid-search-field h-14 overflow-hidden rounded-full bg-secondary', searchOpen && 'is-open')}>
+              <input
+                ref={inputRef}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
+                onBlur={() => !query && setSearchOpen(false)}
+                placeholder={t('searchShort')}
+                aria-label={t('searchMeetings')}
+                tabIndex={searchOpen ? 0 : -1}
+                disabled={state.kind !== 'ready'}
+                className="h-full w-full bg-transparent px-5 text-[15px] outline-none placeholder:text-muted-foreground"
+              />
+            </div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="absolute left-0 top-0 flex size-14 items-center justify-center rounded-full text-foreground focus-visible:outline-none"
-                  // Не отдаём фокус при нажатии: иначе поле теряет фокус и пустое сворачивается раньше клика
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className={cn('aid-search-toggle relative size-14 [&_svg]:size-6', searchOpen && 'is-open', query && !searchOpen && 'has-query')}
+                  // Не отдаём фокус при нажатии: иначе пустое поле свернётся раньше клика
                   onMouseDown={(e) => searchOpen && e.preventDefault()}
-                  onClick={() => {
-                    if (searchOpen) inputRef.current?.focus();
-                    else setSearchOpen(true);
-                  }}
-                  aria-label={t('searchMeetings')}
+                  onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+                  aria-label={searchOpen ? t('closeSearch') : t('searchMeetings')}
                   aria-expanded={searchOpen}
-                  tabIndex={searchOpen ? -1 : 0}
                 >
-                  {/* Лупа контуром (bold): залитая рисуется сплошным диском */}
-                  <MagnifyingGlass weight="bold" className="size-6" />
-                </button>
+                  {/* Лупа контуром (bold): залитая рисуется сплошным диском; X bold: залитый нарисован квадратом */}
+                  <MagnifyingGlass weight="bold" className="aid-search-icon-find absolute" />
+                  <X weight="bold" className="aid-search-icon-close absolute" />
+                </Button>
               </TooltipTrigger>
-              {!searchOpen && <TooltipContent side="bottom">{t('searchMeetings')}</TooltipContent>}
+              <TooltipContent side="bottom">{searchOpen ? t('closeSearch') : t('searchMeetings')}</TooltipContent>
             </Tooltip>
-            <input
-              ref={inputRef}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
-              onBlur={() => !query && setSearchOpen(false)}
-              placeholder={t('searchShort')}
-              aria-label={t('searchMeetings')}
-              tabIndex={searchOpen ? 0 : -1}
-              disabled={state.kind !== 'ready'}
-              className="aid-search-input h-full w-full rounded-full bg-transparent pl-14 pr-12 text-[15px] outline-none placeholder:text-muted-foreground"
-            />
-            {/* Крестик закрывает поиск (и очищает): так его и читают. Подсказка это говорит.
-                X в начертании bold (залитый нарисован квадратом) */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="aid-search-clear absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-input hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  // Без этого нажатие снимает фокус с поля, пустое поле сворачивается и клик уходит мимо
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={closeSearch}
-                  aria-label={t('closeSearch')}
-                  tabIndex={searchOpen ? 0 : -1}
-                >
-                  <X weight="bold" className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('closeSearch')}</TooltipContent>
-            </Tooltip>
-          </div>
+          </>
         )}
         {betaFeatures.importAndRetranscribe && (
           <Tooltip>

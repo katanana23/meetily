@@ -1073,51 +1073,61 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Поиск на главной (Home.tsx): круг 56 px вырастает влево в таблетку поля. Анимируется
-   ширина одного блока (кнопки справа на месте, растёт влево за счёт justify-end) */
-.aid-search {
-  width: 56px;
+/* Поиск на главной (Home.tsx): поле выезжает влево отдельной таблеткой (анимируется его
+   ширина, кнопки справа на месте), лупа в кнопке поворотом превращается в крестик */
+.aid-search-field {
+  width: 0;
+  opacity: 0;
+  margin-right: -8px; /* закрытое поле не добавляет зазор между кнопками */
   transition:
-    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    margin 0.3s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.2s ease;
 }
 
-.aid-search:not(.is-open) {
-  cursor: pointer;
-}
-
-.aid-search.is-open {
-  width: min(320px, 32vw);
+.aid-search-field.is-open {
+  width: min(280px, 30vw);
+  opacity: 1;
+  margin-right: 0;
 }
 
 /* Фокус внутри поля: шапка срезала бы внешнюю обводку */
-.aid-search:focus-within {
+.aid-search-field:focus-within {
   box-shadow: inset 0 0 0 2px hsl(var(--ring));
 }
 
 /* Свёрнутый поиск с текстом подсвечен: список отфильтрован */
-.aid-search.has-query:not(.is-open) {
+.aid-search-toggle.has-query {
   box-shadow: inset 0 0 0 2px hsl(var(--primary));
 }
 
-.aid-search-input,
-.aid-search-clear {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
+.aid-search-icon-find,
+.aid-search-icon-close {
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
 }
 
-.aid-search.is-open .aid-search-input,
-.aid-search.is-open .aid-search-clear {
+.aid-search-icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.aid-search-toggle.is-open .aid-search-icon-find {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+
+.aid-search-toggle.is-open .aid-search-icon-close {
   opacity: 1;
-  pointer-events: auto;
-  transition-delay: 0.08s;
+  transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aid-search,
-  .aid-search-input,
-  .aid-search-clear {
+  .aid-search-field,
+  .aid-search-icon-find,
+  .aid-search-icon-close {
     transition: none;
   }
 }

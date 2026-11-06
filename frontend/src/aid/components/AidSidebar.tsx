@@ -1,5 +1,5 @@
-// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 64 px,
-// по 4 px от краёв, ведёт к списку встреч (вкладка одна, отдельного пункта
+// Сайдбар ShadeNotes: узкая плитка 72 px. Сверху знак ShadeNotes: логотип 48 px,
+// по 12 px от краёв, ведёт к списку встреч (вкладка одна, отдельного пункта
 // «Встречи» нет). Пока идёт запись, а человек ушёл со списка, ниже кнопка с красной
 // точкой записи: путь к «Остановить». Внизу «Настройки» (выбранный раздел тёмно-серой
 // таблеткой, --nav-active), «Локально» и переключатель темы таблеткой.
@@ -85,11 +85,11 @@ function BrandLink() {
           href="/"
           aria-label={`${t('appName')}: ${t('navMeetings')}`}
           onClick={() => c.setView('list')}
-          // 64 px: по 4 px от краёв сайдбара (72 px) и сверху; радиус 20 = 24 у сайдбара минус 4 (концентрично)
-          className="block size-16 overflow-hidden rounded-[20px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          // 48 px, как остальные кнопки сайдбара: по 12 px от краёв (72 px) и сверху; радиус 12 = 24 у сайдбара минус 12 (концентрично)
+          className="block size-12 overflow-hidden rounded-[12px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
-          <img src={BRAND_MARK_SRC} width={64} height={64} alt="" draggable={false} className="size-16" />
+          <img src={BRAND_MARK_SRC} width={48} height={48} alt="" draggable={false} className="size-12" />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{t('navMeetings')}</TooltipContent>
@@ -104,7 +104,7 @@ export function AidSidebar() {
   useEffect(() => markTitlebarOverlay(), []);
 
   return (
-    <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-tile bg-card pb-3 pt-1">
+    <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-tile bg-card py-3">
       <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Основная навигация">
         <BrandLink />
         <RecordingLink pathname={pathname} />

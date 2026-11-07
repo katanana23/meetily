@@ -6,8 +6,9 @@
 //   напоминание «Пишу только звук компьютера». Запись не обрывается.
 'use client';
 
+import { CloseButton as CloseButtonBase } from '@/aid/components/ui/close-button';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GearSix, MicrophoneSlash, SpeakerHigh, X } from '@phosphor-icons/react';
+import { GearSix, MicrophoneSlash, SpeakerHigh } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { SoundCheckDialog } from '@/aid/components/SoundCheck';
@@ -59,7 +60,7 @@ function useWindowReturn(cb: () => void) {
 
 function CardShell({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile py-4 pl-4 pr-3', className)}>{children}</div>
+    <div className={cn('aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile p-3', className)}>{children}</div>
   );
 }
 
@@ -73,10 +74,8 @@ function Sign({ children }: { children: React.ReactNode }) {
 
 function CloseButton({ onClick }: { onClick: () => void }) {
   return (
-    // Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md)
-    <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={onClick} aria-label={t('close')}>
-      <X weight="bold" />
-    </Button>
+    // Общий круглый крестик (ui/close-button.tsx): в углу на том же отступе 12 px, что и содержимое
+    <CloseButtonBase label={t('close')} onClick={onClick} />
   );
 }
 

@@ -248,7 +248,7 @@ const ru = {
   savedShort: 'Сохранено',
   cancelledNoticeTitle: 'Запись отменена: она была пустой',
   noSpeechNoticeTitle: 'Ничего не записалось',
-  noSpeechNoticeHint: 'Речи не было слышно, встречу не создали',
+  noSpeechNoticeHint: 'Речи не было слышно',
   unrecognizedNoticeTitle: 'Речь не распознана',
   unrecognizedNoticeHint: 'Текста нет, встречу не создали',
   notSavedNotificationBody: 'Речи не было слышно, встречу не создали',

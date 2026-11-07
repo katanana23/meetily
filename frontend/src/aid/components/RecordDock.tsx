@@ -21,7 +21,8 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform } from '@phosphor-icons/react';
+import { CloseButton } from '@/aid/components/ui/close-button';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -133,7 +134,7 @@ const COPY = {
  */
 function NoticeCard({ notice }: { notice: DiscardNotice }) {
   return (
-    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile p-1">
+    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile p-3">
       <NoticeRow notice={notice} />
     </div>
   );
@@ -172,9 +173,9 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onPointerLeave={() => hold('hover', false)}
       onFocus={() => hold('focus', true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-stretch gap-1"
+      className="flex w-full min-w-0 items-center gap-3"
     >
-      <div className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 py-2 pl-2 pr-1">
+      <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
         {notice.verdict !== 'cancelled' && (
           <span
             className={cn(
@@ -186,7 +187,7 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
             {suspectSound ? <MicrophoneSlash /> : <Waveform />}
           </span>
         )}
-        <div className={cn('min-w-0 flex-1', notice.verdict === 'cancelled' && 'pl-2')}>
+        <div className={cn('min-w-0 flex-1', notice.verdict === 'cancelled' && 'pl-1')}>
           <p className="truncate text-[15px] font-semibold leading-5">{t(copy.title)}</p>
           {copy.hint && <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(copy.hint)}</p>}
         </div>
@@ -196,15 +197,8 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
           </Button>
         )}
       </div>
-      {/* Крестик: круглая кнопка 44 px по центру по высоте, X bold 16 px серым (залитый нарисован квадратом, CLAUDE.md) */}
-      <button
-        type="button"
-        onClick={notice.dismiss}
-        aria-label={t('close')}
-        className="mr-1 flex size-11 shrink-0 items-center justify-center self-center rounded-full bg-foreground/[0.06] text-muted-foreground transition-colors hover:bg-foreground/[0.12] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <X weight="bold" className="size-4" />
-      </button>
+      {/* Крестик: общий CloseButton, на том же отступе 12 px, что и всё содержимое */}
+      <CloseButton label={t('close')} onClick={notice.dismiss} />
       {suspectSound && <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />}
     </div>
   );

@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { X } from '@phosphor-icons/react';
+import { CLOSE_BUTTON, CloseGlyph } from '@/aid/components/ui/close-button';
 import { cn } from '@/aid/lib/utils';
 
 const Dialog = DialogPrimitive.Root;
@@ -28,9 +28,9 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {/* bold: залитый X в Phosphor нарисован квадратом (исключение в CLAUDE.md) */}
-        <X weight="bold" className="size-4" />
+      {/* Общий круглый крестик (ui/close-button.tsx): в углу на равном отступе сверху и справа */}
+      <DialogPrimitive.Close className={cn(CLOSE_BUTTON, 'absolute right-3 top-3')}>
+        <CloseGlyph />
         <span className="sr-only">Закрыть</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
@@ -42,7 +42,7 @@ const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('pr-10 text-lg font-semibold leading-tight', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={cn('pr-12 text-lg font-semibold leading-tight', className)} {...props} />
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 

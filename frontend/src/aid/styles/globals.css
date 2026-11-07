@@ -225,7 +225,9 @@
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   backdrop-filter: blur(28px) saturate(180%);
   border-color: hsl(var(--glass-edge));
-  padding: 16px 44px 16px 16px;
+  /* Ровные 12 px со всех сторон; справа место под круглый крестик 44 px (как у всех карточек) */
+  padding: 12px 68px 12px 12px;
+  min-height: 68px;
   align-items: flex-start;
   /* Кнопка действия переносится под текст: рядом с текстом она сжимала его в узкий столбик */
   flex-wrap: wrap;
@@ -266,19 +268,27 @@
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
+  /* Тот же круглый крестик, что везде (ui/close-button.tsx): 44 px, на отступе 12 px сверху и справа */
   left: auto;
-  right: 10px;
+  right: 12px;
   top: 12px;
   transform: none;
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   border: 0;
-  background: transparent;
+  border-radius: 9999px;
+  background: hsl(var(--foreground) / 0.06);
   color: hsl(var(--muted-foreground));
 }
 
+:root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 3;
+}
+
 .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:hover {
-  background: hsl(var(--muted));
+  background: hsl(var(--foreground) / 0.12);
   color: hsl(var(--foreground));
 }
 
@@ -652,6 +662,20 @@ html body[data-scroll-locked] {
 [data-aid] [role='status'] p,
 .aid-balance {
   text-wrap: balance;
+}
+
+/* truncate — одна строка с многоточием. text-wrap выше сбрасывает nowrap у white-space
+   (это его часть), поэтому строки с truncate переносились; возвращаем одну строку */
+:is(.aid-app, [data-aid]) .truncate.truncate {
+  text-wrap: nowrap;
+}
+
+/* Значок крестика (ui/close-button.tsx): bold с чуть более толстым контуром */
+.aid-close-glyph {
+  stroke: currentColor;
+  stroke-width: 10;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 /* Заставка запуска (LaunchScreen): маскот мягко «дышит», три точки бегут волной,

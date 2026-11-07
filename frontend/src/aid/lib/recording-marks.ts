@@ -83,6 +83,17 @@ export function markUnrecognized(folder: string | null) {
   write({ ...m, unrecognized: uniq([...m.unrecognized, folder]) });
 }
 
+/**
+ * Снять пометку «не распознано»: в встрече нашёлся распознанный текст (3+ слова). Старая
+ * логика (до #21) ставила её и записям с парой фраз; пометка пересчитывается по словам.
+ */
+export function clearUnrecognized(folder: string | null) {
+  if (!folder) return;
+  const m = read();
+  if (!m.unrecognized.includes(folder)) return;
+  write({ ...m, unrecognized: m.unrecognized.filter((x) => x !== folder) });
+}
+
 export function setEmptyCleanupAsked() {
   write({ ...read(), emptyCleanupAsked: true });
 }

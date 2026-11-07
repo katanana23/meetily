@@ -26,7 +26,7 @@ import {
 import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
-import { isTrashed, onTrashChange, restoreMeeting } from '@/aid/lib/meeting-trash';
+import { isTrashed, loadTrash, onTrashChange, restoreMeeting } from '@/aid/lib/meeting-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
@@ -36,7 +36,7 @@ import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
-import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { readStoredOutcome, takeStayPath } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
@@ -462,6 +462,8 @@ function MeetingDetailsContent() {
   useEffect(() => {
     const sync = () => setTrashed(meetingId ? isTrashed(meetingId) : false);
     sync();
+    // Кеш мог потеряться: сверить с метками на диске
+    void loadTrash().then(sync);
     return onTrashChange(sync);
   }, [meetingId]);
   const [retranscribe, setRetranscribe] = useState(false);
@@ -577,7 +579,7 @@ function MeetingDetailsContent() {
       await deleteMeeting(meta.id);
       await refetchMeetings();
       setConfirmDelete(false);
-      aidToast.success(t('deleted'), { description: t('deletedHint') });
+      toastTrashed(meta.id);
       router.push('/');
     } catch (error) {
       aidToast.error(t('deleteFailed'), { description: String(error) });

@@ -9,7 +9,7 @@ import type { MockMeeting } from './fixtures/types';
 
 export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
-  | 'silence-5s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'short-16s' | 'repeat-five' | 'heard-no-text'
+  | 'silence-5s' | 'silence-15s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'short-16s' | 'repeat-five' | 'heard-no-text'
   | 'recognition-failed' | 'mid-silence'
   | 'long-empty' | 'sparse' | 'no-model' | 'no-permission'
   | 'mic-denied' | 'mic-missing' | 'mic-prompt' | 'mic-core-refuses' | 'mic-silent' | 'mic-lost' | 'model-downloading'
@@ -110,17 +110,22 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
   },
   'silence-5s': {
-    id: 'silence-5s', label: 'silence-5s', description: 'Тишина: VAD ничего не слышит, реплик нет. После стопа список и карточка «Ничего не записалось»',
+    id: 'silence-5s', label: 'silence-5s', description: 'Короткая пустая запись: VAD молчит, остановите до 10 секунд. Тихая карточка «Запись отменена: она была пустой» на 3 с',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'none',
   },
+  'silence-15s': {
+    id: 'silence-15s', label: 'silence-15s', description: 'Пустая запись длиннее 10 секунд, VAD молчит: «Ничего не записалось» и «Проверить звук»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'none', startOffsetSec: 15,
+  },
   'silence-hallucination': {
-    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: речи нет, встреча не создаётся',
+    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: детектор сработал, текста нет, «Не распознано»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'hallucination', startOffsetSec: 180,
   },
   'noise-30s': {
-    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды ложно срабатывает, всего на 2 секунды',
+    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды срабатывает, модель выдаёт мусор: «Не распознано»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'noise', startOffsetSec: 25,
   },
@@ -165,7 +170,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     live: 'script', startOffsetSec: 8, scriptSeconds: 3, script: ['Пять, пять, пять.', 'Да. Да. Да.'],
   },
   'heard-no-text': {
-    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет и причины сбоя нет: речи нет, встреча не создаётся',
+    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет: «Речь не распознана», запись в «Не распознано»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'vad-only', startOffsetSec: 30,
   },

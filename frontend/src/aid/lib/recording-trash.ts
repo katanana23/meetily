@@ -3,7 +3,8 @@
 // Корзина только для того, что удалил человек (meeting-trash.ts): автоматически
 // (тишина, короткая запись) сюда ничего не уходит. Папка записи целиком (audio.mp4, metadata.json,
 // transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
-// переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения.
+// переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения
+// вместе со строкой базы (meeting-trash.ts, purgeExpiredTrash).
 // Открыть корзину можно в настройках.
 //
 // Доступ к папке записей даёт право fs:scope в tauri.conf.json (отдельный коммит
@@ -25,15 +26,27 @@ export function joinPath(folder: string, name: string): string {
 export const TRASH_DIR_NAME = 'Корзина ShadeNotes';
 export const TRASH_TTL_DAYS = 7;
 const MARKER = 'trashed.json';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface TrashMarker {
+/**
+ * Метка trashed.json в папке корзины: источник правды о том, что лежит в корзине.
+ * localStorage в meeting-trash.ts только кеш: он свой у каждого адреса интерфейса
+ * (dev и собранное приложение), а база и папки общие.
+ */
+export interface TrashMarker {
   trashedAt: number;
   name: string | null;
-  /** Встреча, удалённая человеком (meeting-trash.ts): по ней восстанавливается. */
+  /** Встреча, удалённая человеком (meeting-trash.ts): по ней восстанавливается и удаляется из базы. */
   meetingId?: string;
   /** Откуда перенесли: туда папка вернётся при восстановлении. */
   from?: string;
+  /** Название встречи для списка корзины. */
+  title?: string;
+}
+
+export interface TrashEntry {
+  /** Папка в корзине. */
+  dir: string;
+  marker: TrashMarker;
 }
 
 function parentOf(path: string): string {
@@ -56,7 +69,11 @@ export function trashPath(recordingsRoot: string): string {
  * Перенести папку записи в корзину. Возвращает новый путь или null, если перенос
  * не удался (папка вне доступной области, файла нет): тогда запись остаётся на месте.
  */
-export async function moveRecordingToTrash(folder: string | null, name: string | null, meetingId?: string): Promise<string | null> {
+export async function moveRecordingToTrash(
+  folder: string | null,
+  name: string | null,
+  meeting?: { id: string; title: string; at: number },
+): Promise<string | null> {
   if (!folder) return null;
   try {
     const trash = trashPath(parentOf(folder));
@@ -64,7 +81,9 @@ export async function moveRecordingToTrash(folder: string | null, name: string |
     let target = joinPath(trash, baseName(folder));
     for (let n = 2; await exists(target); n++) target = joinPath(trash, `${baseName(folder)} ${n}`);
     await rename(folder, target);
-    const marker: TrashMarker = { trashedAt: Date.now(), name, meetingId, from: folder };
+    const marker: TrashMarker = meeting
+      ? { trashedAt: meeting.at, name, meetingId: meeting.id, from: folder, title: meeting.title }
+      : { trashedAt: Date.now(), name };
     await writeTextFile(joinPath(target, MARKER), JSON.stringify(marker));
     return target;
   } catch (error) {
@@ -87,7 +106,7 @@ export async function restoreRecordingFromTrash(trashed: string, folder: string)
   }
 }
 
-async function recordingsRoot(): Promise<string | null> {
+export async function recordingsRoot(): Promise<string | null> {
   try {
     const prefs = await invoke<{ save_folder?: string } | null>('get_recording_preferences');
     return prefs?.save_folder ?? null;
@@ -96,33 +115,38 @@ async function recordingsRoot(): Promise<string | null> {
   }
 }
 
-/** При запуске: удалить из корзины записи старше TRASH_TTL_DAYS дней. Возвращает число удалённых. */
-export async function purgeTrash(root?: string | null): Promise<number> {
+/**
+ * Что лежит в корзине: папки с меткой trashed.json. null, если корзину прочитать не
+ * удалось (папка записей неизвестна или вне доступной области): тогда верим кешу.
+ */
+export async function listTrash(root?: string | null): Promise<TrashEntry[] | null> {
   const base = root ?? (await recordingsRoot());
-  if (!base) return 0;
+  if (!base) return null;
   const trash = trashPath(base);
-  let removed = 0;
   try {
-    if (!(await exists(trash))) return 0;
+    if (!(await exists(trash))) return [];
     const entries = (await readDir(trash)) ?? [];
+    const out: TrashEntry[] = [];
     for (const entry of entries) {
       if (!entry.isDirectory) continue;
       const dir = joinPath(trash, entry.name);
-      let marker: TrashMarker | null = null;
       try {
-        marker = JSON.parse(await readTextFile(joinPath(dir, MARKER))) as TrashMarker;
+        const marker = JSON.parse(await readTextFile(joinPath(dir, MARKER))) as TrashMarker;
+        if (marker?.trashedAt) out.push({ dir, marker });
       } catch {
-        continue; // без отметки о переносе не трогаем: папку положили сюда не мы
+        // без метки не наше: папку положили сюда не мы
       }
-      if (!marker?.trashedAt || Date.now() - marker.trashedAt < TRASH_TTL_DAYS * DAY_MS) continue;
-      await remove(dir, { recursive: true });
-      removed++;
-      console.info(`[aid] Корзина: удалена запись старше ${TRASH_TTL_DAYS} дней: ${entry.name}`);
     }
+    return out;
   } catch (error) {
-    console.warn('[aid] Корзину не удалось очистить, повторим при следующем запуске:', error);
+    console.warn('[aid] Корзину не удалось прочитать:', error);
+    return null;
   }
-  return removed;
+}
+
+/** Стереть папку из корзины насовсем. */
+export async function removeTrashFolder(dir: string): Promise<void> {
+  await remove(dir, { recursive: true });
 }
 
 /** Открыть корзину в Finder (Проводнике). Папка создаётся, если её ещё нет. */

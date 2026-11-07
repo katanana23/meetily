@@ -125,12 +125,20 @@ export function measureSpeech(segments: SpeechSegment[]): SpeechAmount {
   return { words: count, seconds };
 }
 
+/**
+ * Пустая запись короче этого (секунды записи без пауз) — случайный старт: тихо отменяем,
+ * без предупреждения и «Проверить звук».
+ */
+export const SHORT_EMPTY_SECONDS = 10;
+
 export type RecordingVerdict =
   /** Есть распознанная речь (3+ слова после чистки): обычная встреча любой длины. */
   | 'speech'
-  /** Речи нет: встреча не создаётся. */
+  /** Короткая пустая запись (до SHORT_EMPTY_SECONDS): случайный старт, ничего не сохраняем. */
+  | 'cancelled'
+  /** Длиннее, а детектор речи не сработал: ничего не записалось, возможно, проблема со звуком. */
   | 'no-speech'
-  /** Детектор слышал речь, а текста нет по явной причине (нет модели, сбой): «Не распознано». */
+  /** Детектор слышал речь, а текста нет: «Не распознано», запись сохраняется. */
   | 'unrecognized';
 
 /** Явная причина, почему у услышанной речи нет текста. */
@@ -148,6 +156,8 @@ export interface RecordingEvidence {
   detectorSeconds: number | null;
   /** Явная причина отсутствия текста или null. */
   noTextReason: NoTextReason | null;
+  /** Длительность записи без пауз, секунды; null, если неизвестна (тогда короткой не считаем). */
+  durationSec?: number | null;
 }
 
 export interface RecordingJudgement {
@@ -161,11 +171,13 @@ export interface RecordingJudgement {
 }
 
 /**
- * Итог записи:
- * - 3+ слова после чистки галлюцинаций → 'speech', сохраняем (секунды и длина записи не важны);
- * - детектор слышал речь и есть явная причина отсутствия текста (нет модели, ошибка или
- *   отмена распознавания) → 'unrecognized', сохраняем в «Не распознано»;
- * - иначе → 'no-speech', встреча не создаётся.
+ * Итог записи — по контексту, чтобы «Проверить звук» и предупреждение были только там,
+ * где есть основание подозревать звук:
+ * - 3+ слова после чистки галлюцинаций → 'speech', сохраняем (секунды и длина не важны);
+ * - пустая и короче SHORT_EMPTY_SECONDS → 'cancelled': случайный старт, тихо отменяем;
+ * - длиннее, детектор речи не сработал → 'no-speech': ничего не записалось, проверьте звук;
+ * - детектор слышал речь, текста нет → 'unrecognized': сохраняем в «Не распознано»
+ *   (звук был, не справилось распознавание; noTextReason уточняет причину в журнале).
  */
 export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
   const { words: count, seconds } = measureSpeech(e.segments);
@@ -174,10 +186,11 @@ export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
 
   if (count >= MIN_MEANINGFUL_WORDS) return { ...base, verdict: 'speech', reason: `распознанная речь: ${count} слов` };
   const heard = e.vadSegments === 0 ? 'детектор речи не сработал' : `детектор сработал (${e.vadSegments} сегм.)`;
-  if (e.vadSegments > 0 && e.noTextReason) {
-    return { ...base, verdict: 'unrecognized', reason: `${heard}, слов ${count}, распознавание не удалось: ${e.noTextReason}` };
+  if (typeof e.durationSec === 'number' && e.durationSec < SHORT_EMPTY_SECONDS) {
+    return { ...base, verdict: 'cancelled', reason: `пустая запись ${e.durationSec.toFixed(1)} с короче ${SHORT_EMPTY_SECONDS} с: случайный старт` };
   }
-  return { ...base, verdict: 'no-speech', reason: `${heard}, слов ${count} меньше ${MIN_MEANINGFUL_WORDS}` };
+  if (e.vadSegments === 0) return { ...base, verdict: 'no-speech', reason: `${heard}, слов ${count}` };
+  return { ...base, verdict: 'unrecognized', reason: `${heard}, слов ${count} меньше ${MIN_MEANINGFUL_WORDS}${e.noTextReason ? `, причина: ${e.noTextReason}` : ''}` };
 }
 
 export function countWords(text: string): number {

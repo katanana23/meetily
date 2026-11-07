@@ -21,7 +21,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -121,14 +121,19 @@ function SpeechHint({ heard }: { heard: boolean }) {
 }
 
 const COPY = {
+  cancelled: { title: 'cancelledNoticeTitle', hint: null },
   'no-speech': { title: 'noSpeechNoticeTitle', hint: 'noSpeechNoticeHint' },
   unrecognized: { title: 'unrecognizedNoticeTitle', hint: 'unrecognizedNoticeHint' },
 } as const;
 
-/** Карточка итога: плотное стекло, скругление плитки, воздух внутри. */
+/**
+ * Карточка итога: плотное стекло, скругление плитки. Внутри по бенто: всё на отступе 4 px
+ * от кромки, крестик отдельной вложенной плиткой во всю высоту справа (радиус плитки
+ * минус 4), значок маленький, но контрастный.
+ */
 function NoticeCard({ notice }: { notice: DiscardNotice }) {
   return (
-    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile py-4 pl-4 pr-3">
+    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile p-1">
       <NoticeRow notice={notice} />
     </div>
   );
@@ -137,6 +142,10 @@ function NoticeCard({ notice }: { notice: DiscardNotice }) {
 function NoticeRow({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
   const { hold } = notice;
+  // Есть основание подозревать звук только у «Ничего не записалось»: там знак Giants и «Проверить звук».
+  // «Запись отменена» (короткая пустая) тихая: без знака предупреждения и без действий, уходит сама
+  const suspectSound = notice.verdict === 'no-speech';
+  const copy = COPY[notice.verdict];
   // Esc закрывает (если не открыт диалог проверки звука)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !soundCheck && notice.dismiss();
@@ -163,31 +172,40 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
       onPointerLeave={() => hold('hover', false)}
       onFocus={() => hold('focus', true)}
       onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-center gap-4"
+      className="flex w-full min-w-0 items-stretch gap-1"
     >
-      {/* Спокойно и с воздухом: знак в круге 44 px слева (что случилось), две короткие строки,
-          справа тихое действие текстом и крестик. Цвет роли только у знака «Не распознано» */}
-      <span
-        className={cn(
-          'flex size-11 shrink-0 items-center justify-center rounded-full [&_svg]:size-5',
-          notice.verdict === 'unrecognized' ? 'bg-[hsl(var(--giants)/0.16)] text-giants-ink' : 'bg-muted text-muted-foreground',
+      <div className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 py-2 pl-2 pr-1">
+        {notice.verdict !== 'cancelled' && (
+          <span
+            className={cn(
+              'flex size-11 shrink-0 items-center justify-center rounded-full [&_svg]:size-5',
+              suspectSound ? 'bg-[hsl(var(--giants)/0.16)] text-giants-ink' : 'bg-muted text-muted-foreground',
+            )}
+            aria-hidden
+          >
+            {suspectSound ? <MicrophoneSlash /> : <Waveform />}
+          </span>
         )}
-        aria-hidden
-      >
-        {notice.verdict === 'unrecognized' ? <Warning /> : <MicrophoneSlash />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
-        <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
+        <div className={cn('min-w-0 flex-1', notice.verdict === 'cancelled' && 'pl-2')}>
+          <p className="truncate text-[15px] font-semibold leading-5">{t(copy.title)}</p>
+          {copy.hint && <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(copy.hint)}</p>}
+        </div>
+        {suspectSound && (
+          <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
+            {t('soundCheck')}
+          </Button>
+        )}
       </div>
-      <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
-        {t('soundCheck')}
-      </Button>
-      {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
-      <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
-        <X weight="bold" />
-      </Button>
-      <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
+      {/* Крестик: вложенная плитка во всю высоту на 4 px от кромок, X bold 16 px (залитый нарисован квадратом, CLAUDE.md) */}
+      <button
+        type="button"
+        onClick={notice.dismiss}
+        aria-label={t('close')}
+        className="flex w-11 shrink-0 items-center justify-center rounded-[20px] bg-foreground/[0.06] text-foreground transition-colors hover:bg-foreground/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <X weight="bold" className="size-4" />
+      </button>
+      {suspectSound && <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />}
     </div>
   );
 }

@@ -23,8 +23,7 @@ import { isHallucination, judgeRecording, measureSpeech, MIN_MEANINGFUL_WORDS, t
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
 import { markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
-import { purgeTrash } from './recording-trash';
-import { purgeTrashedMeetings } from './meeting-trash';
+import { purgeExpiredTrash } from './meeting-trash';
 import { t } from '@/aid/strings';
 
 /**
@@ -35,6 +34,8 @@ import { t } from '@/aid/strings';
  */
 export const NOTICE_MS = 8_000;
 export const NOTICE_MAX_MS = 30_000;
+/** «Запись отменена: она была пустой» тихая: уходит сама через 3 с, наведение её не держит. */
+export const CANCELLED_NOTICE_MS = 3_000;
 /**
  * Ключ sessionStorage: запись сохранена в «Не распознано», открывать её не нужно.
  * Оригинальный useRecordingStop через 2 с после сохранения сам переходит на страницу
@@ -90,8 +91,11 @@ type StopHandler = (save: boolean) => Promise<void>;
 
 /** Запись не сохранена: короткая карточка у кнопки записи вместо тоста, с крестиком. */
 export interface DiscardNotice {
-  /** no-speech: встреча не создана; unrecognized: сохранена в «Не распознано». */
-  verdict: 'no-speech' | 'unrecognized';
+  /**
+   * cancelled: короткая пустая запись, тихо отменена; no-speech: длиннее, речи не слышно,
+   * встреча не создана; unrecognized: речь слышали, текста нет, сохранена в «Не распознано».
+   */
+  verdict: 'cancelled' | 'no-speech' | 'unrecognized';
   /** Причина задержать карточку: 'hover', 'focus', 'dialog'. */
   hold: (reason: string, on: boolean) => void;
   dismiss: () => void;
@@ -214,28 +218,30 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const showNotice = useCallback(
     (verdict: DiscardNotice['verdict']) => {
       closeNotice();
-      countdown.current = { remaining: NOTICE_MS, startedAt: null, hardStop: Date.now() + NOTICE_MAX_MS };
-      hardTimer.current = setTimeout(closeNotice, NOTICE_MAX_MS);
+      // Тихая отмена уходит сама через 3 с и не задерживается под курсором
+      const ms = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MS;
+      const max = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MAX_MS;
+      countdown.current = { remaining: ms, startedAt: null, hardStop: Date.now() + max };
+      hardTimer.current = setTimeout(closeNotice, max);
       setNotice({ verdict, hold, dismiss: closeNotice });
       sync();
     },
     [closeNotice, hold, sync],
   );
 
-  // Только в разработке: показать карточку итога по ?notice=no-speech|unrecognized,
+  // Только в разработке: показать карточку итога по ?notice=cancelled|no-speech|unrecognized,
   // чтобы смотреть её без записи. В сборке не работает
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
     const v = new URLSearchParams(window.location.search).get('notice');
-    if (v === 'no-speech' || v === 'unrecognized') showNotice(v);
+    if (v === 'cancelled' || v === 'no-speech' || v === 'unrecognized') showNotice(v);
   }, [showNotice]);
 
   // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
   // раз, и очистить корзину (удалённое человеком) от записей старше 7 дней
   useEffect(() => {
     void purgeDiscarded();
-    void purgeTrashedMeetings();
-    void purgeTrash();
+    void purgeExpiredTrash();
   }, []);
 
   seconds.current = recording.activeDuration ?? seconds.current;
@@ -291,14 +297,20 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const noTextReason: NoTextReason | null =
           model === false ? 'no-model' : liveRef.current.recognitionFailed ? 'recognition-error' : null;
 
-        const judgement = judgeRecording({ segments, vadSegments: vad, detectorSeconds, noTextReason });
+        const judgement = judgeRecording({
+          segments,
+          vadSegments: vad,
+          detectorSeconds,
+          noTextReason,
+          durationSec: liveRef.current.tracking ? seconds.current : null,
+        });
         let verdict = judgement.verdict;
         let reason = judgement.reason;
         const folder = sessionStorage.getItem('last_recording_folder_path');
         const name = sessionStorage.getItem('last_recording_meeting_name');
 
         // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
-        if (verdict === 'no-speech' && !liveRef.current.tracking) {
+        if (verdict !== 'speech' && verdict !== 'unrecognized' && !liveRef.current.tracking) {
           verdict = 'unrecognized';
           reason = 'начало записи не отслежено, сохраняем как есть';
         }
@@ -348,21 +360,22 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         }
 
         // Речи нет: встреча не создаётся. Экран обработки гаснет сразу (finishing
-        // 'discarding' → фаза null), на его месте список и одна карточка «Ничего не
-        // записалось». Пометка «не сохранять» ставится до любой записи в базу, поэтому
+        // 'discarding' → фаза null), на его месте список и одна карточка: короткая пустая
+        // запись — тихая «Запись отменена: она была пустой» (3 с, без «Проверить звук»),
+        // длиннее — «Ничего не записалось» с «Проверить звук». Пометка «не сохранять» ставится до любой записи в базу, поэтому
         // такая встреча не появится в списке и не откроется по адресу. В базу не пишем
         // (оригинальный путь handleRecordingStop(false)); то, что успело попасть в базу
         // с этой папкой, удаляется. В корзину ничего не уходит: корзина только для
         // удалённого человеком; файл звука остаётся в папке записей, как у оригинала.
         markDiscarded(folder, name, 0);
         setFinishing('discarding');
-        showNotice('no-speech');
+        showNotice(verdict === 'cancelled' ? 'cancelled' : 'no-speech');
         await handle(false);
         void purgeDiscarded();
         // Окно за другим приложением: системное уведомление, иначе карточку никто не увидит.
         // Через менеджер уведомлений ядра: он учитывает согласие, «Не беспокоить» и
         // настройку «Уведомлять об остановке записи»
-        if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus())) {
+        if (verdict === 'no-speech' && typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus())) {
           void notifyNotSaved();
         }
         return verdict;

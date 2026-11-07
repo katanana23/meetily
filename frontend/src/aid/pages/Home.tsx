@@ -20,18 +20,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { openTrash } from '@/aid/lib/recording-trash';
-import { daysLeft, isTrashed, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
+import { daysLeft, deleteForever, emptyTrash, isTrashed, loadTrash, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
-import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import MeetingDetails from '@/aid/pages/MeetingDetails';
 import { type StartBlocker } from '@/aid/lib/recording';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
-import { isDiscarded, isKept, isUnrecognized, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
+import { clearUnrecognized, isDiscarded, isKept, isUnrecognized, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 import { cn } from '@/aid/lib/utils';
@@ -59,7 +59,8 @@ function useMeetingsList(refreshKey: unknown) {
     const signal = { cancelled: false };
     current.current = signal;
     try {
-      const all = await invoke<Array<{ id: string; title: string }>>('api_get_meetings');
+      // Корзину сверяем с метками на диске до показа списка: удалённое не мелькнёт
+      const [all] = await Promise.all([invoke<Array<{ id: string; title: string }>>('api_get_meetings'), loadTrash()]);
       // Дату и папку записи ядро отдаёт только в метаданных; число реплик берём одним
       // коротким запросом (limit 1), чтобы пустые записи не мелькнули в списке до подробностей
       const [metas, counts] = await Promise.all([
@@ -109,6 +110,14 @@ function useMeetingsList(refreshKey: unknown) {
     },
     [],
   );
+
+  // Пометка «не распознано» от старой логики у встречи с текстом: снять, когда слова подсчитаны
+  useEffect(() => {
+    if (state.kind !== 'ready') return;
+    for (const m of state.meetings) {
+      if (m.details && m.details.status !== 'unknown' && m.details.words >= MIN_MEANINGFUL_WORDS && isUnrecognized(m)) clearUnrecognized(m.folder_path ?? null);
+    }
+  }, [state]);
 
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
@@ -272,10 +281,45 @@ function useTrashed(): TrashedMeeting[] {
   return list;
 }
 
-/** Фильтр «Корзина»: удалённые встречи с кнопкой «Восстановить», внизу папка корзины. */
+/** Подтверждение окончательного удаления: одна встреча или вся корзина. */
+function EraseDialog({ title, hint, onConfirm, onClose }: { title: string; hint: string; onConfirm: () => Promise<void>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await onConfirm();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
+      <DialogContent>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{hint}</DialogDescription>
+        <DialogFooter>
+          <Button variant="outline" size="main" onClick={onClose} disabled={busy}>
+            {t('cancel')}
+          </Button>
+          <Button variant="destructive" size="main" onClick={() => void confirm()} disabled={busy}>
+            {busy ? <Spinner tone="inherit" /> : <Trash />}
+            {t('deleteForever')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Фильтр «Корзина»: удалённые встречи, срок, «Восстановить» и «Удалить насовсем»;
+ * сверху «Очистить корзину», внизу папка корзины.
+ */
 function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored: () => void }) {
   const { storageLocations, loadPreferences } = useConfig();
   const [busy, setBusy] = useState<string | null>(null);
+  const [erase, setErase] = useState<TrashedMeeting | 'all' | null>(null);
   useEffect(() => {
     void loadPreferences();
   }, [loadPreferences]);
@@ -300,21 +344,41 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
       setBusy(null);
     }
   };
+  const eraseOne = async (m: TrashedMeeting) => {
+    try {
+      await deleteForever(m.id);
+      aidToast.success(t('deletedForever'), { description: displayTitle(m.title) });
+    } catch (error) {
+      aidToast.error(t('deleteFailed'), { description: String(error) });
+      throw error;
+    }
+  };
+  const eraseAll = async () => {
+    const n = await emptyTrash();
+    aidToast.success(t('trashEmptied'), { description: n ? `${n} ${plural(n, 'запись', 'записи', 'записей')}` : undefined });
+  };
+  const folderButton = root && (
+    <Button variant="ghost" className="mt-4 -ml-3 text-muted-foreground" onClick={() => void open()}>
+      <FolderOpen />
+      {t('openTrash')}
+    </Button>
+  );
   if (items.length === 0) {
     return (
       <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash}>
-        {root && (
-          <Button variant="ghost" className="mt-4 -ml-3 text-muted-foreground" onClick={() => void open()}>
-            <FolderOpen />
-            {t('openTrash')}
-          </Button>
-        )}
+        {folderButton}
       </EmptyFilter>
     );
   }
   return (
     <section aria-label={t('filterTrash')}>
-      <p className="mb-3 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
+        <Button variant="ghost" className="-mr-2 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => setErase('all')}>
+          <Trash />
+          {t('emptyTrash')}
+        </Button>
+      </div>
       <ul className="flex flex-col gap-1">
         {items.map((m) => {
           const days = daysLeft(m);
@@ -328,6 +392,7 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
                   {displayTitle(m.title)}
                 </span>
                 <span className="block text-sm text-muted-foreground">
+                  {m.trashedFolder === null && `${t('trashFileStayed')} · `}
                   {t('trashDaysLeft')} {days} {plural(days, 'день', 'дня', 'дней')}
                 </span>
               </span>
@@ -335,15 +400,36 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
                 {busy === m.id ? <Spinner tone="inherit" /> : <ArrowCounterClockwise />}
                 {t('restore')}
               </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-12 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                    onClick={() => setErase(m)}
+                    disabled={busy !== null}
+                    aria-label={`${t('deleteForever')}: ${displayTitle(m.title)}`}
+                  >
+                    <Trash />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('deleteForever')}</TooltipContent>
+              </Tooltip>
             </li>
           );
         })}
       </ul>
-      {root && (
-        <Button variant="ghost" className="mt-4 text-muted-foreground" onClick={() => void open()}>
-          <FolderOpen />
-          {t('openTrash')}
-        </Button>
+      {folderButton}
+      {erase === 'all' && (
+        <EraseDialog title={t('emptyTrashTitle')} hint={t('emptyTrashHint')} onConfirm={eraseAll} onClose={() => setErase(null)} />
+      )}
+      {erase && erase !== 'all' && (
+        <EraseDialog
+          title={t('deleteForeverTitle')}
+          hint={`«${displayTitle(erase.title)}». ${t('deleteForeverHint')}`}
+          onConfirm={() => eraseOne(erase)}
+          onClose={() => setErase(null)}
+        />
       )}
     </section>
   );
@@ -473,7 +559,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       patch((list) => list.filter((x) => x.id !== toDelete.id));
       setMeetings(sidebarMeetings.filter((x) => x.id !== toDelete.id));
       setToDelete(null);
-      aidToast.success(t('deleted'), { description: t('deletedHint') });
+      toastTrashed(toDelete.id);
     } catch (error) {
       aidToast.error(t('deleteFailed'), { description: String(error) });
     }
@@ -503,13 +589,14 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   // внизу, либо (оставленные пользователем через «Вернуть») обычная строка
   const groups = useMemo(() => {
     if (state.kind !== 'ready') return { main: [], unrecognized: [], legacyEmpty: [] };
-    // Помечена «не распознано» после стопа (детектор слышал речь, осмысленного текста нет)
-    // или старая запись без единой реплики; возвращённые через «Вернуть» остаются в общем списке
-    // Пара фраз (меньше 15 слов по подробностям строки) тоже уходит вниз: из неё не
-    // собрать ни транскрипт для чтения, ни итоги
+    // «Не распознано» — только встречи без распознанного текста: решают слова (меньше
+    // MIN_MEANINGFUL_WORDS после чистки галлюцинаций), а не пометка. Пометка после стопа
+    // (markUnrecognized) работает, лишь пока слова строки не подсчитаны; старая логика ставила
+    // её и записям с парой фраз, такие возвращаются в общий список, пометка снимается.
+    // Возвращённые через «Вернуть» остаются в общем списке
+    const counted = (m: MeetingListItem) => m.details !== null && m.details.status !== 'unknown';
     const aside = (m: MeetingListItem) =>
-      !isKept(m) &&
-      (isUnrecognized(m) || m.transcriptCount === 0 || (m.details !== null && m.details.status !== 'unknown' && m.details.words < MIN_MEANINGFUL_WORDS));
+      !isKept(m) && (m.transcriptCount === 0 || (counted(m) ? m.details!.words < MIN_MEANINGFUL_WORDS : isUnrecognized(m)));
     const unrecognized = state.meetings.filter(aside);
     return {
       main: state.meetings.filter((m) => !aside(m)),

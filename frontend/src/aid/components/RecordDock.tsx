@@ -18,9 +18,9 @@
 // кольцо вокруг точки вспыхивает на каждый сигнал.
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChatText, Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
@@ -225,6 +225,25 @@ function RecordButton() {
   );
 }
 
+/**
+ * Кнопка записи в покое только на списке встреч. На настройках и на странице встречи её нет:
+ * там она закрывала строки внизу (на настройках «Отправлять статистику»). Записать можно
+ * со списка и сочетанием клавиш, оно работает везде. Капсула идущей записи и итог после
+ * неё показываются на всех экранах: это управление записью, его не прячем. Пока кнопки нет,
+ * у прокрутки обычный нижний отступ вместо запаса под капсулу (data-dock-off).
+ */
+function IdleRecordButton() {
+  const pathname = usePathname() ?? '/';
+  const params = useSearchParams();
+  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings';
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute('data-dock-off', hidden);
+    return () => root.removeAttribute('data-dock-off');
+  }, [hidden]);
+  return hidden ? null : <RecordButton />;
+}
+
 export function RecordDock() {
   const c = useRecordingControls();
   const { live, notice } = useRecordingOutcome();
@@ -273,7 +292,12 @@ export function RecordDock() {
       )}
 
       <div key={state} className="aid-dock-in pointer-events-auto flex max-w-full justify-center">
-        {state === 'idle' && <RecordButton />}
+        {state === 'idle' && (
+          // useSearchParams в статической выгрузке требует границу Suspense
+          <Suspense fallback={null}>
+            <IdleRecordButton />
+          </Suspense>
+        )}
 
         {state === 'recording' && (
           <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-glass relative flex items-center gap-2 rounded-full p-2">

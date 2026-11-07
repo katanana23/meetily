@@ -424,6 +424,12 @@ body {
   --dock-pad: var(--tile-pad, 20px);
 }
 
+/* Кнопки записи на экране нет (настройки, встреча в покое: RecordDock, data-dock-off):
+   запас под неё не нужен */
+:root[data-dock-off] .aid-scroll {
+  --dock-pad: var(--tile-pad, 20px);
+}
+
 /* Обрезка колонки плиток по радиусу плитки (Page layout="bento"). Прокрутка шире
    колонки на 8 px (полоса в поле окна), поэтому overflow + border-radius не
    подходит: правые углы разошлись бы с краем плиток. Маска из двух полос и
@@ -1070,7 +1076,10 @@ html body[data-scroll-locked] {
 
 /* Выбранный чип-фильтр (Home.tsx): рамка акцентом 2 px (--primary-edge: на белом сам
    лайм не виден), внутри лёгкое стекло с оттенком акцента */
-.aid-chip-on {
+/* Выбранный фильтр главной и выбранная вкладка (ui/tabs.tsx, .aid-tab): рамка 2 px акцентом
+   и лёгкое стекло, без сплошной заливки. Двойной класс у вкладки перебивает hover:bg-input. */
+.aid-chip-on,
+.aid-tab.aid-tab[data-state='active'] {
   border-color: hsl(var(--primary-edge));
   background: hsl(var(--primary) / 0.12);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
@@ -1078,7 +1087,8 @@ html body[data-scroll-locked] {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .aid-chip-on {
+  .aid-chip-on,
+  .aid-tab.aid-tab[data-state='active'] {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

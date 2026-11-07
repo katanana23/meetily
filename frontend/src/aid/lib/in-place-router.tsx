@@ -9,6 +9,7 @@
 'use client';
 
 import { useContext, useMemo, type ReactNode } from 'react';
+import { finishHeld } from './finish-hold';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 type Router = NonNullable<React.ContextType<typeof AppRouterContext>>;
@@ -80,12 +81,15 @@ export function InPlaceMeetingRouter({ enabled, children }: { enabled: boolean; 
       // На месте: встреча и возврат к списку (/ и /?…), пока открыта главная
       const toHome = target === '/' || target.startsWith('/?') || target.startsWith('/#');
       if (!toHome || !onHome()) return router[method](target, options);
+      const next = meeting ? new URL(target, window.location.href).searchParams.get('id') : null;
+      // Переход оригинала к только что сохранённой встрече (?source=recording): пока экран
+      // обработки на месте, встречу открывает он сам (по кнопке или через 3 с, finish-hold.ts)
+      if (meeting && method === 'push' && finishHeld() && href.includes('source=recording')) return;
+      // Та же встреча ещё раз (открыли с экрана обработки, потом переход оригинала):
+      // ничего не делаем, адрес и параметры (summarize) не трогаем
+      if (method === 'push' && next !== null && next === new URLSearchParams(window.location.search).get('id')) return;
       const go = () => {
-        // Та же встреча ещё раз (открыли с экрана обработки, потом переход оригинала; страница
-        // встречи к тому времени убирает из адреса source): без новой записи в истории
-        const next = new URL(target, window.location.href).searchParams.get('id');
-        const same = next !== null && next === new URLSearchParams(window.location.search).get('id');
-        if (method === 'push' && !same) window.history.pushState(null, '', target);
+        if (method === 'push') window.history.pushState(null, '', target);
         else window.history.replaceState(null, '', target);
         if (options?.scroll !== false) window.scrollTo({ top: 0 });
       };

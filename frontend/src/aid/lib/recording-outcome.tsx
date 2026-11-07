@@ -19,12 +19,11 @@ import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { toSegment } from './meeting';
 import { subscribe } from './tauri-events';
-import { isDiscarded, isHallucination, judgeRecording, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
+import { isHallucination, judgeRecording, measureSpeech, MIN_MEANINGFUL_WORDS, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
 import { markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
-import { formatLevel, isSilent, measureRecordingLevel } from './audio-level';
-import { moveRecordingToTrash, purgeTrash } from './recording-trash';
+import { purgeTrash } from './recording-trash';
 import { t } from '@/aid/strings';
 
 /**
@@ -56,8 +55,12 @@ export function takeStayPath(): string | null {
   }
 }
 
-/** Запись короче этого с парой фраз (меньше 15 слов) считается случайной и уходит в корзину. */
-export const SHORT_RECORDING_SECONDS = 30;
+/**
+ * Детектор слышал речь, а слов пока меньше порога: ждём, пока ядро допишет последние
+ * фразы (очередь распознавания пуста), не дольше этого, и только потом решаем.
+ * Иначе короткая запись, чьи реплики ещё распознаются, ушла бы как «ничего не записалось».
+ */
+const LATE_TEXT_WAIT_MS = 20_000;
 /** Ключ sessionStorage: итог последней записи для страницы встречи (только Aid). */
 export const OUTCOME_KEY = 'aid.recordingOutcome';
 
@@ -86,8 +89,8 @@ type StopHandler = (save: boolean) => Promise<void>;
 
 /** Запись не сохранена: короткая карточка у кнопки записи вместо тоста, с крестиком. */
 export interface DiscardNotice {
-  /** no-speech и too-little: запись не сохранена; unrecognized: сохранена в «Не распознано». */
-  verdict: 'no-speech' | 'too-little' | 'unrecognized';
+  /** no-speech: встреча не создана; unrecognized: сохранена в «Не распознано». */
+  verdict: 'no-speech' | 'unrecognized';
   /** Причина задержать карточку: 'hover', 'focus', 'dialog'. */
   hold: (reason: string, on: boolean) => void;
   dismiss: () => void;
@@ -95,10 +98,11 @@ export interface DiscardNotice {
 
 interface Ctx {
   live: LiveSpeech;
-  /** Идёт оценка, проверка звука или запись не сохраняется: экран записи показывает «Завершаем запись». */
-  finishing: 'judging' | 'checking-sound' | 'discarding' | null;
-  /** Решение уже принято, запись не сохраняется: почему (для заголовка «Тишина» или «Пара фраз»). */
-  discardVerdict: 'no-speech' | 'too-little' | null;
+  /**
+   * judging: идёт оценка (экран обработки: «Распознаю последние фразы»);
+   * discarding: речи нет, встреча не создаётся (экрана обработки нет, сразу список и карточка).
+   */
+  finishing: 'judging' | 'discarding' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
   /**
    * Запись остановлена страховкой микрофона (с микрофона только нули): не сохраняется
@@ -115,12 +119,12 @@ const RecordingOutcomeContext = createContext<Ctx | null>(null);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function notifyNotSaved(silent: boolean) {
+async function notifyNotSaved() {
   try {
     await invoke('show_notification', {
       notification: {
         id: null,
-        title: silent ? t('noSpeechNoticeTitle') : t('tooLittleNoticeTitle'),
+        title: t('noSpeechNoticeTitle'),
         body: t('notSavedNotificationBody'),
         notification_type: 'RecordingStopped',
         priority: 'Normal',
@@ -154,7 +158,6 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
 
   const [live, setLive] = useState<LiveSpeech>(EMPTY);
   const [finishing, setFinishing] = useState<Ctx['finishing']>(null);
-  const [discardVerdict, setDiscardVerdict] = useState<Ctx['discardVerdict']>(null);
   const liveRef = useRef<LiveSpeech>(EMPTY);
   const segs = useRef<SpeechSegment[]>([]);
   /** Длины речевых сегментов без текста, если ядро когда-нибудь начнёт их присылать. */
@@ -218,16 +221,16 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [closeNotice, hold, sync],
   );
 
-  // Только в разработке: показать карточку итога по ?notice=no-speech|too-little|unrecognized,
+  // Только в разработке: показать карточку итога по ?notice=no-speech|unrecognized,
   // чтобы смотреть её без записи. В сборке не работает
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
     const v = new URLSearchParams(window.location.search).get('notice');
-    if (v === 'no-speech' || v === 'too-little' || v === 'unrecognized') showNotice(v as DiscardNotice['verdict']);
+    if (v === 'no-speech' || v === 'unrecognized') showNotice(v);
   }, [showNotice]);
 
   // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
-  // раз, и очистить корзину от записей старше 7 дней
+  // раз, и очистить корзину (удалённое человеком) от записей старше 7 дней
   useEffect(() => {
     void purgeDiscarded();
     void purgeTrash();
@@ -248,15 +251,36 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       try {
         // В ядре очередь закрывается до recording-stopped; при остановке из трея событие уже пришло
         for (let i = 0; i < 30 && queueTotal.current === null && liveRef.current.tracking; i++) await sleep(100);
-        const own = segs.current;
-        const fromContext: SpeechSegment[] = transcriptsRef.current.map((t) => ({
-          text: (t.text ?? '').trim(),
-          duration: typeof t.duration === 'number' ? t.duration : null,
-        }));
-        const segments = own.length >= fromContext.length ? own : fromContext;
-        const vadSegments = Math.max(liveRef.current.vadSegments, queueTotal.current ?? 0);
-        // Секунды речи по детектору: длины речевых сегментов, о которых ядро сообщило
-        // (duration у transcript-update; у сегментов без текста ядро длину не присылает)
+        const collect = (): SpeechSegment[] => {
+          const own = segs.current;
+          const fromContext: SpeechSegment[] = transcriptsRef.current.map((t) => ({
+            text: (t.text ?? '').trim(),
+            duration: typeof t.duration === 'number' ? t.duration : null,
+          }));
+          return own.length >= fromContext.length ? own : fromContext;
+        };
+        const vadSegments = () => Math.max(liveRef.current.vadSegments, queueTotal.current ?? 0);
+        // Детектор слышал речь, а слов меньше порога: последние фразы могут ещё распознаваться
+        // (у короткой записи это почти весь текст). Ждём пустую очередь, потом решаем
+        let waited = 0;
+        if (vadSegments() > 0 && measureSpeech(collect()).words < MIN_MEANINGFUL_WORDS) {
+          const t0 = Date.now();
+          while (Date.now() - t0 < LATE_TEXT_WAIT_MS && measureSpeech(collect()).words < MIN_MEANINGFUL_WORDS) {
+            try {
+              const st = await invoke<{ is_processing?: boolean; chunks_in_queue?: number }>('get_transcription_status');
+              if (!st?.is_processing && !st?.chunks_in_queue) break;
+            } catch {
+              break;
+            }
+            await sleep(300);
+          }
+          // Событие с текстом последнего чанка приходит чуть позже, чем очередь пустеет
+          await sleep(600);
+          waited = Date.now() - t0;
+        }
+        const segments = collect();
+        const vad = vadSegments();
+        // Секунды речи по детектору (для журнала): длины речевых сегментов, о которых ядро сообщило
         const known = [...segments.map((x) => x.duration), ...vadDurations.current].filter(
           (d): d is number => typeof d === 'number' && Number.isFinite(d),
         );
@@ -265,53 +289,16 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const noTextReason: NoTextReason | null =
           model === false ? 'no-model' : liveRef.current.recognitionFailed ? 'recognition-error' : null;
 
-        const judgement = judgeRecording({ segments, vadSegments, detectorSeconds, noTextReason });
+        const judgement = judgeRecording({ segments, vadSegments: vad, detectorSeconds, noTextReason });
         let verdict = judgement.verdict;
         let reason = judgement.reason;
         const folder = sessionStorage.getItem('last_recording_folder_path');
         const name = sessionStorage.getItem('last_recording_meeting_name');
 
         // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
-        if (isDiscarded(verdict) && !liveRef.current.tracking) {
+        if (verdict === 'no-speech' && !liveRef.current.tracking) {
           verdict = 'unrecognized';
           reason = 'начало записи не отслежено, сохраняем как есть';
-        }
-
-        // Текста нет. Это тишина или сломалось распознавание? Решает сам звук:
-        // удаляется только запись, где и звук на уровне тишины, и текста нет.
-        // Громче порога или не удалось измерить: «Не распознано» (audio-level.ts)
-        let levelNote = 'не измерялся (есть текст)';
-        // Пара фраз (меньше 15 слов). Короткая запись (меньше SHORT_RECORDING_SECONDS)
-        // это случайный старт и стоп: не сохраняется и в корзину не идёт, файл звука
-        // остаётся в папке записей, как у оригинала при «не сохранять».
-        // Длинная с парой фраз в общий список не идёт: «Не распознано»
-        let trashShort = false;
-        if (verdict === 'too-little') {
-          if (liveRef.current.tracking && seconds.current > 0 && seconds.current < SHORT_RECORDING_SECONDS) {
-            trashShort = true;
-            reason = `${reason}; запись короче ${SHORT_RECORDING_SECONDS} с, не сохраняем (без корзины)`;
-          } else {
-            verdict = 'unrecognized';
-            reason = `${reason}; запись длинная, сохраняем в «Не распознано»`;
-          }
-        }
-        if (isDiscarded(verdict)) {
-          setFinishing('checking-sound');
-          const measured = await measureRecordingLevel(folder, seconds.current || null);
-          if (measured.kind === 'unknown') {
-            levelNote = `не измерен: ${measured.reason}`;
-            verdict = 'unrecognized';
-            reason = `${reason}; уровень звука не измерен, сохраняем в «Не распознано»`;
-          } else {
-            levelNote = formatLevel(measured.level);
-            if (!isSilent(measured.level)) {
-              verdict = 'unrecognized';
-              reason = `${reason}; звук выше порога тишины, сохраняем в «Не распознано»`;
-            } else {
-              reason = `${reason}; звук на уровне тишины, удаляем (папка в корзину)`;
-            }
-          }
-          setFinishing('judging');
         }
 
         // Журнал решения: одна строка на каждую остановку (консоль окна; логгер
@@ -319,81 +306,75 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const fmt = (n: number | null) => (n === null ? 'нет данных' : `${n.toFixed(1)} с`);
         console.info(
           `[aid] Итог записи: длительность ${fmt(seconds.current)}, речь по детектору ${fmt(detectorSeconds)} ` +
-            `(${vadSegments} сегм.), реплик ${judgement.segmentsBefore} → ${judgement.segmentsAfter} после чистки, ` +
-            `слов ${judgement.words}, речь в репликах ${fmt(judgement.speechSeconds)}, ` +
+            `(${vad} сегм.), реплик ${judgement.segmentsBefore} → ${judgement.segmentsAfter} после чистки, ` +
+            `слов ${judgement.words}, ожидание последних фраз ${waited} мс, ` +
             `модель ${model === null ? 'не проверена' : model ? 'есть' : 'нет'}, ` +
-            `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'}, ` +
-            `звук: ${levelNote} → ${verdict}: ${reason}`,
+            `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'} → ${verdict}: ${reason}`,
         );
 
         try {
           sessionStorage.setItem(
             OUTCOME_KEY,
-            JSON.stringify({ folder, verdict, vadSegments, recognitionFailed: liveRef.current.recognitionFailed } satisfies StoredOutcome),
+            JSON.stringify({ folder, verdict, vadSegments: vad, recognitionFailed: liveRef.current.recognitionFailed } satisfies StoredOutcome),
           );
         } catch {
           /* страница встречи покажет общую причину */
         }
 
-        if (!isDiscarded(verdict) && !trashShort) {
-          if (verdict === 'unrecognized') {
-            // «Не распознано»: встреча сохраняется, но в общий список не попадает
-            // (раздел внизу). Промежуточных экранов нет: ни «Сохранено», ни страницы
-            // встречи с «Речь не распознана»; пользователь остаётся, где был, и видит
-            // короткую карточку с крестиком
-            markUnrecognized(folder);
-            setQuiet(true);
-            try {
-              sessionStorage.setItem(STAY_KEY, JSON.stringify({ at: Date.now(), path: window.location.pathname + window.location.search }));
-            } catch {
-              /* без пометки откроется страница встречи, как раньше */
-            }
-            setFinishing(null);
-            await handle(true);
-            showNotice('unrecognized');
-            setTimeout(() => setQuiet(false), 4000);
-            return verdict;
+        if (verdict === 'unrecognized') {
+          // «Не распознано»: встреча сохраняется, но в общий список не попадает
+          // (раздел внизу). Промежуточных экранов нет: ни «Сохранено», ни страницы
+          // встречи с «Речь не распознана»; пользователь остаётся, где был, и видит
+          // короткую карточку с крестиком
+          markUnrecognized(folder);
+          setQuiet(true);
+          try {
+            sessionStorage.setItem(STAY_KEY, JSON.stringify({ at: Date.now(), path: window.location.pathname + window.location.search }));
+          } catch {
+            /* без пометки откроется страница встречи, как раньше */
           }
+          setFinishing(null);
+          await handle(true);
+          showNotice('unrecognized');
+          setTimeout(() => setQuiet(false), 4000);
+          return verdict;
+        }
+        if (verdict === 'speech') {
           setFinishing(null);
           await handle(true);
           return verdict;
         }
 
-        // Тишина и нет текста: пометка «не сохранять» ставится сразу, до любой записи
-        // в базу, поэтому такая встреча не появится в списке и не откроется по адресу,
-        // даже если попадёт в базу другим путём. В базу не пишем (оригинальный путь
-        // handleRecordingStop(false)); то, что успело попасть в базу с этой папкой,
-        // удаляется сразу. Папка записи со звуком уходит в корзину на 7 дней
-        // (recording-trash.ts), а не стирается.
+        // Речи нет: встреча не создаётся. Экран обработки гаснет сразу (finishing
+        // 'discarding' → фаза null), на его месте список и одна карточка «Ничего не
+        // записалось». Пометка «не сохранять» ставится до любой записи в базу, поэтому
+        // такая встреча не появится в списке и не откроется по адресу. В базу не пишем
+        // (оригинальный путь handleRecordingStop(false)); то, что успело попасть в базу
+        // с этой папкой, удаляется. В корзину ничего не уходит: корзина только для
+        // удалённого человеком; файл звука остаётся в папке записей, как у оригинала.
         markDiscarded(folder, name, 0);
-        setDiscardVerdict(verdict === 'too-little' ? 'too-little' : 'no-speech');
         setFinishing('discarding');
+        showNotice('no-speech');
         await handle(false);
         void purgeDiscarded();
-        // В корзину только тишина; пара фраз просто не сохраняется
-        const trashed = trashShort ? null : await moveRecordingToTrash(folder, name);
-        console.info(trashed ? `[aid] Папка пустой записи перенесена в корзину: ${trashed}` : `[aid] Папка пустой записи осталась на месте: ${folder}`);
-        showNotice(verdict as DiscardNotice['verdict']);
         // Окно за другим приложением: системное уведомление, иначе карточку никто не увидит.
         // Через менеджер уведомлений ядра: он учитывает согласие, «Не беспокоить» и
         // настройку «Уведомлять об остановке записи»
         if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus())) {
-          void notifyNotSaved(verdict === 'no-speech');
+          void notifyNotSaved();
         }
         return verdict;
       } finally {
         busy.current = false;
         setFinishing(null);
-        setDiscardVerdict(null);
       }
     },
-    [transcriptsRef, handleRecordingStop, showNotice],
+    [transcriptsRef, showNotice],
   );
 
   const abandon = useCallback(async (handle: StopHandler) => {
     if (busy.current) return;
     busy.current = true;
-    setDiscardVerdict('no-speech');
     setFinishing('discarding');
     try {
       // Папку записи ядро сообщает событием recording-stopped (useRecordingStop)
@@ -407,7 +388,6 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     } finally {
       busy.current = false;
       setFinishing(null);
-      setDiscardVerdict(null);
     }
   }, []);
 
@@ -472,8 +452,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   }, [update, closeNotice]);
 
   const value = useMemo(
-    () => ({ live, finishing, discardVerdict, finish, abandon, notice, quiet }),
-    [live, finishing, discardVerdict, finish, abandon, notice, quiet],
+    () => ({ live, finishing, finish, abandon, notice, quiet }),
+    [live, finishing, finish, abandon, notice, quiet],
   );
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;
 }

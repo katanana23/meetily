@@ -316,11 +316,12 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  // Тихое сохранение в «Не распознано»: ни «Сохраняем», ни «Сохранено», сразу список
+  // Тихое сохранение в «Не распознано»: ни «Сохраняем», ни «Сохранено», сразу список.
+  // Речи нет (discarding): экран обработки гаснет сразу, на его месте список и карточка
   const phase: FinishPhase | null = outcome.quiet && (status === RecordingStatus.SAVING || status === RecordingStatus.COMPLETED)
     ? null
     : outcome.finishing === 'discarding'
-    ? 'discarding'
+    ? null
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS
       ? 'transcribing'
       : status === RecordingStatus.SAVING
@@ -352,12 +353,10 @@ export function useAidRecording() {
     micBlind: recording.isRecording && micMode === 'mic' && micCheck === 'unverified' && micWatch.probe === 'blind',
     busy,
     live: outcome.live,
-    /** Запись не сохраняется (фаза discarding): тишина или пара фраз. */
-    discardVerdict: outcome.discardVerdict,
     start,
     stop,
     togglePause,
   };
 }
 
-export type FinishPhase = 'transcribing' | 'saving' | 'opening' | 'discarding';
+export type FinishPhase = 'transcribing' | 'saving' | 'opening';

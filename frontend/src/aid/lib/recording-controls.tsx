@@ -35,6 +35,12 @@ interface Controls extends Recording {
   hotkey: string;
   /** Где работает сочетание: «в окне ShadeNotes». */
   hotkeyScope: string;
+  /**
+   * Встреча сохранена, экран обработки ещё на месте («Записано» и действия). Держится и
+   * после того, как оригинальный хук сбросил статус в IDLE: экран сам откроет встречу.
+   */
+  finished: { id: string } | null;
+  setFinished: (finished: { id: string } | null) => void;
 }
 
 const RecordingControlsContext = createContext<Controls | null>(null);
@@ -50,13 +56,17 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/';
   const [view, setView] = useState<'recording' | 'list'>('recording');
   const [hotkey, setHotkey] = useState('⌘⇧R');
+  const [finished, setFinished] = useState<{ id: string } | null>(null);
 
   useEffect(() => setHotkey(hotkeyLabel()), []);
 
   // Новая запись (в том числе из трея) открывается на экране транскрипта
   const wasRecording = useRef(rec.isRecording);
   useEffect(() => {
-    if (rec.isRecording && !wasRecording.current) setView('recording');
+    if (rec.isRecording && !wasRecording.current) {
+      setView('recording');
+      setFinished(null);
+    }
     wasRecording.current = rec.isRecording;
   }, [rec.isRecording]);
 
@@ -76,7 +86,10 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
 
   const toggle = useCallback(() => {
     if (rec.isRecording) void rec.stop();
-    else if (!rec.phase && !rec.isStarting) void startAnywhere();
+    else if (!rec.phase && !rec.isStarting) {
+      setFinished(null);
+      void startAnywhere();
+    }
   }, [rec, startAnywhere]);
 
   /** Сочетание клавиш: то же, что toggle, но стоп не раньше чем через 3 с после старта. */
@@ -103,8 +116,8 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...rec, view, setView, startAnywhere, toggle, hotkey, hotkeyScope: t('hotkeyScope') }),
-    [rec, view, startAnywhere, toggle, hotkey],
+    () => ({ ...rec, view, setView, startAnywhere, toggle, hotkey, hotkeyScope: t('hotkeyScope'), finished, setFinished }),
+    [rec, view, startAnywhere, toggle, hotkey, finished],
   );
   return <RecordingControlsContext.Provider value={value}>{children}</RecordingControlsContext.Provider>;
 }

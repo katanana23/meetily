@@ -1,10 +1,13 @@
 // Корзина записей: папка «Корзина ShadeNotes» внутри папки записей.
 //
-// Запись, которую решено не сохранять (тишина по уровню звука и нет текста),
-// не стирается: её папка целиком (audio.mp4, metadata.json, transcripts.json)
-// переносится в корзину, рядом кладётся trashed.json с датой переноса. Через
-// TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения. Открыть
-// корзину можно в настройках.
+// Корзина только для того, что удалил человек: автоматически (тишина, короткая
+// запись) сюда больше ничего не уходит. Удаление встречи сейчас папку записи не
+// трогает (api_delete_meeting, «Файл записи останется в папке»), поэтому в корзине
+// лежат только записи, перенесённые раньше; moveRecordingToTrash ждёт решения,
+// переносить ли сюда папку при удалении. Папка записи целиком (audio.mp4, metadata.json,
+// transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
+// переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения.
+// Открыть корзину можно в настройках.
 //
 // Доступ к папке записей даёт право fs:scope в tauri.conf.json (отдельный коммит
 // по разрешению Айдына): папка записей по умолчанию ($VIDEO на macOS, $AUDIO на
@@ -15,7 +18,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
-import { joinPath } from './audio-level';
+
+/** Путь внутри папки: тот же разделитель, что в пути папки (Windows или Unix). */
+export function joinPath(folder: string, name: string): string {
+  const sep = folder.includes('\\') && !folder.includes('/') ? '\\' : '/';
+  return folder.endsWith(sep) ? folder + name : folder + sep + name;
+}
 
 export const TRASH_DIR_NAME = 'Корзина ShadeNotes';
 export const TRASH_TTL_DAYS = 7;

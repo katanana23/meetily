@@ -39,8 +39,9 @@ interface RecordingViewProps {
   /** К списку встреч: запись продолжается, управление в кнопке записи внизу. */
   onBack: () => void;
   onStop: () => void;
-  /** Запись не сохраняется: тишина или пара фраз (заголовок экрана завершения). */
-  discardVerdict?: 'no-speech' | 'too-little' | null;
+  /** Встреча сохранена, экран обработки ждёт открытия (recording-controls.tsx). */
+  finished?: { id: string } | null;
+  onFinished?: (finished: { id: string } | null) => void;
 }
 
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается.
@@ -66,18 +67,11 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
   );
 }
 
-// Итог решения «не сохранять» (тишина или пара фраз) показывается только после решения;
-// до него стадии экрана обработки идут по статусу записи (FinishingScreen)
-const NO_SPEECH = { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') };
-const TOO_LITTLE = { title: t('discardedTooLittle'), hint: t('discardedTooLittleHint') };
-
-/** Стадия экрана обработки по статусу записи оригинала (RecordingStateContext): сцены обложки по факту, не по таймеру. */
-function finishStage(phase: FinishPhase, status: RecordingStatus): FinishStage {
-  if (phase === 'discarding') return 'discarded';
-  if (status === RecordingStatus.STOPPING) return 'stopped';
-  if (status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
+/** Шаг экрана обработки по статусу записи оригинала (RecordingStateContext), без таймеров. */
+function finishStage(phase: FinishPhase | null, status: RecordingStatus): FinishStage {
+  if (status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
   if (status === RecordingStatus.SAVING) return 'saving';
-  if (status === RecordingStatus.COMPLETED) return 'saved';
+  if (status === RecordingStatus.COMPLETED || phase === null) return 'saved';
   return phase === 'opening' ? 'saved' : phase === 'saving' ? 'saving' : 'transcribing';
 }
 
@@ -148,21 +142,34 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, discardVerdict = null }: RecordingViewProps) {
+export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, finished = null, onFinished }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
   const { status } = useRecordingState();
   const router = useRouter();
-  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting
-  // и сам откроет её через 2 с; по клику или Enter открываем раньше тем же адресом
-  // (повтор того же адреса in-place-router не дублирует в истории)
+  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting.
+  // Через 2 с он сбросит статус и очистит реплики; экран обработки держится (finished) и сам
+  // открывает встречу: по кнопке, Enter или через 3 с без нажатий (FinishingScreen)
   const { currentMeeting } = useSidebar();
-  const savedId = status === RecordingStatus.COMPLETED && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
+  const completedId = status === RecordingStatus.COMPLETED && phase === 'opening' && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
+  useEffect(() => {
+    if (completedId) onFinished?.({ id: completedId });
+  }, [completedId, onFinished]);
+  // Экран ушёл (открыли встречу, настройки, список): «Записано» больше не держим
+  useEffect(() => () => onFinished?.(null), [onFinished]);
+  const savedId = completedId ?? finished?.id ?? null;
   // После остановки таймер записи обнуляется: для экрана обработки держим последнюю длительность.
   // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
   const lastDuration = useRef(0);
   if (duration > 0) lastDuration.current = duration;
   // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
-  const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
+  const current = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
+  // Оригинальный хук очищает реплики при переходе к встрече: экран «Записано» держит последние
+  const kept = useRef(current);
+  if (current.length) kept.current = current;
+  const segments = current.length || !(phase || finished) ? current : kept.current;
+  const titleRef = useRef(meetingTitle);
+  if (meetingTitle) titleRef.current = meetingTitle;
+  const shownMeetingTitle = meetingTitle || (phase || finished ? titleRef.current : null);
   const endRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
@@ -181,18 +188,18 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
   // Реплика допечатана (печатная машинка в TranscriptList): докрутить к концу
   const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
-  if (phase) {
+  if (phase || finished) {
+    const open = (summarize: boolean) => savedId && router.push(`/meeting-details?id=${encodeURIComponent(savedId)}${summarize ? '&summarize=1' : ''}`);
     // Своя плитка без запаса под капсулу записи: на этом экране её нет (RecordDock)
     return (
       <main className="aid-page-in aid-scroll relative flex h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
         <FinishingScreen
           stage={finishStage(phase, status)}
-          discardCopy={discardVerdict === 'too-little' ? TOO_LITTLE : NO_SPEECH}
-          title={meetingTitle ? displayTitle(meetingTitle) : null}
+          title={shownMeetingTitle ? displayTitle(shownMeetingTitle) : null}
           durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
           segments={segments}
-          speechTimes={live.speechTimes}
-          onOpen={savedId && phase === 'opening' ? () => router.push(`/meeting-details?id=${savedId}&source=recording`) : undefined}
+          onOpen={savedId ? () => open(false) : undefined}
+          onSummarize={savedId ? () => open(true) : undefined}
         />
       </main>
     );

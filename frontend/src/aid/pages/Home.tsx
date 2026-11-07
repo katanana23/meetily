@@ -709,7 +709,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
 // Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved|discarded); в сборку не попадает
 const FinishingPreview =
   process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
-const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved', 'discarded'] as const;
+const PREVIEW_STAGES = ['transcribing', 'saving', 'saved'] as const;
 
 function HomeContent() {
   const rec = useRecordingControls();
@@ -717,21 +717,24 @@ function HomeContent() {
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  // Сохранённую встречу открыли с экрана обработки раньше перехода оригинала: показываем её
-  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording' && !(rec.phase === 'opening' && meetingId);
+  // После стопа экран обработки держится до открытия встречи (rec.finished), но уступает
+  // встрече и настройкам, если их открыли
+  const finishing = (rec.phase !== null || rec.finished !== null) && !meetingId && params.get('view') !== 'settings';
+  const showRecording = (rec.isRecording || finishing) && rec.view === 'recording';
 
   const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
-  if (FinishingPreview && preview) return <FinishingPreview stage={preview} />;
+  if (FinishingPreview && preview) return <FinishingPreview stage={preview} short={params.get('size') === 'short'} />;
   if (showRecording) {
     return (
       <RecordingView
         isPaused={rec.isPaused}
         phase={rec.phase}
+        finished={rec.finished}
+        onFinished={rec.setFinished}
         duration={rec.duration}
         live={rec.live}
         onBack={() => rec.setView('list')}
         onStop={rec.stop}
-        discardVerdict={rec.discardVerdict}
       />
     );
   }

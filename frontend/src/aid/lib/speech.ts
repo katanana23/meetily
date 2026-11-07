@@ -1,19 +1,26 @@
-// Оценка содержания записи: была ли осмысленная речь.
-// Решение не зависит от длительности записи: считаем слова после чистки
-// галлюцинаций и, если ядро сообщило длительность речевых сегментов, секунды речи.
+// Оценка содержания записи: была ли распознанная речь.
+// Решение не зависит от длительности записи и секунд речи: считаем только слова
+// после чистки галлюцинаций. Есть речь — встреча сохраняется, любой длины.
 
 /**
- * Не меньше 15 слов после чистки: пара фраз («да, хорошо, давай», «релиз в четверг»)
- * встречей не считается, а короткий созвон на полминуты уже набирает 15 слов.
+ * Речь есть, если после чистки галлюцинаций осталось столько слов: «Да, хорошо, давай»
+ * уже встреча. Одно-два слова на тишине («Угу», «Алло?») чаще шум, чем разговор.
  */
-export const MIN_MEANINGFUL_WORDS = 15;
+export const MIN_MEANINGFUL_WORDS = 3;
 /**
- * И не меньше 10 секунд речи, если длительность известна: у каждого сегмента
- * с текстом ядро присылает duration (длину речевого сегмента после VAD).
+ * Итоги ИИ имеют смысл от стольких слов: из пары фраз модель заполнила бы разделы
+ * заглушками «Ничего не отмечено». Сама встреча сохраняется и короче.
  */
-export const MIN_SPEECH_SECONDS = 10;
+export const MIN_SUMMARY_WORDS = 15;
 /** Короткая фраза: столько слов и меньше. Повтор такой фразы подряд считается сбоем распознавания. */
 const SHORT_PHRASE_WORDS = 3;
+/**
+ * Зацикливание модели: короткая фраза повторена в реплике столько раз и больше
+ * («Спасибо. Спасибо. Спасибо. Спасибо.»). Человек тоже повторяет: «Пять, пять, пять»
+ * или «Да. Да. Да.» — три повтора речью остаются. Фраза из списка галлюцинаций
+ * («Thank you. Thank you.») отбрасывается уже со второго повтора.
+ */
+const LOOP_REPEATS = 4;
 
 /**
  * Фразы, которые модели распознавания (особенно Whisper) выдают на тишине и шуме:
@@ -59,11 +66,13 @@ function words(text: string): string[] {
 export function isHallucination(text: string): boolean {
   const n = normalize(text);
   if (!n) return true;
-  // «Спасибо. Спасибо. Спасибо.» и подобное: фраза повторена внутри реплики
+  if (HALLUCINATIONS.some((re) => re.test(n))) return true;
+  // Зацикливание: одна короткая фраза повторена внутри реплики (LOOP_REPEATS раз и больше;
+  // фраза из списка галлюцинаций уже со второго раза). Запятые не делят: «пять, пять, пять»
+  // одна фраза человека, а не повтор модели
   const parts = text.split(/[.!?…]+/).map(normalize).filter(Boolean);
-  const unique = new Set(parts);
-  if (parts.length > 1 && unique.size === 1 && words(parts[0]).length <= SHORT_PHRASE_WORDS) return true;
-  return HALLUCINATIONS.some((re) => re.test(n));
+  if (parts.length < 2 || new Set(parts).size !== 1 || words(parts[0]).length > SHORT_PHRASE_WORDS) return false;
+  return parts.length >= LOOP_REPEATS || HALLUCINATIONS.some((re) => re.test(parts[0]));
 }
 
 /**
@@ -116,26 +125,16 @@ export function measureSpeech(segments: SpeechSegment[]): SpeechAmount {
   return { words: count, seconds };
 }
 
-export function hasMeaningfulSpeech(segments: SpeechSegment[]): boolean {
-  const { words: count, seconds } = measureSpeech(segments);
-  return count >= MIN_MEANINGFUL_WORDS && (seconds === null || seconds >= MIN_SPEECH_SECONDS);
-}
-
 export type RecordingVerdict =
-  /** Есть осмысленная речь: обычная встреча. */
+  /** Есть распознанная речь (3+ слова после чистки): обычная встреча любой длины. */
   | 'speech'
-  /** Речь была, но меньше порога: сохраняется обычной встречей (текст есть). */
-  | 'too-little'
-  /** Речи не было: не сохраняется (с возможностью вернуть). */
+  /** Речи нет: встреча не создаётся. */
   | 'no-speech'
-  /** Детектор насчитал 10+ с речи, а текста нет по явной причине: «Речь не распознана». */
+  /** Детектор слышал речь, а текста нет по явной причине (нет модели, сбой): «Не распознано». */
   | 'unrecognized';
 
 /** Явная причина, почему у услышанной речи нет текста. */
 export type NoTextReason = 'no-model' | 'recognition-error' | 'recognition-cancelled';
-
-/** «Речь не распознана» сохраняется, только если детектор насчитал столько секунд речи. */
-export const MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED = 10;
 
 export interface RecordingEvidence {
   /** Реплики (текст без подписи спикера и длительность сегмента). */
@@ -163,43 +162,22 @@ export interface RecordingJudgement {
 
 /**
  * Итог записи:
- * - осмысленная речь (15+ слов и 10+ секунд речи, если известно) → 'speech';
- * - детектор насчитал 10+ с речи и есть явная причина отсутствия текста
- *   (нет модели, ошибка или отмена распознавания) → 'unrecognized';
- * - после чистки остались слова, но меньше порога → 'too-little';
- * - иначе → 'no-speech'. Нет событий детектора от ядра значит речи не было.
+ * - 3+ слова после чистки галлюцинаций → 'speech', сохраняем (секунды и длина записи не важны);
+ * - детектор слышал речь и есть явная причина отсутствия текста (нет модели, ошибка или
+ *   отмена распознавания) → 'unrecognized', сохраняем в «Не распознано»;
+ * - иначе → 'no-speech', встреча не создаётся.
  */
 export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
   const { words: count, seconds } = measureSpeech(e.segments);
   const clean = cleanSegments(e.segments);
   const base = { words: count, speechSeconds: seconds, segmentsBefore: e.segments.length, segmentsAfter: clean.length };
 
-  if (count >= MIN_MEANINGFUL_WORDS && (seconds === null || seconds >= MIN_SPEECH_SECONDS)) {
-    return { ...base, verdict: 'speech', reason: `осмысленная речь: ${count} слов` };
+  if (count >= MIN_MEANINGFUL_WORDS) return { ...base, verdict: 'speech', reason: `распознанная речь: ${count} слов` };
+  const heard = e.vadSegments === 0 ? 'детектор речи не сработал' : `детектор сработал (${e.vadSegments} сегм.)`;
+  if (e.vadSegments > 0 && e.noTextReason) {
+    return { ...base, verdict: 'unrecognized', reason: `${heard}, слов ${count}, распознавание не удалось: ${e.noTextReason}` };
   }
-  const detector = e.vadSegments > 0 ? (e.detectorSeconds ?? 0) : 0;
-  if (detector >= MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED && e.noTextReason) {
-    return { ...base, verdict: 'unrecognized', reason: `детектор слышал ${detector.toFixed(1)} с речи, осмысленного текста нет: ${e.noTextReason}` };
-  }
-  if (count > 0) {
-    const why = count < MIN_MEANINGFUL_WORDS ? `${count} слов меньше ${MIN_MEANINGFUL_WORDS}` : `речи ${seconds?.toFixed(1)} с меньше ${MIN_SPEECH_SECONDS}`;
-    return { ...base, verdict: 'too-little', reason: why };
-  }
-  if (e.vadSegments === 0) return { ...base, verdict: 'no-speech', reason: 'детектор речи не сработал' };
-  // Ядро присылает длину только у сегментов с текстом; без неё секунды неизвестны
-  const heard = e.detectorSeconds === null ? `${e.vadSegments} сегм., длительность неизвестна` : `${detector.toFixed(1)} с`;
-  if (!e.noTextReason) return { ...base, verdict: 'no-speech', reason: `детектор сработал (${heard}), текста нет, причины сбоя нет` };
-  return { ...base, verdict: 'no-speech', reason: `детектор слышал только ${heard}, меньше ${MIN_DETECTOR_SECONDS_FOR_UNRECOGNIZED} с` };
-}
-
-/**
- * Кандидат на удаление: текста нет совсем. Окончательно решает уровень звука
- * (audio-level.ts): тишина удаляется, остальное уходит в «Не распознано».
- * 'too-little' (слова есть, но меньше порога) не удаляется: текст есть, это
- * обычная короткая встреча.
- */
-export function isDiscarded(v: RecordingVerdict): boolean {
-  return v === 'no-speech';
+  return { ...base, verdict: 'no-speech', reason: `${heard}, слов ${count} меньше ${MIN_MEANINGFUL_WORDS}` };
 }
 
 export function countWords(text: string): number {

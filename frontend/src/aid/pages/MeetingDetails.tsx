@@ -48,7 +48,7 @@ import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
 import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
-import { countWords, isShownText, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
+import { countWords, isShownText, MIN_SUMMARY_WORDS } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -447,9 +447,20 @@ function MeetingDetailsContent() {
 
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
+  // ?summarize=1: «Сделать итоги» на экране обработки — запускаем один раз, когда
+  // встреча загружена и итогов ещё нет, потом метку тоже убираем
+  const summarize = params.get('summarize') === '1';
+  const asked = useRef(false);
+  const segmentsReady = m.meeting.kind === 'ready' && m.summary.kind !== 'loading';
   useEffect(() => {
-    if (!stayPath && meetingId && params.get('source')) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
-  }, [meetingId, params, router, stayPath]);
+    if (!summarize || asked.current || !segmentsReady) return;
+    asked.current = true;
+    if (m.summary.kind === 'empty' && countWords(m.segments.map((x) => x.text).join(' ')) >= MIN_SUMMARY_WORDS) void m.generateSummary();
+  }, [summarize, segmentsReady, m]);
+  useEffect(() => {
+    if (stayPath || !meetingId) return;
+    if (params.get('source') || (summarize && asked.current)) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
+  }, [meetingId, params, router, stayPath, summarize, segmentsReady]);
 
   useEffect(() => {
     if (shownTitle) document.title = `${shownTitle} · ${t('appName')}`;
@@ -509,7 +520,7 @@ function MeetingDetailsContent() {
   // Короткая запись (меньше 15 слов): итоги из неё не собрать, поэтому ни блока
   // итогов, ни «Сделать итоги», ни «Сделать заново»: модель заполнила бы разделы
   // заглушками «Ничего не отмечено»
-  const tooShort = !m.hasMore && countWords(m.segments.map((x) => x.text).join(' ')) < MIN_MEANINGFUL_WORDS;
+  const tooShort = !m.hasMore && countWords(m.segments.map((x) => x.text).join(' ')) < MIN_SUMMARY_WORDS;
   const showSummary = !empty && !tooShort;
   // «Сделать итоги» в шапке, только пока итогов нет: ход генерации, ошибка
   // и «Сделать заново» показываются в блоке итогов над транскриптом

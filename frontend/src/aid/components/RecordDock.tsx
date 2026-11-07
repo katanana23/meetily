@@ -21,7 +21,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ChatText, Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -122,7 +122,6 @@ function SpeechHint({ heard }: { heard: boolean }) {
 
 const COPY = {
   'no-speech': { title: 'noSpeechNoticeTitle', hint: 'noSpeechNoticeHint' },
-  'too-little': { title: 'tooLittleNoticeTitle', hint: 'tooLittleNoticeHint' },
   unrecognized: { title: 'unrecognizedNoticeTitle', hint: 'unrecognizedNoticeHint' },
 } as const;
 
@@ -175,17 +174,15 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
         )}
         aria-hidden
       >
-        {notice.verdict === 'unrecognized' ? <Warning /> : notice.verdict === 'no-speech' ? <MicrophoneSlash /> : <ChatText />}
+        {notice.verdict === 'unrecognized' ? <Warning /> : <MicrophoneSlash />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
         <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
       </div>
-      {notice.verdict !== 'too-little' && (
-        <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
-          {t('soundCheck')}
-        </Button>
-      )}
+      <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
+        {t('soundCheck')}
+      </Button>
       {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
       <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
         <X weight="bold" />
@@ -257,7 +254,9 @@ function RecordButton() {
 function IdleRecordButton() {
   const pathname = usePathname() ?? '/';
   const params = useSearchParams();
-  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings';
+  // Экран «Записано» после стопа ещё на месте (recording-controls.tsx, finished): кнопки нет
+  const { finished, view } = useRecordingControls();
+  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings' || (finished !== null && view === 'recording') || params.has('finish');
   useEffect(() => {
     const root = document.documentElement;
     root.toggleAttribute('data-dock-off', hidden);
@@ -401,9 +400,7 @@ export function RecordDock() {
               ? t('savedShort')
               : c.phase === 'saving'
                 ? t('savingShort')
-                : c.phase === 'discarding'
-                  ? t('discardingShort')
-                  : t('finishingShort')}
+                : t('finishingShort')}
           </div>
         )}
 

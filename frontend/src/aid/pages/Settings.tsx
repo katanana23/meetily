@@ -161,7 +161,7 @@ function StorageRow() {
   );
 }
 
-/** Корзина: пустые записи без звука лежат здесь 7 дней (recording-trash.ts). */
+/** Корзина: удалённые человеком записи лежат здесь 7 дней (recording-trash.ts). */
 function TrashRow() {
   const { storageLocations } = useConfig();
   const root = storageLocations?.recordings ?? null;

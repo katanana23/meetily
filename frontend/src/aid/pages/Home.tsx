@@ -20,7 +20,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { openTrash } from '@/aid/lib/recording-trash';
-import { openPrivacySettings } from '@/aid/lib/onboarding';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
@@ -118,32 +117,19 @@ function useMeetingsList(refreshKey: unknown) {
   return { state, setState, reload: () => load() };
 }
 
-const BLOCKER: Record<Exclude<StartBlocker['kind'], 'check-failed'>, { title: string; hint: string; action: string; href: string }> = {
+// Про микрофон (нет доступа, нет устройства) говорит карточка у кнопки записи (MicNotices),
+// здесь только модель распознавания
+const BLOCKER: Record<'no-model' | 'model-downloading', { title: string; hint: string; action: string; href: string }> = {
   'no-model': { title: t('blockNoModel'), hint: t('blockNoModelHint'), action: t('downloadModel'), href: '/settings?tab=transcription' },
   'model-downloading': { title: t('blockDownloading'), hint: t('blockDownloadingHint'), action: t('showDownload'), href: '/settings?tab=transcription' },
-  'no-microphone': { title: t('blockNoMic'), hint: t('blockNoMicHint'), action: t('grantAccess'), href: '' },
 };
 
 /** Почему запись не началась и как это исправить. Фокус переходит на кнопку исправления. */
 function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocker; onRetry: () => void; onClose: () => void }) {
   const actionRef = useRef<HTMLAnchorElement & HTMLButtonElement>(null);
   useEffect(() => actionRef.current?.focus(), [blocker]);
-  if (blocker.kind === 'check-failed') return null;
+  if (blocker.kind !== 'no-model' && blocker.kind !== 'model-downloading') return null;
   const copy = BLOCKER[blocker.kind];
-
-  const grantMic = async () => {
-    try {
-      const granted = await invoke<boolean>('trigger_microphone_permission');
-      if (granted) {
-        onRetry();
-        return;
-      }
-    } catch {
-      /* откроем системные настройки */
-    }
-    // Без preferencePane команда ядра отклоняет вызов, и настройки не открывались
-    await openPrivacySettings('microphone');
-  };
 
   return (
     <Alert aria-live="polite">
@@ -153,17 +139,11 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
         <AlertDescription>
           <p>{copy.hint}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            {copy.href ? (
-              <Button asChild size="main">
-                <Link ref={actionRef} href={copy.href}>
-                  {copy.action}
-                </Link>
-              </Button>
-            ) : (
-              <Button ref={actionRef} size="main" onClick={() => void grantMic()}>
+            <Button asChild size="main">
+              <Link ref={actionRef} href={copy.href}>
                 {copy.action}
-              </Button>
-            )}
+              </Link>
+            </Button>
             {blocker.kind !== 'no-model' && (
               <Button variant="outline" size="main" onClick={onRetry}>
                 <ArrowClockwise />
@@ -726,14 +706,22 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
+// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved|discarded); в сборку не попадает
+const FinishingPreview =
+  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
+const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved', 'discarded'] as const;
+
 function HomeContent() {
   const rec = useRecordingControls();
   const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
+  // Сохранённую встречу открыли с экрана обработки раньше перехода оригинала: показываем её
+  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording' && !(rec.phase === 'opening' && meetingId);
 
+  const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
+  if (FinishingPreview && preview) return <FinishingPreview stage={preview} />;
   if (showRecording) {
     return (
       <RecordingView

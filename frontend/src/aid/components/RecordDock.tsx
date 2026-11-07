@@ -18,15 +18,17 @@
 // кольцо вокруг точки вспыхивает на каждый сигнал.
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChatText, Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
+import { isMicBlocker } from '@/aid/lib/recording';
+import { MicAccessCard, MicHint, micHintKind, type MicHintKind } from '@/aid/components/MicNotices';
 import { useRecordingOutcome, type DiscardNotice, type LiveSpeech } from '@/aid/lib/recording-outcome';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
@@ -196,6 +198,26 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
 /** Кнопка записи в покое: круг 88 px, сплошной Mikado, от него расходятся две волны. */
 function RecordButton() {
   const c = useRecordingControls();
+  // Известно, что доступа к микрофону нет: кнопка «нужен доступ» (не лаймовая,
+  // перечёркнутый микрофон, без волн), клик открывает карточку про микрофон
+  if (c.micNeedsAccess && !c.isStarting) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={c.openMicCard}
+            aria-label={t('micNeedsAccess')}
+            data-aid-record="needs-access"
+            className="flex size-[88px] shrink-0 items-center justify-center rounded-full bg-muted text-foreground shadow-lg transition-colors hover:bg-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-95"
+          >
+            <MicrophoneSlash className="size-8" aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{t('micNeedsAccess')}</TooltipContent>
+      </Tooltip>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -225,6 +247,25 @@ function RecordButton() {
   );
 }
 
+/**
+ * Кнопка записи в покое только на списке встреч. На настройках и на странице встречи её нет:
+ * там она закрывала строки внизу (на настройках «Отправлять статистику»). Записать можно
+ * со списка и сочетанием клавиш, оно работает везде. Капсула идущей записи и итог после
+ * неё показываются на всех экранах: это управление записью, его не прячем. Пока кнопки нет,
+ * у прокрутки обычный нижний отступ вместо запаса под капсулу (data-dock-off).
+ */
+function IdleRecordButton() {
+  const pathname = usePathname() ?? '/';
+  const params = useSearchParams();
+  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings';
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute('data-dock-off', hidden);
+    return () => root.removeAttribute('data-dock-off');
+  }, [hidden]);
+  return hidden ? null : <RecordButton />;
+}
+
 export function RecordDock() {
   const c = useRecordingControls();
   const { live, notice } = useRecordingOutcome();
@@ -232,6 +273,12 @@ export function RecordDock() {
   const pathname = usePathname() ?? '/';
 
   const state = c.isRecording ? 'recording' : c.phase ? 'finishing' : notice ? 'notice' : 'idle';
+  // Микрофон: карточка, если запись не началась из-за него, и подсказки во время записи (MicNotices)
+  const [micHintClosed, setMicHintClosed] = useState<MicHintKind | null>(null);
+  useEffect(() => setMicHintClosed(null), [c.isRecording]);
+  const micHint = state === 'recording' ? micHintKind(c.micState, c.micMode === 'system-only', c.micBlind, c.duration) : null;
+  const showMicHint = micHint !== null && micHint !== micHintClosed;
+  const micBlocker = state === 'idle' && isMicBlocker(c.blocker) ? c.blocker : null;
   const openRecording = () => {
     c.setView('recording');
     if (pathname !== '/') router.push('/');
@@ -239,10 +286,12 @@ export function RecordDock() {
   // Правило экрана записи: ложные срабатывания детектора на шум без осмысленного
   // текста речью не считаются
   const showSpeechHint =
-    state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
+    state === 'recording' && !showMicHint && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
   // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
+  // Встречу открыли с экрана обработки раньше перехода (клик по обложке, Enter): «Открываю встречу» уже не нужно
+  const meetingOpen = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('id');
   const onFinishingScreen =
-    state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
+    state === 'finishing' && pathname === '/' && c.view === 'recording' && (!meetingOpen || c.phase === 'opening');
 
   // Итог уходит плавно: последний показанный держим ещё 280 мс с анимацией ухода
   const [leaving, setLeaving] = useState<DiscardNotice | null>(null);
@@ -266,6 +315,23 @@ export function RecordDock() {
       aria-label={t('recordingTile')}
       className="pointer-events-none absolute inset-x-0 bottom-7 z-30 flex flex-col items-center gap-2 px-4"
     >
+      {showMicHint && micHint && (
+        <div key={`mic-${micHint}`} className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
+          <MicHint kind={micHint} onClose={() => setMicHintClosed(micHint)} />
+        </div>
+      )}
+
+      {micBlocker && (
+        <div key="mic-access" className="aid-dock-in pointer-events-auto">
+          <MicAccessCard
+            blocker={micBlocker}
+            onRecheck={c.recheckMicrophone}
+            onSystemOnly={() => void c.startAnywhere({ systemOnly: true })}
+            onClose={c.dismissBlocker}
+          />
+        </div>
+      )}
+
       {showSpeechHint && (
         <div key="hint" className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
           <SpeechHint heard={live.vadSegments > 0} />
@@ -273,7 +339,12 @@ export function RecordDock() {
       )}
 
       <div key={state} className="aid-dock-in pointer-events-auto flex max-w-full justify-center">
-        {state === 'idle' && <RecordButton />}
+        {state === 'idle' && (
+          // useSearchParams в статической выгрузке требует границу Suspense
+          <Suspense fallback={null}>
+            <IdleRecordButton />
+          </Suspense>
+        )}
 
         {state === 'recording' && (
           <div role="group" aria-label={c.isPaused ? t('paused') : t('recording')} className="aid-glass relative flex items-center gap-2 rounded-full p-2">

@@ -60,7 +60,14 @@ pnpm dev            # http://localhost:3118
 | `long-empty` | Запись «идёт» уже 5 минут (`startOffsetSec: 300`), VAD молчит: на экране записи «Не слышу речи». В списке есть такая же сохранённая встреча `mock-silent-long` с автоматическим названием |
 | `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
 | `no-model` | Мастер пройден, но модель распознавания не скачана: «Начать запись» ведёт к загрузке модели. Уведомления как в ядре по умолчанию: согласие есть, показ выключен |
-| `no-permission` | Нет доступа к микрофону: в `get_audio_devices` нет входов, `trigger_*_permission` возвращают `false` |
+| `no-permission` | Нет доступа ни к микрофону, ни к звуку компьютера: `trigger_*_permission` возвращают `false`. «Записать» показывает карточку «Нет доступа к микрофону» без «Записать только звук компьютера» |
+| `mic-denied` | Отказ в микрофоне, звук компьютера есть: карточка с «Открыть настройки» и «Записать только звук компьютера». Для перепроверки после настроек: `window.__MEETILY_MOCK__.backend.scenario.micPermission = true`, затем вернуть фокус окну |
+| `mic-missing` | Микрофона нет в `get_audio_devices`: карточка «Микрофон не найден» |
+| `mic-prompt` | Доступ ещё не спрашивали: `trigger_microphone_permission` отвечает через 2,5 с (как вопрос macOS), потом запись идёт |
+| `mic-core-refuses` | Проверка Aid прошла, но ядро отклоняет старт текстом `Microphone access required` (как `verify_microphone_access`) |
+| `mic-silent` | Идёт запись, уровень микрофона (событие `aid-mock-mic` вместо `getUserMedia`) нулевой: через 15 с «Не слышу микрофон» |
+| `mic-lost` | Идёт запись, на 8-й секунде микрофон отключают, ядро не переключается: «Микрофон отключился» |
+| `model-downloading` | Модель распознавания качается около минуты: «Записать» показывает «Модель распознавания ещё скачивается» |
 
 Во всех сценариях, как и в настоящем приложении, всегда падают две команды, которых нет в `generate_handler!` ядра: `api_get_auto_generate_setting` и `builtin_ai_get_models_directory`. Ошибка такая же, как у Tauri 2: `command <имя> not found`. Первую видно в Настройках → Summary: в консоли появляется `Failed to fetch auto-generate setting`.
 
@@ -104,7 +111,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
 |---|---|
 | Захват звука, Whisper/Parakeet | Звука нет. Транскрипт — заранее написанные реплики по таймеру. `whisper_transcribe_audio`, `parakeet_transcribe_audio` ничего не делают |
 | Уровень звука (`audio-levels`) | Синусоида вместо реального сигнала |
-| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценарии `no-permission` `false`. `open_system_settings` пишет предупреждение |
+| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценариях `no-permission` и `mic-*` по полям сценария (`micPermission`, `systemAudioPermission`, `micDeviceMissing`, `micPromptMs`). Проверка через `getUserMedia` в заглушках не запускается. `open_system_settings` пишет предупреждение |
 | Файловая система | Пути вымышленные (`/mock/Meetily/...`). «Открыть папку» (`open_*_folder`, `open_meeting_folder`) пишет предупреждение. `read_audio_file` отдаёт пустой массив |
 | Диалоги выбора файлов | `select_and_validate_audio_command`, `select_legacy_database_path` возвращают `null`, как при отмене |
 | Перетаскивание файлов из Finder | Работает только через пресеты `dragEnter` / `dragDrop` |

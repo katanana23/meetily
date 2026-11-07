@@ -11,7 +11,8 @@ export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
   | 'silence-5s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'heard-no-text'
   | 'recognition-failed' | 'mid-silence'
-  | 'long-empty' | 'sparse' | 'no-model' | 'no-permission';
+  | 'long-empty' | 'sparse' | 'no-model' | 'no-permission'
+  | 'mic-denied' | 'mic-missing' | 'mic-prompt' | 'mic-core-refuses' | 'mic-silent' | 'mic-lost' | 'model-downloading';
 
 /**
  * Что «ядро» присылает во время записи. Речевой сегмент после VAD приходит
@@ -54,8 +55,23 @@ export interface Scenario {
   scriptSeconds?: number;
   /** После реплик script ядро сообщает сбой распознавания (transcription-warning). */
   warnAfterScript?: boolean;
-  /** false: нет доступа к микрофону (в списке устройств нет входов). */
+  /** false: нет доступа к микрофону (trigger_microphone_permission отвечает false). */
   micPermission?: boolean;
+  /** Звук компьютера (trigger_system_audio_permission_command); по умолчанию как micPermission. */
+  systemAudioPermission?: boolean;
+  /** В списке устройств нет ни одного микрофона. */
+  micDeviceMissing?: boolean;
+  /** Вопрос macOS о микрофоне: ответ приходит через столько миллисекунд. */
+  micPromptMs?: number;
+  /** Ядро отказывается стартовать: verify_microphone_access не дождалось звука. */
+  micCoreRefuses?: boolean;
+  /**
+   * Уровень микрофона во время записи (событие aid-mock-mic вместо getUserMedia):
+   * ok — шум комнаты; silent — нули; lost — на 8-й секунде микрофон отключают.
+   */
+  micLive?: 'ok' | 'silent' | 'lost';
+  /** На старте уже идёт скачивание модели распознавания (медленно, около минуты). */
+  downloadOnLoad?: boolean;
   /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
   notificationsCoreDefault?: boolean;
 }
@@ -155,6 +171,41 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     id: 'no-permission', label: 'no-permission', description: 'Нет доступа к микрофону и записи экрана',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
     micPermission: false,
+  },
+  'mic-denied': {
+    id: 'mic-denied', label: 'mic-denied', description: 'Отказ в микрофоне, звук компьютера есть: карточка и «Записать только звук компьютера»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micPermission: false, systemAudioPermission: true,
+  },
+  'mic-missing': {
+    id: 'mic-missing', label: 'mic-missing', description: 'Микрофона нет в списке устройств, звук компьютера есть',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micDeviceMissing: true, systemAudioPermission: true,
+  },
+  'mic-prompt': {
+    id: 'mic-prompt', label: 'mic-prompt', description: 'Доступ к микрофону ещё не спрашивали: «вопрос macOS» 2,5 с, потом разрешение и запись',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micPromptMs: 2500, micLive: 'ok',
+  },
+  'mic-core-refuses': {
+    id: 'mic-core-refuses', label: 'mic-core-refuses', description: 'Проверка Aid прошла, но ядро не стартует без микрофона',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micCoreRefuses: true, systemAudioPermission: true,
+  },
+  'mic-silent': {
+    id: 'mic-silent', label: 'mic-silent', description: 'Идёт запись, с микрофона нули, звук компьютера есть: через 15 с «Не слышу микрофон»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    micLive: 'silent',
+  },
+  'mic-lost': {
+    id: 'mic-lost', label: 'mic-lost', description: 'Идёт запись, на 8-й секунде отключают микрофон (AirPods), ядро не переключилось',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    micLive: 'lost',
+  },
+  'model-downloading': {
+    id: 'model-downloading', label: 'model-downloading', description: 'Модель распознавания ещё качается (около минуты)',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: false, recordingOnLoad: false, failing: false,
+    downloadOnLoad: true,
   },
 };
 

@@ -49,6 +49,8 @@ export class MockBackend {
     }
     this.onboardingCompleted = scenario.onboardingCompleted || done;
     if (done) this.modelsReady = true;
+    // Модель уже качается: медленно, чтобы успеть нажать «Записать»
+    if (scenario.downloadOnLoad) setTimeout(() => void this.simulateDownload('parakeet', 'parakeet-tdt-0.6b-v3-int8', 670, 1), 0);
   }
 
   emit(event: string, payload?: unknown) {
@@ -121,6 +123,12 @@ export class MockBackend {
 
   async startRecording(meetingName: string | null) {
     if (this.recording) return Promise.reject('Recording already in progress');
+    if (this.scenario.micCoreRefuses) {
+      // Текст как в recording_commands.rs (prepare_audio_for_recording)
+      return Promise.reject(
+        'Microphone access required: Microphone permission not granted. Please allow microphone access in System Settings > Privacy & Security > Microphone, then try again.',
+      );
+    }
     this.recordingTitle = meetingName || LIVE_TITLE;
     await this.emit('recording-starting', { message: 'Recording initialization started' });
     await sleep(400);
@@ -141,6 +149,34 @@ export class MockBackend {
     this.jumped = false;
     this.recordingTitle = this.recordingTitle || LIVE_TITLE;
     this.liveTimer = setInterval(() => this.tick(), 1800);
+    this.startMicLevel();
+  }
+
+  // ---------------- уровень микрофона для Aid (mic-watch.ts) ----------------
+
+  private micTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Вместо getUserMedia: уровень микрофона раз в 500 мс событием aid-mock-mic. */
+  private startMicLevel() {
+    this.stopMicLevel();
+    const mode = this.scenario.micLive;
+    if (!mode) return;
+    const started = Date.now();
+    this.micTimer = setInterval(() => {
+      if (!this.recording || this.paused) return;
+      if (mode === 'lost' && Date.now() - started >= 8000) {
+        this.emit('aid-mock-mic', { lost: true });
+        this.stopMicLevel();
+        return;
+      }
+      // шум тихой комнаты около −55 dBFS; silent — цифровые нули
+      this.emit('aid-mock-mic', { rms: mode === 'silent' ? 0 : 0.002 + Math.random() * 0.002 });
+    }, 500);
+  }
+
+  private stopMicLevel() {
+    if (this.micTimer) clearInterval(this.micTimer);
+    this.micTimer = null;
   }
 
   /** Речевой сегмент после VAD: в ядре на каждый обработанный чанк приходит transcription-progress. */
@@ -251,6 +287,7 @@ export class MockBackend {
   async stop() {
     if (this.liveTimer) clearInterval(this.liveTimer);
     this.liveTimer = null;
+    this.stopMicLevel();
     const title = this.recordingTitle;
     const id = `rec-${Date.now().toString(36)}`;
     this.recording = false;
@@ -293,13 +330,13 @@ export class MockBackend {
   // ---------------- загрузки моделей ----------------
 
   /** Имитирует загрузку с событиями прогресса (≈6 секунд). */
-  simulateDownload(kind: 'parakeet' | 'whisper' | 'builtin' | 'ollama', modelName: string, totalMb: number) {
+  simulateDownload(kind: 'parakeet' | 'whisper' | 'builtin' | 'ollama', modelName: string, totalMb: number, stepPct = 8) {
     if (this.downloads.has(`${kind}:${modelName}`)) {
       return Promise.reject('Download already in progress');
     }
     let progress = 0;
     const timer = setInterval(() => {
-      progress = Math.min(100, progress + 8);
+      progress = Math.min(100, progress + stepPct);
       const done = progress >= 100;
       const mb = Math.round((totalMb * progress) / 100);
       if (kind === 'parakeet') {

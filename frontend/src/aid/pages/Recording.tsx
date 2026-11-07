@@ -192,7 +192,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
     const open = (summarize: boolean) => savedId && router.push(`/meeting-details?id=${encodeURIComponent(savedId)}${summarize ? '&summarize=1' : ''}`);
     // Своя плитка без запаса под капсулу записи: на этом экране её нет (RecordDock)
     return (
-      <main className="aid-page-in aid-scroll relative flex h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
+      <main className="aid-page-in aid-scroll relative block h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
         <FinishingScreen
           stage={finishStage(phase, status)}
           title={shownMeetingTitle ? displayTitle(shownMeetingTitle) : null}

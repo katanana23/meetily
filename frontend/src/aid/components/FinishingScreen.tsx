@@ -126,7 +126,7 @@ export function FinishingScreen({ stage: actual, title, durationSec: rawDuration
   ].join(' · ');
 
   return (
-    <section className="mx-auto flex w-full max-w-[760px] flex-col py-5">
+    <section className="mx-auto flex w-full max-w-[760px] flex-col py-5" data-finish-column>
       {/* Статус главный: шаг крупно, слева знак шага */}
       <div role="status" aria-live="polite" className="flex items-center gap-3">
         <span className="flex size-6 shrink-0 items-center justify-center" aria-hidden>
@@ -153,8 +153,9 @@ export function FinishingScreen({ stage: actual, title, durationSec: rawDuration
         </div>
       )}
 
-      {/* Встреча собирается на месте: название и реплики, как на странице встречи */}
-      <article className="mt-8 rounded-nested bg-muted p-5" aria-label={t('transcript')}>
+      {/* Встреча собирается на месте: название и реплики, как на странице встречи. Ширина
+          карточки одна на всех шагах (вся колонка, не по содержимому): без скачка к «Записано» */}
+      <article className="mt-8 w-full rounded-nested bg-muted p-5" aria-label={t('transcript')}>
         <h2 className="aid-fin-card truncate text-[17px] font-semibold leading-6">{title || t('recording')}</h2>
         <div className="mt-4">
           {hidden > 0 && (

@@ -24,6 +24,7 @@ import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
 import { markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
 import { purgeTrash } from './recording-trash';
+import { purgeTrashedMeetings } from './meeting-trash';
 import { t } from '@/aid/strings';
 
 /**
@@ -233,6 +234,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   // раз, и очистить корзину (удалённое человеком) от записей старше 7 дней
   useEffect(() => {
     void purgeDiscarded();
+    void purgeTrashedMeetings();
     void purgeTrash();
   }, []);
 

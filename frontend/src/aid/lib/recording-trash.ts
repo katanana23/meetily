@@ -1,10 +1,7 @@
 // Корзина записей: папка «Корзина ShadeNotes» внутри папки записей.
 //
-// Корзина только для того, что удалил человек: автоматически (тишина, короткая
-// запись) сюда больше ничего не уходит. Удаление встречи сейчас папку записи не
-// трогает (api_delete_meeting, «Файл записи останется в папке»), поэтому в корзине
-// лежат только записи, перенесённые раньше; moveRecordingToTrash ждёт решения,
-// переносить ли сюда папку при удалении. Папка записи целиком (audio.mp4, metadata.json,
+// Корзина только для того, что удалил человек (meeting-trash.ts): автоматически
+// (тишина, короткая запись) сюда ничего не уходит. Папка записи целиком (audio.mp4, metadata.json,
 // transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
 // переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения.
 // Открыть корзину можно в настройках.
@@ -33,6 +30,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 interface TrashMarker {
   trashedAt: number;
   name: string | null;
+  /** Встреча, удалённая человеком (meeting-trash.ts): по ней восстанавливается. */
+  meetingId?: string;
+  /** Откуда перенесли: туда папка вернётся при восстановлении. */
+  from?: string;
 }
 
 function parentOf(path: string): string {
@@ -55,7 +56,7 @@ export function trashPath(recordingsRoot: string): string {
  * Перенести папку записи в корзину. Возвращает новый путь или null, если перенос
  * не удался (папка вне доступной области, файла нет): тогда запись остаётся на месте.
  */
-export async function moveRecordingToTrash(folder: string | null, name: string | null): Promise<string | null> {
+export async function moveRecordingToTrash(folder: string | null, name: string | null, meetingId?: string): Promise<string | null> {
   if (!folder) return null;
   try {
     const trash = trashPath(parentOf(folder));
@@ -63,12 +64,26 @@ export async function moveRecordingToTrash(folder: string | null, name: string |
     let target = joinPath(trash, baseName(folder));
     for (let n = 2; await exists(target); n++) target = joinPath(trash, `${baseName(folder)} ${n}`);
     await rename(folder, target);
-    const marker: TrashMarker = { trashedAt: Date.now(), name };
+    const marker: TrashMarker = { trashedAt: Date.now(), name, meetingId, from: folder };
     await writeTextFile(joinPath(target, MARKER), JSON.stringify(marker));
     return target;
   } catch (error) {
     console.warn('[aid] Не удалось перенести запись в корзину, файл остаётся на месте:', folder, error);
     return null;
+  }
+}
+
+/**
+ * Вернуть папку записи из корзины на прежнее место. Бросает ошибку, если не вышло:
+ * тогда встреча остаётся в корзине, а не возвращается без звука (папку удалила бы очистка).
+ */
+export async function restoreRecordingFromTrash(trashed: string, folder: string): Promise<void> {
+  if (await exists(folder)) throw new Error(`На прежнем месте уже есть папка: ${folder}`);
+  await rename(trashed, folder);
+  try {
+    await remove(joinPath(folder, MARKER));
+  } catch {
+    /* метка без папки корзины ничего не значит */
   }
 }
 

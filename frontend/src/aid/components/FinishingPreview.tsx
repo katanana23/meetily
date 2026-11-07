@@ -26,7 +26,7 @@ const noop = () => console.info('[aid] Предпросмотр: встреча 
 
 export function FinishingPreview({ stage, short = false }: { stage: FinishStage; short?: boolean }) {
   return (
-    <main className="aid-page-in aid-scroll relative flex h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
+    <main className="aid-page-in aid-scroll relative block h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
       <FinishingScreen
         stage={stage}
         title={short ? 'Встреча 7 ноября, 14:05' : 'Дейли команды «Северный ветер»'}

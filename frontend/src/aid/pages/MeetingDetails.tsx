@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
+  ArrowCounterClockwise,
   ArrowClockwise,
   Check,
   CaretDown,
@@ -25,6 +26,7 @@ import {
 import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
+import { isTrashed, onTrashChange, restoreMeeting } from '@/aid/lib/meeting-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
@@ -420,6 +422,34 @@ function LoadingState() {
   );
 }
 
+/** Встреча в корзине, открытая по адресу: что случилось и «Восстановить». */
+function InTrash({ id, title }: { id: string; title: string }) {
+  const [busy, setBusy] = useState(false);
+  const restore = async () => {
+    setBusy(true);
+    try {
+      await restoreMeeting(id);
+      aidToast.success(t('restored'), { description: title });
+    } catch (error) {
+      aidToast.error(t('restoreFailed'), { description: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Page layout="bento" header={<BackLink />}>
+      <div className={cn(TILE, 'py-10')}>
+        <h1 className="text-balance text-[36px] font-bold leading-10 tracking-tight">{t('inTrashTitle')}</h1>
+        <p className="mt-2 max-w-md text-pretty text-[15px] text-muted-foreground">{t('inTrashHint')}</p>
+        <Button size="main" className="mt-6" onClick={() => void restore()} disabled={busy}>
+          {busy ? <Spinner tone="inherit" /> : <ArrowCounterClockwise />}
+          {t('restore')}
+        </Button>
+      </div>
+    </Page>
+  );
+}
+
 function MeetingDetailsContent() {
   const params = useSearchParams();
   const meetingId = params.get('id');
@@ -428,6 +458,12 @@ function MeetingDetailsContent() {
   const { meetings, setMeetings, refetchMeetings } = useSidebar();
   const { betaFeatures } = useConfig();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [trashed, setTrashed] = useState(() => (meetingId ? isTrashed(meetingId) : false));
+  useEffect(() => {
+    const sync = () => setTrashed(meetingId ? isTrashed(meetingId) : false);
+    sync();
+    return onTrashChange(sync);
+  }, [meetingId]);
   const [retranscribe, setRetranscribe] = useState(false);
 
   const meta = m.meeting.kind === 'ready' ? m.meeting.meta : null;
@@ -503,6 +539,9 @@ function MeetingDetailsContent() {
       </Page>
     );
   }
+
+  // Удалена человеком: лежит в корзине 7 дней, по адресу открывается только с «Восстановить»
+  if (trashed) return <InTrash id={meta.id} title={shownTitle} />;
 
   // Пусто и тогда, когда все реплики оказались галлюцинациями на тишине
   const empty = m.total === 0 || (!m.hasMore && visible.length === 0);

@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowCounterClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { openTrash } from '@/aid/lib/recording-trash';
+import { daysLeft, isTrashed, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
 import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
@@ -81,7 +82,8 @@ function useMeetingsList(refreshKey: unknown) {
       });
       // Встречи с пометкой «не сохранять» не показываются никогда; просроченные удаляются
       if (meetings.some((m) => isDiscarded(m))) void purgeDiscarded();
-      const list = meetings.filter((m) => !isDiscarded(m));
+      // Удалённые человеком лежат в корзине (фильтр «Корзина»), в списке их нет
+      const list = meetings.filter((m) => !isDiscarded(m) && !isTrashed(m.id));
       setState({ kind: 'ready', meetings: list });
       // Состояние итогов, длительность, слова и название из содержания догружаются по очереди
       void loadDetails(
@@ -110,6 +112,8 @@ function useMeetingsList(refreshKey: unknown) {
 
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
+  // Удалили или вернули из корзины: перечитать список
+  useEffect(() => onTrashChange(() => void load()), [load]);
 
   // Разработка: заранее скомпилировать страницу встречи, иначе первый клик ждёт 5–7 с
   useEffect(() => warmUpRoutes(), []);
@@ -258,9 +262,20 @@ function EmptyFilter({
   );
 }
 
-/** Чип «Корзина»: что туда попадает и кнопка открыть папку. Сама корзина в файлах, не в базе. */
-function TrashPanel() {
+/** Встречи в корзине: удалённые человеком, 7 дней можно вернуть (meeting-trash.ts). */
+function useTrashed(): TrashedMeeting[] {
+  const [list, setList] = useState<TrashedMeeting[]>(() => trashedMeetings());
+  useEffect(() => {
+    setList(trashedMeetings());
+    return onTrashChange(() => setList(trashedMeetings()));
+  }, []);
+  return list;
+}
+
+/** Фильтр «Корзина»: удалённые встречи с кнопкой «Восстановить», внизу папка корзины. */
+function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored: () => void }) {
   const { storageLocations, loadPreferences } = useConfig();
+  const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
     void loadPreferences();
   }, [loadPreferences]);
@@ -273,13 +288,64 @@ function TrashPanel() {
       aidToast.error(t('openFolderFailed'), { description: String(error) });
     }
   };
+  const restore = async (m: TrashedMeeting) => {
+    setBusy(m.id);
+    try {
+      await restoreMeeting(m.id);
+      onRestored();
+      aidToast.success(t('restored'), { description: displayTitle(m.title) });
+    } catch (error) {
+      aidToast.error(t('restoreFailed'), { description: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (items.length === 0) {
+    return (
+      <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash}>
+        {root && (
+          <Button variant="ghost" className="mt-4 -ml-3 text-muted-foreground" onClick={() => void open()}>
+            <FolderOpen />
+            {t('openTrash')}
+          </Button>
+        )}
+      </EmptyFilter>
+    );
+  }
   return (
-    <EmptyFilter title={t('trashPanelTitle')} hint={t('trashPanelHint')} icon={Trash}>
-      <Button size="main" className="mt-5" onClick={() => void open()} disabled={!root}>
-        <FolderOpen />
-        {t('openTrash')}
-      </Button>
-    </EmptyFilter>
+    <section aria-label={t('filterTrash')}>
+      <p className="mb-3 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
+      <ul className="flex flex-col gap-1">
+        {items.map((m) => {
+          const days = daysLeft(m);
+          return (
+            <li key={m.id} className="flex min-h-[64px] items-center gap-3 rounded-nested p-2">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+                <Trash className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-medium" title={displayTitle(m.title)}>
+                  {displayTitle(m.title)}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  {t('trashDaysLeft')} {days} {plural(days, 'день', 'дня', 'дней')}
+                </span>
+              </span>
+              <Button variant="secondary" className="shrink-0" onClick={() => void restore(m)} disabled={busy !== null}>
+                {busy === m.id ? <Spinner tone="inherit" /> : <ArrowCounterClockwise />}
+                {t('restore')}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      {root && (
+        <Button variant="ghost" className="mt-4 text-muted-foreground" onClick={() => void open()}>
+          <FolderOpen />
+          {t('openTrash')}
+        </Button>
+      )}
+    </section>
   );
 }
 
@@ -353,8 +419,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
         </DialogTitle>
         <DialogDescription>
           {n === 1
-            ? 'В ней нет ни одной реплики. Файл звука останется в папке записей. Если там был разговор, нажмите «Оставить»: запись будет в фильтре «Не распознано».'
-            : 'В них нет ни одной реплики. Файлы звука останутся в папке записей. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в фильтре «Не распознано».'}
+            ? 'В ней нет ни одной реплики. Она 7 дней полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить»: запись будет в фильтре «Не распознано».'
+            : 'В них нет ни одной реплики. Они 7 дней полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в фильтре «Не распознано».'}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" size="main" onClick={keep} disabled={busy}>
@@ -431,6 +497,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     setQuery('');
   };
   const [filter, setFilter] = useState<Filter>('all');
+  const trashed = useTrashed();
 
   // Записи без единой реплики в общий список не попадают: либо раздел «Не распознано»
   // внизу, либо (оставленные пользователем через «Вернуть») обычная строка
@@ -484,7 +551,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const showSearch = listFilter && state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
   const counts: Partial<Record<Filter, number>> =
     state.kind === 'ready'
-      ? { all: groups.main.length, summary: groups.main.filter((m) => m.details?.status === 'summary').length, unrecognized: groups.unrecognized.length }
+      ? {
+          all: groups.main.length,
+          summary: groups.main.filter((m) => m.details?.status === 'summary').length,
+          unrecognized: groups.unrecognized.length,
+          trash: trashed.length,
+        }
       : {};
 
   // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
@@ -602,7 +674,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           {filter === 'unrecognized' && state.kind === 'ready' && (
             <UnrecognizedList meetings={groups.unrecognized} legacy={groups.legacyEmpty.length > 0} onDelete={setToDelete} onOpenFolder={openFolder} />
           )}
-          {filter === 'trash' && <TrashPanel />}
+          {filter === 'trash' && <TrashPanel items={trashed} onRestored={() => void reload()} />}
           {listFilter && (<>
           {state.kind === 'loading' && (
             <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>

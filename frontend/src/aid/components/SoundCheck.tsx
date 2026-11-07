@@ -11,6 +11,7 @@ import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
+import { openPrivacySettings } from '@/aid/lib/onboarding';
 import { useConfig } from '@/contexts/ConfigContext';
 
 interface Device {
@@ -102,7 +103,7 @@ export function SoundCheckDialog({ open, onOpenChange }: { open: boolean; onOpen
         )}
         <p className="mt-2 text-sm text-muted-foreground">{t('devicesLocked')}</p>
         <DialogFooter>
-          <Button variant="outline" size="main" onClick={() => void invoke('open_system_settings').catch(() => undefined)}>
+          <Button variant="outline" size="main" onClick={() => void openPrivacySettings('microphone')}>
             <GearSix />
             {t('openSystemSettings')}
           </Button>

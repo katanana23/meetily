@@ -88,28 +88,8 @@ function labelSwitches(root: Element) {
   });
 }
 
-/** Кнопки-точки шагов мастера оригинала (ProgressIndicator) без подписи: «Шаг N». */
-function labelSteps(root: Element) {
-  const onboarding = root.closest('.aid-onboarding') ?? root.querySelector('.aid-onboarding');
-  onboarding?.querySelectorAll('.flex.items-center.justify-center.gap-2').forEach((row) => {
-    Array.from(row.children)
-      .filter((el): el is HTMLButtonElement => el instanceof HTMLButtonElement)
-      .forEach((b, i) => {
-        if (!b.getAttribute('aria-label') && !b.textContent?.trim()) b.setAttribute('aria-label', `Шаг ${i + 1}`);
-      });
-  });
-  // значок «i» с подсказкой (Radix Tooltip) без подписи
-  onboarding?.querySelectorAll('button[data-state]:not([aria-label])').forEach((b) => {
-    if (!b.textContent?.trim()) b.setAttribute('aria-label', 'Подробнее');
-  });
-  // стрелки «назад» и «вперёд» над шагами (OnboardingContainer)
-  onboarding?.querySelectorAll('.justify-between.pointer-events-none > button').forEach((b, i) => {
-    if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', i === 0 ? 'Предыдущий шаг' : 'Следующий шаг');
-  });
-}
-
 // Начального обхода нет: секции оригинала монтируются только на клиенте
-// (см. ClientOnly в Settings и обёртку мастера), иначе перевод серверного
+// (см. ClientOnly в Settings), иначе перевод серверного
 // HTML до гидратации дал бы расхождение текста.
 export function LegacyBridge() {
   useEffect(() => {
@@ -123,7 +103,6 @@ export function LegacyBridge() {
           m.addedNodes.forEach(walk);
           if (m.addedNodes.length && m.target instanceof Element && inScope(m.target)) {
             labelSwitches(m.target);
-            labelSteps(m.target);
           }
         }
       }

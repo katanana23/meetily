@@ -1641,3 +1641,52 @@ html body[data-scroll-locked] {
     transition: none;
   }
 }
+
+/* ВРЕМЕННО: эскизы экрана обработки (FinishingSketches.tsx). Удаляются после выбора. */
+.aid-fs-line {
+  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.aid-fs-line-1 {
+  animation-delay: 0.15s;
+}
+.aid-fs-line-2 {
+  animation-delay: 0.3s;
+}
+.aid-fs-caret {
+  animation: aid-fs-caret 1s steps(1) infinite;
+}
+@keyframes aid-fs-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.aid-fs-card {
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s;
+}
+.aid-fs-gather {
+  animation: aid-fs-gather 2.4s ease-in-out infinite;
+}
+@keyframes aid-fs-gather {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.98);
+  }
+}
+.aid-fs-done {
+  transform: scale(1.02);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aid-fs-line,
+  .aid-fs-caret,
+  .aid-fs-gather {
+    animation: none;
+  }
+  .aid-fs-card {
+    transition: none;
+  }
+}

@@ -5,6 +5,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import type { FinishPhase } from '@/aid/lib/recording';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
@@ -726,6 +727,10 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
+// ВРЕМЕННО: эскизы экрана обработки (?finish=a|b|c&phase=…), только в разработке; в сборку не попадают
+const FinishingSketch =
+  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingSketches').then((m) => m.FinishingSketch), { ssr: false }) : null;
+
 function HomeContent() {
   const rec = useRecordingControls();
   const params = useSearchParams();
@@ -734,6 +739,11 @@ function HomeContent() {
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
   const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
 
+  const sketch = params.get('finish');
+  if (FinishingSketch && (sketch === 'a' || sketch === 'b' || sketch === 'c')) {
+    const phase = (params.get('phase') as FinishPhase | null) ?? 'transcribing';
+    return <FinishingSketch variant={sketch} phase={phase} />;
+  }
   if (showRecording) {
     return (
       <RecordingView

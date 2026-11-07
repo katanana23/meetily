@@ -12,7 +12,8 @@ export type ScenarioId =
   | 'silence-5s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'heard-no-text'
   | 'recognition-failed' | 'mid-silence'
   | 'long-empty' | 'sparse' | 'no-model' | 'no-permission'
-  | 'mic-denied' | 'mic-missing' | 'mic-prompt' | 'mic-core-refuses' | 'mic-silent' | 'mic-lost' | 'model-downloading';
+  | 'mic-denied' | 'mic-missing' | 'mic-prompt' | 'mic-core-refuses' | 'mic-silent' | 'mic-lost' | 'model-downloading'
+  | 'mic-prompt-deny' | 'mic-unknown-zeros' | 'mic-unknown-ok' | 'mic-unknown-blind' | 'onboarding-mac' | 'onboarding-mac-unknown';
 
 /**
  * Что «ядро» присылает во время записи. Речевой сегмент после VAD приходит
@@ -72,6 +73,13 @@ export interface Scenario {
   micLive?: 'ok' | 'silent' | 'lost';
   /** На старте уже идёт скачивание модели распознавания (медленно, около минуты). */
   downloadOnLoad?: boolean;
+  /**
+   * Разрешение macOS, которое видит окно приложения (команда aid_mock_mac_mic вместо
+   * getUserMedia): granted, denied, unknown (окно не ответило); prompt-granted и
+   * prompt-denied — доступ не спрашивали, «вопрос macOS» отвечается через micPromptMs.
+   * Без поля: не macOS, решает trigger_microphone_permission.
+   */
+  macMic?: 'granted' | 'denied' | 'unknown' | 'prompt-granted' | 'prompt-denied';
   /** Уведомления как в ядре по умолчанию: согласие есть, показ выключен. */
   notificationsCoreDefault?: boolean;
 }
@@ -176,7 +184,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     id: 'mic-denied', label: 'mic-denied', description: 'Отказ в микрофоне, звук компьютера есть: карточка и «Записать только звук компьютера»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
     // микрофон в записи даёт нули: в режиме «только звук компьютера» «Не слышу микрофон» не показывается
-    micPermission: false, systemAudioPermission: true, micLive: 'silent',
+    micPermission: false, systemAudioPermission: true, micLive: 'silent', macMic: 'denied',
   },
   'mic-missing': {
     id: 'mic-missing', label: 'mic-missing', description: 'Микрофона нет в списке устройств, звук компьютера есть',
@@ -186,7 +194,37 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
   'mic-prompt': {
     id: 'mic-prompt', label: 'mic-prompt', description: 'Доступ к микрофону ещё не спрашивали: «вопрос macOS» 2,5 с, потом разрешение и запись',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
-    micPromptMs: 2500, micLive: 'ok',
+    micPromptMs: 2500, micLive: 'ok', macMic: 'prompt-granted',
+  },
+  'mic-prompt-deny': {
+    id: 'mic-prompt-deny', label: 'mic-prompt-deny', description: 'Доступ не спрашивали: по «Записать» «вопрос macOS», человек отказывает: карточка, кнопка «нужен доступ»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    micPromptMs: 2000, macMic: 'prompt-denied', systemAudioPermission: true,
+  },
+  'mic-unknown-zeros': {
+    id: 'mic-unknown-zeros', label: 'mic-unknown-zeros', description: 'Окно не ответило про разрешение, команда ядра «да», с микрофона нули: через 3 с остановка без сохранения и карточка',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    macMic: 'unknown', micLive: 'silent', systemAudioPermission: true,
+  },
+  'mic-unknown-ok': {
+    id: 'mic-unknown-ok', label: 'mic-unknown-ok', description: 'Окно не ответило про разрешение, но микрофон шумит: запись идёт, доступ подтверждён звуком',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    macMic: 'unknown', micLive: 'ok',
+  },
+  'mic-unknown-blind': {
+    id: 'mic-unknown-blind', label: 'mic-unknown-blind', description: 'Окно не ответило и слушать микрофон нечем: «Не удалось проверить микрофон», без речи после стопа карточка',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
+    macMic: 'unknown', live: 'none',
+  },
+  'onboarding-mac': {
+    id: 'onboarding-mac', label: 'onboarding-mac', description: 'Первый запуск на macOS, доступ не спрашивали; на вопрос macOS человек отказывает',
+    meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
+    micPromptMs: 1500, macMic: 'prompt-denied', systemAudioPermission: true,
+  },
+  'onboarding-mac-unknown': {
+    id: 'onboarding-mac-unknown', label: 'onboarding-mac-unknown', description: 'Первый запуск на macOS, окно не отвечает про разрешение, команда ядра «да»: плитка не «Доступ есть»',
+    meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
+    macMic: 'unknown',
   },
   'mic-core-refuses': {
     id: 'mic-core-refuses', label: 'mic-core-refuses', description: 'Проверка Aid прошла, но ядро не стартует без микрофона',

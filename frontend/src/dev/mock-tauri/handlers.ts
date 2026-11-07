@@ -287,6 +287,8 @@ export const handlers: Record<string, Handler> = {
     return wait ? new Promise((resolve) => setTimeout(() => resolve(granted), wait)) : granted;
   },
   trigger_system_audio_permission_command: (_a, be) => be.scenario.systemAudioPermission ?? be.scenario.micPermission !== false,
+  // Только заглушки: разрешение macOS, которое в окне Tauri видит getUserMedia (mic-access.ts)
+  aid_mock_mac_mic: (_a, be) => be.macMicAnswer(),
   open_system_settings: warnNative('Открытие системных настроек'),
 
   // ---------- настройки ----------

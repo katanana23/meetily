@@ -152,6 +152,27 @@ export class MockBackend {
     this.startMicLevel();
   }
 
+  // ---------------- разрешение macOS для Aid (mic-access.ts) ----------------
+
+  /** Решение человека на «вопрос macOS»: после первого ответа больше не спрашиваем. */
+  private macMicDecided: 'granted' | 'denied' | null = null;
+
+  macMicAnswer(): Promise<string | null> | string | null {
+    const m = this.scenario.macMic;
+    if (!m) return null;
+    if (m === 'prompt-granted' || m === 'prompt-denied') {
+      if (this.macMicDecided) return this.macMicDecided;
+      const answer = m === 'prompt-granted' ? 'granted' : 'denied';
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          this.macMicDecided = answer;
+          resolve(answer);
+        }, this.scenario.micPromptMs ?? 1500),
+      );
+    }
+    return m;
+  }
+
   // ---------------- уровень микрофона для Aid (mic-watch.ts) ----------------
 
   private micTimer: ReturnType<typeof setInterval> | null = null;

@@ -278,7 +278,7 @@
   border: 0;
   border-radius: 9999px;
   background: hsl(var(--foreground) / 0.06);
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] svg {

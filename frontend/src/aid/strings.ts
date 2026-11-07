@@ -95,6 +95,7 @@ const ru = {
   micDeniedTitle: 'Нет доступа к\u00A0микрофону',
   micNotSaved: 'Запись не\u00A0сохранена',
   micRestartNote: 'Уже включили? Перезапустите ShadeNotes',
+  micDemoPane: 'Микрофон',
   micSwitchHint: 'Включите ShadeNotes в\u00A0Системных настройках, раздел «Микрофон», и\u00A0вернитесь.',
   micMissingTitle: 'Микрофон не найден',
   micOpenSettings: 'Открыть настройки',

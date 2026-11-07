@@ -169,21 +169,43 @@ export function MicAccessCard({
 }
 
 /**
- * Мини-иллюстрация «включите в настройках»: строка «ShadeNotes» и переключатель
- * в стиле macOS, который плавно включается (цикл 2,5 с, .aid-mic-switch в globals.css).
- * При «уменьшить движение» стоит включённым. Для читалки экрана одна фраза.
+ * Мини-иллюстрация «включите в настройках». Это картинка, а не элемент управления:
+ * - миниатюрное окно Системных настроек (кнопки окна, подпись «Микрофон»), мельче
+ *   интерфейса, на подложке, читается как снимок экрана;
+ * - переключатель нажимает нарисованный указатель, тот же, что в показе онбординга;
+ * - на картинку нельзя навести и нажать (pointer-events: none), курсор обычный.
+ * Цикл 2,8 с (.aid-mic-demo в globals.css); при «уменьшить движение» переключатель
+ * включён, указатель стоит на нём. Для читалки экрана одна фраза.
  */
 function SettingsHint() {
   return (
-    <div className="mt-3 flex h-11 max-w-[260px] items-center gap-2.5 rounded-nested bg-muted pl-3 pr-3">
-      {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
-      <img src={BRAND_MARK_SRC} width={20} height={20} alt="" aria-hidden className="size-5 rounded-[5px]" />
-      <span className="flex-1 text-[13px] font-medium" aria-hidden>
-        ShadeNotes
-      </span>
-      <span className="aid-mic-switch relative h-5 w-[34px] shrink-0 rounded-full" aria-hidden>
-        <span className="aid-mic-switch-knob absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow-sm" />
-      </span>
+    <div className="mt-3 w-[240px] max-w-full">
+      <div aria-hidden className="aid-mic-demo pointer-events-none select-none overflow-hidden rounded-nested bg-muted p-2.5">
+        <div className="rounded-[10px] bg-card px-2.5 pb-2.5 pt-2 shadow-sm">
+          <div className="flex items-center gap-1">
+            <span className="size-[6px] rounded-full bg-foreground/15" />
+            <span className="size-[6px] rounded-full bg-foreground/15" />
+            <span className="size-[6px] rounded-full bg-foreground/15" />
+            <span className="ml-1.5 text-[11px] font-semibold leading-none text-muted-foreground">{t('micDemoPane')}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
+            <img src={BRAND_MARK_SRC} width={16} height={16} alt="" className="size-4 rounded-[4px]" />
+            <span className="flex-1 text-[12px] font-medium leading-none">ShadeNotes</span>
+            <span className="relative">
+              <span className="aid-mic-demo-track relative block h-[15px] w-[26px] rounded-full">
+                <span className="aid-mic-demo-knob absolute left-[1.5px] top-[1.5px] size-3 rounded-full bg-white shadow-sm" />
+              </span>
+              {/* Указатель: кончик на переключателе */}
+              <span className="aid-mic-demo-cursor absolute left-[14px] top-[7px]">
+                <svg viewBox="0 0 16 22" className="block h-[18px] w-[13px] drop-shadow-sm">
+                  <path d="M1 1v17.5l4.6-4.4 3 6.7 2.9-1.3-3-6.6H15L1 1Z" fill="hsl(var(--foreground))" stroke="hsl(var(--card))" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
       <span className="sr-only">{t('micSwitchHint')}</span>
     </div>
   );

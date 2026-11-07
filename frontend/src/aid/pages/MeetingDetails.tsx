@@ -48,7 +48,7 @@ import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
 import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
-import { contentTitle, countWords, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
+import { countWords, isShownText, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -138,6 +138,7 @@ const CAUSE: Record<Cause, string> = {
   'no-model': t('silentNoModel'),
   'model-downloading': t('silentNoModel'),
   'no-microphone': t('silentNoMic'),
+  'mic-denied': t('silentNoMic'),
   'check-failed': t('silentUnknown'),
   silence: t('silentUnknown'),
   'heard-no-text': t('silentHeard'),
@@ -430,9 +431,12 @@ function MeetingDetailsContent() {
   const [retranscribe, setRetranscribe] = useState(false);
 
   const meta = m.meeting.kind === 'ready' ? m.meeting.meta : null;
-  // Автоматическое название показываем началом первой осмысленной реплики
-  const fromContent = useMemo(() => contentTitle(m.segments.map((x) => x.text)), [m.segments]);
-  const shownTitle = meta ? titleForDisplay(meta.title, fromContent) : '';
+  // Автоматическое название показываем датой «Встреча 7 ноября, 09:40», пока итоги ИИ
+  // не дали своё: из текста встречи название не берём (format.ts, shownTitle)
+  const shownTitle = meta ? titleForDisplay(meta.title) : '';
+  // Реплики-галлюцинации на тишине («Thank you.», «Продолжение следует...») не показываем,
+  // в базе они остаются (speech.ts, isShownText)
+  const visible = useMemo(() => m.segments.filter((x) => isShownText(x.text)), [m.segments]);
 
   // Запись тихо сохранена в «Не распознано»: оригинальный хук всё равно открыл её
   // страницу. Возвращаем пользователя туда, где он был (recording-outcome.tsx)
@@ -489,15 +493,16 @@ function MeetingDetailsContent() {
     );
   }
 
-  const empty = m.total === 0;
+  // Пусто и тогда, когда все реплики оказались галлюцинациями на тишине
+  const empty = m.total === 0 || (!m.hasMore && visible.length === 0);
   // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
-  const date = isAutoTitle(meta.title) && !fromContent ? null : formatDateTime(meta.created_at);
+  const date = isAutoTitle(meta.title) ? null : formatDateTime(meta.created_at);
   const duration = formatDuration(m.duration);
   // Мета подписью и значением: дата, длительность, реплики
   const facts = [
     date && { label: t('metaDate'), value: date },
     duration && { label: t('metaDuration'), value: duration },
-    { label: t('metaReplies'), value: formatNumber(m.total) },
+    { label: t('metaReplies'), value: formatNumber(m.hasMore ? m.total : visible.length) },
   ].filter(Boolean) as Array<{ label: string; value: string }>;
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
   const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
@@ -562,7 +567,7 @@ function MeetingDetailsContent() {
         </div>
       </div>
       <div className="mt-5 min-w-0">
-        <Title shown={shownTitle} editable={editableTitle(meta.title, fromContent)} onRename={rename} />
+        <Title shown={shownTitle} editable={editableTitle(meta.title)} onRename={rename} />
         <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
           {facts.map((f) => (
             <div key={f.label} className="min-w-0">
@@ -591,7 +596,7 @@ function MeetingDetailsContent() {
           {/* Транскрипт отдельной плиткой одним текстовым потоком, колонка до 760 px */}
           <section aria-label={t('transcript')} className={TILE}>
             <div className={MEASURE}>
-              <TranscriptList segments={m.segments} />
+              <TranscriptList segments={visible} />
             </div>
             {m.hasMore && (
               <div className="flex justify-center pt-6">

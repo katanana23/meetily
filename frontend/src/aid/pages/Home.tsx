@@ -706,14 +706,22 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
+// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved|discarded); в сборку не попадает
+const FinishingPreview =
+  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
+const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved', 'discarded'] as const;
+
 function HomeContent() {
   const rec = useRecordingControls();
   const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
+  // Сохранённую встречу открыли с экрана обработки раньше перехода оригинала: показываем её
+  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording' && !(rec.phase === 'opening' && meetingId);
 
+  const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
+  if (FinishingPreview && preview) return <FinishingPreview stage={preview} />;
   if (showRecording) {
     return (
       <RecordingView

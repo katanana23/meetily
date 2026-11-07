@@ -20,13 +20,16 @@ import { Page, TILE } from '@/aid/components/Page';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
-import { FinishingScreen } from '@/aid/components/FinishingScreen';
+import { FinishingScreen, type FinishStage } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import { isShownText } from '@/aid/lib/speech';
 import type { FinishPhase } from '@/aid/lib/recording';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
+import { RecordingStatus, useRecordingState } from '@/contexts/RecordingStateContext';
+import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import { useRouter } from 'next/navigation';
 
 interface RecordingViewProps {
   isPaused: boolean;
@@ -63,15 +66,20 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
   );
 }
 
-// Заголовок по настроению маскота: пока решение не принято, «Слушаю последние секунды»;
-// итог (тишина или пара фраз) только после решения
-const PHASE: Record<FinishPhase, { title: string; hint: string }> = {
-  transcribing: { title: t('finishTranscribing'), hint: t('finishTranscribingHint') },
-  saving: { title: t('saving'), hint: t('savingHint') },
-  opening: { title: t('saved'), hint: t('savedHint') },
-  discarding: { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') },
-};
+// Итог решения «не сохранять» (тишина или пара фраз) показывается только после решения;
+// до него стадии экрана обработки идут по статусу записи (FinishingScreen)
+const NO_SPEECH = { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') };
 const TOO_LITTLE = { title: t('discardedTooLittle'), hint: t('discardedTooLittleHint') };
+
+/** Стадия экрана обработки по статусу записи оригинала (RecordingStateContext): сцены обложки по факту, не по таймеру. */
+function finishStage(phase: FinishPhase, status: RecordingStatus): FinishStage {
+  if (phase === 'discarding') return 'discarded';
+  if (status === RecordingStatus.STOPPING) return 'stopped';
+  if (status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
+  if (status === RecordingStatus.SAVING) return 'saving';
+  if (status === RecordingStatus.COMPLETED) return 'saved';
+  return phase === 'opening' ? 'saved' : phase === 'saving' ? 'saving' : 'transcribing';
+}
 
 const NOTICE_KEY = 'show_recording_notification'; // тот же ключ, что у оригинала (recordingNotification.tsx)
 
@@ -142,6 +150,17 @@ function useTranscriptionProblems() {
 
 export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, discardVerdict = null }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
+  const { status } = useRecordingState();
+  const router = useRouter();
+  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting
+  // и сам откроет её через 2 с; по клику или Enter открываем раньше тем же адресом
+  // (повтор того же адреса in-place-router не дублирует в истории)
+  const { currentMeeting } = useSidebar();
+  const savedId = status === RecordingStatus.COMPLETED && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
+  // После остановки таймер записи обнуляется: для экрана обработки держим последнюю длительность.
+  // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
+  const lastDuration = useRef(0);
+  if (duration > 0) lastDuration.current = duration;
   // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
@@ -163,11 +182,19 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
   const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
   if (phase) {
-    const copy = phase === 'discarding' && discardVerdict === 'too-little' ? TOO_LITTLE : PHASE[phase];
+    // Своя плитка без запаса под капсулу записи: на этом экране её нет (RecordDock)
     return (
-      <Page>
-        <FinishingScreen phase={phase} title={copy.title} hint={copy.hint} />
-      </Page>
+      <main className="aid-page-in aid-scroll relative flex h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
+        <FinishingScreen
+          stage={finishStage(phase, status)}
+          discardCopy={discardVerdict === 'too-little' ? TOO_LITTLE : NO_SPEECH}
+          title={meetingTitle ? displayTitle(meetingTitle) : null}
+          durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
+          segments={segments}
+          speechTimes={live.speechTimes}
+          onOpen={savedId && phase === 'opening' ? () => router.push(`/meeting-details?id=${savedId}&source=recording`) : undefined}
+        />
+      </main>
     );
   }
 

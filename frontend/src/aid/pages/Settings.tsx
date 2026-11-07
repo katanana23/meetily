@@ -4,9 +4,11 @@
 // распознавания и итогов, бета) подключены как есть: их логику не дублируем,
 // а цвета и тексты приводит к Aid временный мост (.aid-legacy, LegacyBridge).
 //
-// Бенто: шапка-плитка с вкладками, ниже разделы отдельными плитками. Заголовок
-// раздела 22/28, строки разделены отступом, переключатели и кнопки справа в
-// одной колонке фиксированной ширины.
+// Как главная: вся страница одной плиткой (Page, раскладка tile), плоская шапка с
+// вкладками липкая, при прокрутке стекло и мягкое затухание под ней (.aid-edge-fade).
+// Разделы открытыми группами внутри плитки (без своих подложек, как строки списка на
+// главной): заголовок 22/28, строки разделены отступом, переключатели и кнопки справа
+// в одной колонке фиксированной ширины. Вкладки как фильтры главной (.aid-chip-on).
 
 'use client';
 
@@ -17,7 +19,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Trash, Waveform } from '@phosphor-icons/react';
 import { openTrash } from '@/aid/lib/recording-trash';
 import { Button } from '@/aid/components/ui/button';
-import { Page, TILE } from '@/aid/components/Page';
+import { Page } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Switch } from '@/aid/components/ui/switch';
@@ -42,16 +44,16 @@ const TABS = [
 ] as const;
 type TabValue = (typeof TABS)[number]['value'];
 
-// Активная вкладка тянется на всю высоту колонки (см. Page, раскладка bento)
-const TAB = 'mt-0 flex-col data-[state=active]:flex data-[state=active]:grow [&>*:last-child]:grow';
+// Разделы вкладки один под другим: 32 px между группами
+const TAB = 'mt-0 flex-col gap-8 data-[state=active]:flex';
 
 const UPSTREAM_URL = 'https://github.com/Zackriya-Solutions/meeting-minutes';
 const LICENSE_URL = `${UPSTREAM_URL}/blob/main/LICENSE.md`;
 
-/** Раздел настроек: плитка с заголовком 22/28. */
+/** Раздел настроек: открытая группа внутри плитки страницы, заголовок 22/28. */
 function Section({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={cn(TILE, className)} aria-label={title}>
+    <section className={className} aria-label={title}>
       {title && <h2 className="text-[22px] font-bold leading-7 tracking-tight">{title}</h2>}
       <div className={cn('flex flex-col gap-1', title && 'mt-3')}>{children}</div>
     </section>
@@ -184,7 +186,7 @@ function TrashRow() {
 function GeneralTab() {
   return (
     // Бенто: разделы отдельными плитками, 8 px между плитками
-    <div className="flex grow flex-col gap-2 [&>*:last-child]:grow">
+    <div className="flex flex-col gap-8">
       <Section title={t('settingsSectionNotifications')}>
         <NotificationsRow />
       </Section>
@@ -271,26 +273,30 @@ function SettingsContent() {
         <BackButton label={t('backToMeetings')} href="/" />
         <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>
       </div>
-      <div className="-mx-1 mt-5 overflow-x-auto px-1 pb-1">
-        <TabsList aria-label={t('navSettings')}>
-          {TABS.map((x) => {
-            const Icon = x.icon;
-            return (
-              <TabsTrigger key={x.value} value={x.value} className="gap-1.5 px-3">
-                <Icon aria-hidden />
-                {x.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </div>
+      <TabsList aria-label={t('navSettings')} className="mt-5">
+        {TABS.map((x) => {
+          const Icon = x.icon;
+          return (
+            <TabsTrigger key={x.value} value={x.value}>
+              <Icon aria-hidden />
+              {/* Ширина по полужирному варианту: выбранная вкладка font-medium, соседи не сдвигаются */}
+              <span className="grid">
+                <span className="col-start-1 row-start-1">{x.label}</span>
+                <span aria-hidden className="invisible col-start-1 row-start-1 font-medium">
+                  {x.label}
+                </span>
+              </span>
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
     </>
   );
 
   return (
     // Tabs снаружи: вкладки в неподвижной шапке, содержимое в прокручиваемой области
     <Tabs value={tab} onValueChange={change} className="flex h-full min-w-0 flex-1">
-      <Page layout="bento" header={header}>
+      <Page header={header}>
       <TabsContent value="general" className={TAB}>
         <GeneralTab />
       </TabsContent>
@@ -330,8 +336,8 @@ export default function Settings() {
   return (
     <Suspense
       fallback={
-        <Page layout="bento" header={<h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>}>
-          <Skeleton className="h-40 w-full rounded-tile" />
+        <Page header={<h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>}>
+          <Skeleton className="h-40 w-full rounded-nested" />
         </Page>
       }
     >

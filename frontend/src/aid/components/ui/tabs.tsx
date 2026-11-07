@@ -1,4 +1,7 @@
-// shadcn/ui Tabs: таблетки высотой 48 px; выбранная Mikado (роль «выделение»).
+// shadcn/ui Tabs в виде фильтров главной (Home, FilterChips): отдельные таблетки 40 px
+// на вложенной поверхности, без общей подложки. Выбранная без заливки: рамка 2 px
+// акцентом и лёгкое стекло (.aid-chip-on), текст font-medium; невыбранные обычные,
+// текст muted. Рамка 2 px у всех (у невыбранных прозрачная): при выборе размер не прыгает.
 'use client';
 
 import * as React from 'react';
@@ -13,7 +16,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('inline-flex h-12 items-center justify-center gap-1 rounded-full bg-muted p-1 text-muted-foreground', className)}
+    className={cn('flex flex-wrap items-center gap-2', className)}
     {...props}
   />
 ));
@@ -26,7 +29,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground [&_svg]:size-4',
+      'aid-tab inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border-2 border-transparent bg-muted px-4 text-sm font-normal text-muted-foreground transition-colors hover:bg-input hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:font-medium data-[state=active]:text-foreground [&_svg]:size-4',
       className,
     )}
     {...props}

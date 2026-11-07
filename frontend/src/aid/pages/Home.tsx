@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, ArrowCounterClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowCounterClockwise, Chats, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
@@ -18,12 +18,10 @@ import { Page } from '@/aid/components/Page';
 import AidSettings from '@/aid/pages/Settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
-import { openTrash } from '@/aid/lib/recording-trash';
+import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { daysLeft, deleteForever, emptyTrash, isTrashed, loadTrash, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
-import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
 import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
@@ -31,12 +29,11 @@ import { RecordingView } from '@/aid/pages/Recording';
 import MeetingDetails from '@/aid/pages/MeetingDetails';
 import { type StartBlocker } from '@/aid/lib/recording';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
-import { clearUnrecognized, isDiscarded, isKept, isUnrecognized, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
+import { isDiscarded, isKept, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
-import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 import { cn } from '@/aid/lib/utils';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { dateGroup, displayTitle, formatShortDate, isAutoTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
+import { dateGroup, displayTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -111,14 +108,6 @@ function useMeetingsList(refreshKey: unknown) {
     [],
   );
 
-  // Пометка «не распознано» от старой логики у встречи с текстом: снять, когда слова подсчитаны
-  useEffect(() => {
-    if (state.kind !== 'ready') return;
-    for (const m of state.meetings) {
-      if (m.details && m.details.status !== 'unknown' && m.details.words >= MIN_MEANINGFUL_WORDS && isUnrecognized(m)) clearUnrecognized(m.folder_path ?? null);
-    }
-  }, [state]);
-
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
   // Удалили или вернули из корзины: перечитать список
@@ -170,80 +159,6 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
         </AlertDescription>
       </div>
     </Alert>
-  );
-}
-
-/** Чип «Не распознано»: записи без текста или с парой фраз, с действиями. */
-function UnrecognizedList({
-  meetings,
-  legacy,
-  onDelete,
-  onOpenFolder,
-}: {
-  meetings: MeetingListItem[];
-  legacy: boolean;
-  onDelete: (m: MeetingListItem) => void;
-  onOpenFolder: (m: MeetingListItem) => void;
-}) {
-  const [retranscribe, setRetranscribe] = useState<MeetingListItem | null>(null);
-  const { betaFeatures } = useConfig();
-  const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
-  if (meetings.length === 0) {
-    return <EmptyFilter title={t('noUnrecognized')} hint={t('noUnrecognizedHint')} />;
-  }
-  return (
-    <section aria-label={t('unrecognizedSection')}>
-      <p className="mb-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
-      {/* Одна колонка: у строки три действия, в две колонки названия обрезались бы */}
-      <ul className="flex flex-col gap-1">
-        {meetings.map((m) => (
-          <li key={m.id} className="group flex min-h-[64px] flex-wrap items-center gap-3 rounded-nested p-2 transition-colors hover:bg-muted">
-            <Link
-              href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-nested focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <StatusThumb kind="silent" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-medium" title={displayTitle(m.title)}>
-                  {displayTitle(m.title)}
-                </span>
-                {m.created_at && !isAutoTitle(m.title) && <span className="block text-sm text-muted-foreground">{formatShortDate(m.created_at)}</span>}
-              </span>
-            </Link>
-            <div className="flex shrink-0 items-center gap-1">
-              {canRetranscribe && m.folder_path && (
-                <Button variant="outline" size="sm" onClick={() => setRetranscribe(m)}>
-                  <ArrowClockwise />
-                  {t('retranscribe')}
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => onDelete(m)}>
-                <Trash />
-                {t('delete')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-10 text-muted-foreground"
-                onClick={() => onOpenFolder(m)}
-                aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
-              >
-                <FolderOpen />
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {retranscribe && (
-        <RetranscribeDialog
-          open
-          onOpenChange={(v) => !v && setRetranscribe(null)}
-          meetingId={retranscribe.id}
-          meetingFolderPath={retranscribe.folder_path ?? null}
-          onComplete={() => setRetranscribe(null)}
-        />
-      )}
-    </section>
   );
 }
 
@@ -312,26 +227,10 @@ function EraseDialog({ title, hint, onConfirm, onClose }: { title: string; hint:
   );
 }
 
-/**
- * Фильтр «Корзина»: удалённые встречи, срок, «Восстановить» и «Удалить насовсем»;
- * сверху «Очистить корзину», внизу папка корзины.
- */
+/** Фильтр «Корзина»: удалённые встречи, срок, «Восстановить» и «Удалить насовсем»; сверху «Очистить корзину». */
 function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored: () => void }) {
-  const { storageLocations, loadPreferences } = useConfig();
   const [busy, setBusy] = useState<string | null>(null);
   const [erase, setErase] = useState<TrashedMeeting | 'all' | null>(null);
-  useEffect(() => {
-    void loadPreferences();
-  }, [loadPreferences]);
-  const root = storageLocations?.recordings ?? null;
-  const open = async () => {
-    if (!root) return;
-    try {
-      await openTrash(root);
-    } catch (error) {
-      aidToast.error(t('openFolderFailed'), { description: String(error) });
-    }
-  };
   const restore = async (m: TrashedMeeting) => {
     setBusy(m.id);
     try {
@@ -357,17 +256,9 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
     const n = await emptyTrash();
     aidToast.success(t('trashEmptied'), { description: n ? `${n} ${plural(n, 'запись', 'записи', 'записей')}` : undefined });
   };
-  const folderButton = root && (
-    <Button variant="ghost" className="mt-4 -ml-3 text-muted-foreground" onClick={() => void open()}>
-      <FolderOpen />
-      {t('openTrash')}
-    </Button>
-  );
   if (items.length === 0) {
     return (
-      <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash}>
-        {folderButton}
-      </EmptyFilter>
+      <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash} />
     );
   }
   return (
@@ -419,7 +310,6 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
           );
         })}
       </ul>
-      {folderButton}
       {erase === 'all' && (
         <EraseDialog title={t('emptyTrashTitle')} hint={t('emptyTrashHint')} onConfirm={eraseAll} onClose={() => setErase(null)} />
       )}
@@ -435,14 +325,13 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
   );
 }
 
-type Filter = 'all' | 'summary' | 'unrecognized' | 'trash';
+type Filter = 'all' | 'summary' | 'trash';
 
 /** Чипы-фильтры таблетками: выбранный Mikado (роль «выделение»), счётчик серым. */
 function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f: Filter) => void; counts: Partial<Record<Filter, number>> }) {
   const items: Array<{ id: Filter; label: string }> = [
     { id: 'all', label: t('filterAll') },
     { id: 'summary', label: t('filterSummary') },
-    { id: 'unrecognized', label: t('filterUnrecognized') },
     { id: 'trash', label: t('filterTrash') },
   ];
   return (
@@ -505,8 +394,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
         </DialogTitle>
         <DialogDescription>
           {n === 1
-            ? 'В ней нет ни одной реплики. Она 7 дней полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить»: запись будет в фильтре «Не распознано».'
-            : 'В них нет ни одной реплики. Они 7 дней полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в фильтре «Не распознано».'}
+            ? 'В ней нет ни одной реплики. Она 7 дней полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить».'
+            : 'В них нет ни одной реплики. Они 7 дней полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить».'}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" size="main" onClick={keep} disabled={busy}>
@@ -585,24 +474,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   const [filter, setFilter] = useState<Filter>('all');
   const trashed = useTrashed();
 
-  // Записи без единой реплики в общий список не попадают: либо раздел «Не распознано»
-  // внизу, либо (оставленные пользователем через «Вернуть») обычная строка
+  // Раздела «Не распознано» нет: встреча без текста не создаётся (recording-outcome.tsx),
+  // все встречи в одном списке. Старые записи без единой реплики тоже в списке; про них
+  // один раз спрашиваем «Удалить пустые записи?» (в корзину)
   const groups = useMemo(() => {
-    if (state.kind !== 'ready') return { main: [], unrecognized: [], legacyEmpty: [] };
-    // «Не распознано» — только встречи без распознанного текста: решают слова (меньше
-    // MIN_MEANINGFUL_WORDS после чистки галлюцинаций), а не пометка. Пометка после стопа
-    // (markUnrecognized) работает, лишь пока слова строки не подсчитаны; старая логика ставила
-    // её и записям с парой фраз, такие возвращаются в общий список, пометка снимается.
-    // Возвращённые через «Вернуть» остаются в общем списке
-    const counted = (m: MeetingListItem) => m.details !== null && m.details.status !== 'unknown';
-    const aside = (m: MeetingListItem) =>
-      !isKept(m) && (m.transcriptCount === 0 || (counted(m) ? m.details!.words < MIN_MEANINGFUL_WORDS : isUnrecognized(m)));
-    const unrecognized = state.meetings.filter(aside);
-    return {
-      main: state.meetings.filter((m) => !aside(m)),
-      unrecognized,
-      legacyEmpty: unrecognized.filter((m) => !isUnrecognized(m) && m.transcriptCount === 0),
-    };
+    if (state.kind !== 'ready') return { main: [], legacyEmpty: [] };
+    return { main: state.meetings, legacyEmpty: state.meetings.filter((m) => !isKept(m) && m.transcriptCount === 0) };
   }, [state]);
 
   // Поиск: по названию в базе, по тому, что видно в списке, и по тексту реплик.
@@ -641,7 +518,6 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       ? {
           all: groups.main.length,
           summary: groups.main.filter((m) => m.details?.status === 'summary').length,
-          unrecognized: groups.unrecognized.length,
           trash: trashed.length,
         }
       : {};
@@ -758,9 +634,6 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           {/* Список в той же плитке под шапкой: строки встреч без вложенных карточек.
               @container: от 1100 px ширины списка строки в две колонки */}
           <section aria-label={t('meetingsList')} className="@container">
-          {filter === 'unrecognized' && state.kind === 'ready' && (
-            <UnrecognizedList meetings={groups.unrecognized} legacy={groups.legacyEmpty.length > 0} onDelete={setToDelete} onOpenFolder={openFolder} />
-          )}
           {filter === 'trash' && <TrashPanel items={trashed} onRestored={() => void reload()} />}
           {listFilter && (<>
           {state.kind === 'loading' && (

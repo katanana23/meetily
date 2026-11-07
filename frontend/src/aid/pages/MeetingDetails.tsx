@@ -37,7 +37,7 @@ import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
-import { readStoredOutcome, takeStayPath } from '@/aid/lib/recording-outcome';
+import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
   summaryForPage,
@@ -476,13 +476,6 @@ function MeetingDetailsContent() {
   // в базе они остаются (speech.ts, isShownText)
   const visible = useMemo(() => m.segments.filter((x) => isShownText(x.text)), [m.segments]);
 
-  // Запись тихо сохранена в «Не распознано»: оригинальный хук всё равно открыл её
-  // страницу. Возвращаем пользователя туда, где он был (recording-outcome.tsx)
-  const [stayPath] = useState(() => (params.get('source') === 'recording' && typeof window !== 'undefined' ? takeStayPath() : null));
-  useEffect(() => {
-    if (stayPath) router.replace(stayPath, { scroll: false });
-  }, [stayPath, router]);
-
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
   // ?summarize=1: «Сделать итоги» на экране обработки — запускаем один раз, когда
@@ -496,9 +489,9 @@ function MeetingDetailsContent() {
     if (m.summary.kind === 'empty' && countWords(m.segments.map((x) => x.text).join(' ')) >= MIN_SUMMARY_WORDS) void m.generateSummary();
   }, [summarize, segmentsReady, m]);
   useEffect(() => {
-    if (stayPath || !meetingId) return;
+    if (!meetingId) return;
     if (params.get('source') || (summarize && asked.current)) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
-  }, [meetingId, params, router, stayPath, summarize, segmentsReady]);
+  }, [meetingId, params, router, summarize, segmentsReady]);
 
   useEffect(() => {
     if (shownTitle) document.title = `${shownTitle} · ${t('appName')}`;
@@ -507,8 +500,6 @@ function MeetingDetailsContent() {
     };
   }, [shownTitle]);
 
-  // Уходим обратно, страницу встречи не показываем даже на мгновение
-  if (stayPath) return null;
   if (m.meeting.kind === 'loading') return <LoadingState />;
 
   if (m.meeting.kind === 'not-found') {

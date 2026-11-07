@@ -120,17 +120,17 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     live: 'none', startOffsetSec: 15,
   },
   'silence-hallucination': {
-    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: детектор сработал, текста нет, «Не распознано»',
+    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: детектор сработал, текста нет: «Речь не распознана», встреча не создаётся',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'hallucination', startOffsetSec: 180,
   },
   'noise-30s': {
-    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды срабатывает, модель выдаёт мусор: «Не распознано»',
+    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды срабатывает, модель выдаёт мусор: «Речь не распознана», встреча не создаётся',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'noise', startOffsetSec: 25,
   },
   'recognition-failed': {
-    id: 'recognition-failed', label: 'recognition-failed', description: 'Речь была, распознана одна фраза из двух слов и сбой распознавания: «Не распознано»',
+    id: 'recognition-failed', label: 'recognition-failed', description: 'Речь была, распознана одна фраза из двух слов и сбой распознавания: «Речь не распознана», встреча не создаётся',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'script', startOffsetSec: 20, script: ['Так, начинаем.'], scriptSeconds: 4, warnAfterScript: true,
   },
@@ -170,7 +170,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     live: 'script', startOffsetSec: 8, scriptSeconds: 3, script: ['Пять, пять, пять.', 'Да. Да. Да.'],
   },
   'heard-no-text': {
-    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет: «Речь не распознана», запись в «Не распознано»',
+    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет: «Речь не распознана», встреча не создаётся',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'vad-only', startOffsetSec: 30,
   },

@@ -316,11 +316,8 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  // Тихое сохранение в «Не распознано»: ни «Сохраняем», ни «Сохранено», сразу список.
-  // Речи нет (discarding): экран обработки гаснет сразу, на его месте список и карточка
-  const phase: FinishPhase | null = outcome.quiet && (status === RecordingStatus.SAVING || status === RecordingStatus.COMPLETED)
-    ? null
-    : outcome.finishing === 'discarding'
+  // Текста нет (discarding): экран обработки гаснет сразу, на его месте список и карточка
+  const phase: FinishPhase | null = outcome.finishing === 'discarding'
     ? null
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS
       ? 'transcribing'

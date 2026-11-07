@@ -22,7 +22,7 @@ import { subscribe } from './tauri-events';
 import { isHallucination, judgeRecording, measureSpeech, MIN_MEANINGFUL_WORDS, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
-import { markDiscarded, markUnrecognized, purgeDiscarded } from './recording-marks';
+import { markDiscarded, purgeDiscarded } from './recording-marks';
 import { purgeExpiredTrash } from './meeting-trash';
 import { t } from '@/aid/strings';
 
@@ -36,27 +36,6 @@ export const NOTICE_MS = 8_000;
 export const NOTICE_MAX_MS = 30_000;
 /** «Запись отменена: она была пустой» тихая: уходит сама через 3 с, наведение её не держит. */
 export const CANCELLED_NOTICE_MS = 3_000;
-/**
- * Ключ sessionStorage: запись сохранена в «Не распознано», открывать её не нужно.
- * Оригинальный useRecordingStop через 2 с после сохранения сам переходит на страницу
- * встречи (?source=recording); страница встречи Aid по этой пометке сразу
- * возвращает туда, где был пользователь, а не показывает «Речь не распознана».
- */
-export const STAY_KEY = 'aid.stayAfterSave';
-
-/** Пометка «не открывать встречу» свежая (поставлена в последние 15 с): куда вернуться или null. */
-export function takeStayPath(): string | null {
-  try {
-    const raw = sessionStorage.getItem(STAY_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(STAY_KEY);
-    const value = JSON.parse(raw) as { at: number; path: string };
-    return Date.now() - value.at < 15_000 ? value.path || '/' : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Детектор слышал речь, а слов пока меньше порога: ждём, пока ядро допишет последние
  * фразы (очередь распознавания пуста), не дольше этого, и только потом решаем.
@@ -92,8 +71,8 @@ type StopHandler = (save: boolean) => Promise<void>;
 /** Запись не сохранена: короткая карточка у кнопки записи вместо тоста, с крестиком. */
 export interface DiscardNotice {
   /**
-   * cancelled: короткая пустая запись, тихо отменена; no-speech: длиннее, речи не слышно,
-   * встреча не создана; unrecognized: речь слышали, текста нет, сохранена в «Не распознано».
+   * Встреча не создана, почему: cancelled — короткая пустая запись, тихо отменена;
+   * no-speech — длиннее, речи не слышно; unrecognized — речь слышали, текста нет.
    */
   verdict: 'cancelled' | 'no-speech' | 'unrecognized';
   /** Причина задержать карточку: 'hover', 'focus', 'dialog'. */
@@ -115,8 +94,6 @@ interface Ctx {
    */
   abandon: (handleRecordingStop: StopHandler) => Promise<void>;
   notice: DiscardNotice | null;
-  /** Запись тихо сохраняется в «Не распознано»: экран «Сохранено» не показывается. */
-  quiet: boolean;
 }
 
 const EMPTY: LiveSpeech = { tracking: false, vadSegments: 0, textSegments: 0, lastSpeechAt: null, recognitionFailed: false, speechTimes: [] };
@@ -171,7 +148,6 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const seconds = useRef(0);
   const busy = useRef(false);
   const [notice, setNotice] = useState<DiscardNotice | null>(null);
-  const [quiet, setQuiet] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Время показа карточки: остаток, момент запуска (null на паузе) и жёсткий срок. */
   const countdown = useRef<{ remaining: number; startedAt: number | null; hardStop: number } | null>(null);
@@ -309,9 +285,10 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         const folder = sessionStorage.getItem('last_recording_folder_path');
         const name = sessionStorage.getItem('last_recording_meeting_name');
 
-        // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем
-        if (verdict !== 'speech' && verdict !== 'unrecognized' && !liveRef.current.tracking) {
-          verdict = 'unrecognized';
+        // Начало записи не видели (окно перезагрузили посреди записи): не выбрасываем,
+        // сохраняем как есть обычной встречей
+        if (verdict !== 'speech' && !liveRef.current.tracking) {
+          verdict = 'speech';
           reason = 'начало записи не отслежено, сохраняем как есть';
         }
 
@@ -335,41 +312,25 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
           /* страница встречи покажет общую причину */
         }
 
-        if (verdict === 'unrecognized') {
-          // «Не распознано»: встреча сохраняется, но в общий список не попадает
-          // (раздел внизу). Промежуточных экранов нет: ни «Сохранено», ни страницы
-          // встречи с «Речь не распознана»; пользователь остаётся, где был, и видит
-          // короткую карточку с крестиком
-          markUnrecognized(folder);
-          setQuiet(true);
-          try {
-            sessionStorage.setItem(STAY_KEY, JSON.stringify({ at: Date.now(), path: window.location.pathname + window.location.search }));
-          } catch {
-            /* без пометки откроется страница встречи, как раньше */
-          }
-          setFinishing(null);
-          await handle(true);
-          showNotice('unrecognized');
-          setTimeout(() => setQuiet(false), 4000);
-          return verdict;
-        }
         if (verdict === 'speech') {
           setFinishing(null);
           await handle(true);
           return verdict;
         }
 
-        // Речи нет: встреча не создаётся. Экран обработки гаснет сразу (finishing
-        // 'discarding' → фаза null), на его месте список и одна карточка: короткая пустая
-        // запись — тихая «Запись отменена: она была пустой» (3 с, без «Проверить звук»),
-        // длиннее — «Ничего не записалось» с «Проверить звук». Пометка «не сохранять» ставится до любой записи в базу, поэтому
+        // Текста нет: встреча не создаётся (раздела «Не распознано» нет). Экран обработки
+        // гаснет сразу (finishing 'discarding' → фаза null), на его месте список и одна
+        // карточка по контексту: короткая пустая запись — тихая «Запись отменена: она была
+        // пустой» (3 с); длиннее, детектор молчал — «Ничего не записалось» с «Проверить звук»;
+        // детектор слышал речь — «Речь не распознана», нейтральная. Файл звука остаётся в
+        // папке записей, как у оригинала при «не сохранять». Пометка «не сохранять» ставится до любой записи в базу, поэтому
         // такая встреча не появится в списке и не откроется по адресу. В базу не пишем
         // (оригинальный путь handleRecordingStop(false)); то, что успело попасть в базу
         // с этой папкой, удаляется. В корзину ничего не уходит: корзина только для
         // удалённого человеком; файл звука остаётся в папке записей, как у оригинала.
         markDiscarded(folder, name, 0);
         setFinishing('discarding');
-        showNotice(verdict === 'cancelled' ? 'cancelled' : 'no-speech');
+        showNotice(verdict);
         await handle(false);
         void purgeDiscarded();
         // Окно за другим приложением: системное уведомление, иначе карточку никто не увидит.
@@ -416,7 +377,6 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       subscribe('recording-started', () => {
         // Новая запись: карточка о прошлой закрывается
         closeNotice();
-        setQuiet(false);
         segs.current = [];
         vadDurations.current = [];
         queueTotal.current = null;
@@ -467,8 +427,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   }, [update, closeNotice]);
 
   const value = useMemo(
-    () => ({ live, finishing, finish, abandon, notice, quiet }),
-    [live, finishing, finish, abandon, notice, quiet],
+    () => ({ live, finishing, finish, abandon, notice }),
+    [live, finishing, finish, abandon, notice],
   );
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;
 }

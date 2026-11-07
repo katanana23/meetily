@@ -5,7 +5,6 @@
 // transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
 // переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения
 // вместе со строкой базы (meeting-trash.ts, purgeExpiredTrash).
-// Открыть корзину можно в настройках.
 //
 // Доступ к папке записей даёт право fs:scope в tauri.conf.json (отдельный коммит
 // по разрешению Айдына): папка записей по умолчанию ($VIDEO на macOS, $AUDIO на
@@ -147,16 +146,4 @@ export async function listTrash(root?: string | null): Promise<TrashEntry[] | nu
 /** Стереть папку из корзины насовсем. */
 export async function removeTrashFolder(dir: string): Promise<void> {
   await remove(dir, { recursive: true });
-}
-
-/** Открыть корзину в Finder (Проводнике). Папка создаётся, если её ещё нет. */
-export async function openTrash(root: string): Promise<void> {
-  const trash = trashPath(root);
-  try {
-    if (!(await exists(trash))) await mkdir(trash, { recursive: true });
-  } catch {
-    /* откроем как есть; если папки нет, система скажет */
-  }
-  // Команда ядра открывает адрес системной командой open (xdg-open, start): папку тоже
-  await invoke('open_external_url', { url: trash });
 }

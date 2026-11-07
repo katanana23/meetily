@@ -80,8 +80,8 @@ type DemoState = 'loop' | 'granted' | 'still';
  */
 function DemoPrompt({ state }: { state: DemoState }) {
   return (
-    <div aria-hidden data-state={state} className="aid-ob-prompt relative flex h-[176px] items-center justify-center overflow-hidden rounded-nested bg-muted p-5">
-      <div className="aid-ob-prompt-card -mt-1 w-[288px] rounded-[16px] bg-card p-4 shadow-sm">
+    <div aria-hidden data-state={state} className="aid-ob-prompt relative flex aspect-[8/3] items-center justify-center overflow-hidden rounded-nested bg-muted p-5">
+      <div className="aid-ob-prompt-card -mt-1 w-[300px] max-w-full rounded-[16px] bg-card p-4 shadow-sm">
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
           <img src={LOGO_SRC} width={32} height={32} alt="" className="size-8 shrink-0" />
@@ -139,7 +139,7 @@ function AccessCard({
   const needsSettings = state === 'denied' || state === 'unverified' || state === 'slow';
 
   return (
-    <div className="flex min-h-[80px] items-center gap-3 rounded-nested bg-muted py-4 pl-4 pr-3">
+    <div className="flex min-h-[72px] items-center gap-3 rounded-nested bg-muted py-3 pl-4 pr-3">
       <Icon className="size-6 shrink-0 text-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-semibold leading-6">{TITLE[kind]}</p>

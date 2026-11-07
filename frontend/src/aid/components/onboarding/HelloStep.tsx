@@ -71,12 +71,12 @@ function useDemoSeconds() {
   return sec;
 }
 
-/** Обложка с показом. Отступ внутри как у плитки (20 px), группа по оптическому центру. */
+/** Обложка с показом: высота пропорциональна ширине (8:3, как у обложки доступа), отступ как у плитки (20 px), группа по оптическому центру. */
 function DemoRecording() {
   const sec = useDemoSeconds();
   return (
-    <div aria-hidden className="flex h-[256px] items-center justify-center rounded-nested bg-muted p-5">
-      <div className="-mt-2 flex w-[72%] flex-col items-center gap-4">
+    <div aria-hidden className="flex aspect-[8/3] items-center justify-center rounded-nested bg-muted p-5">
+      <div className="-mt-1.5 flex w-[72%] flex-col items-center gap-3">
         {/* Реплики, затем на их месте итоги */}
         <div className="relative h-[96px] w-full">
           <div className="flex flex-col gap-2">
@@ -86,25 +86,25 @@ function DemoRecording() {
               </p>
             ))}
           </div>
-          <div className="aid-ob-demo-sum aid-role aid-role-indigo absolute inset-0 flex flex-col justify-center rounded-[12px] px-4">
+          <div className="aid-ob-demo-sum aid-role aid-role-indigo-soft absolute inset-0 flex flex-col justify-center rounded-[12px] px-4 py-2">
             <p className="flex items-center gap-2 text-[15px] font-bold leading-6">
               <Sparkle className="size-5" />
               {t('obDemoSummary')}
             </p>
-            <p className="mt-1 text-balance text-[13px] leading-5">{t('obDemoSummaryText')}</p>
+            <p className="mt-1 text-balance text-[15px] font-medium leading-6">{t('obDemoSummaryText')}</p>
           </div>
         </div>
         {/* Кнопка «Записать» и капсула на одном месте */}
-        <div className="relative flex h-14 w-full items-center justify-center">
-          <div className="aid-ob-demo-cap flex h-14 items-center gap-3 rounded-full bg-card pl-4 pr-2.5 shadow-sm">
+        <div className="relative flex h-12 w-full items-center justify-center">
+          <div className="aid-ob-demo-cap flex h-12 items-center gap-3 rounded-full bg-card pl-4 pr-2 shadow-sm">
             <span className="size-2.5 rounded-full bg-record" />
             <span className="w-12 text-[17px] font-bold tabular-nums">00:0{sec}</span>
             <SpeechBars count={6} className="h-5 text-foreground/45" />
-            <span className="ml-1 flex size-9 items-center justify-center rounded-full bg-record text-white">
+            <span className="ml-1 flex size-8 items-center justify-center rounded-full bg-record text-white">
               <Stop className="size-4" />
             </span>
           </div>
-          <span className="aid-ob-demo-rec absolute flex size-14 items-center justify-center rounded-full bg-primary text-on-role">
+          <span className="aid-ob-demo-rec absolute flex size-12 items-center justify-center rounded-full bg-primary text-on-role">
             <Microphone className="size-6" />
           </span>
         </div>

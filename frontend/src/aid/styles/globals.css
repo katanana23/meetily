@@ -590,6 +590,14 @@ html body[data-scroll-locked] {
   background: hsl(var(--indigo));
 }
 
+/* Мягкий тон Indigo для плотного текста (абзацы, списки, подписи от 13 до 16 px): насыщенный
+   Indigo с тёмным текстом даёт APCA Lc около 57, а тексту такого размера нужно не меньше 75.
+   60 % роли с белым даёт Lc около 75, оттенок роли читается. Насыщенный Indigo остаётся
+   для знаков и крупного полужирного текста. */
+.aid-role-indigo-soft {
+  background: color-mix(in srgb, hsl(var(--indigo)) 60%, #fff);
+}
+
 .aid-role-giants {
   background: hsl(var(--giants));
 }

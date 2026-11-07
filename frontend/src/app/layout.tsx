@@ -45,6 +45,7 @@ import { installTauriEventGuard } from '@/aid/lib/tauri-events'
 import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
 import { installNavDebug } from '@/aid/lib/nav-debug'
 import { showWindow, windowBootScript, windowShowScript } from '@/aid/lib/window-boot'
+import { applySystemLanguageDefault } from '@/aid/lib/system-language'
 
 // Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
@@ -66,6 +67,9 @@ if (isAidUI) {
   // ВРЕМЕННО: журнал кликов по списку встреч для проверки на Mac (nav-debug.ts)
   if (typeof window !== 'undefined') installNavDebug()
   void syncWindowTheme()
+  // Язык распознавания по умолчанию из системы, если человек его не выбирал.
+  // До монтирования ConfigProvider: он прочитает ключ и сам отправит язык в ядро
+  applySystemLanguageDefault()
 }
 
 // Aid: SF Pro (системный шрифт macOS) через стек -apple-system в .aid-font

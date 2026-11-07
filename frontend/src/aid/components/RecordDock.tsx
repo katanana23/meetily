@@ -196,12 +196,12 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
           </Button>
         )}
       </div>
-      {/* Крестик: вложенная плитка во всю высоту на 4 px от кромок, X bold 16 px (залитый нарисован квадратом, CLAUDE.md) */}
+      {/* Крестик: круглая кнопка 44 px по центру по высоте, X bold 16 px серым (залитый нарисован квадратом, CLAUDE.md) */}
       <button
         type="button"
         onClick={notice.dismiss}
         aria-label={t('close')}
-        className="flex w-11 shrink-0 items-center justify-center rounded-[20px] bg-foreground/[0.06] text-foreground transition-colors hover:bg-foreground/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mr-1 flex size-11 shrink-0 items-center justify-center self-center rounded-full bg-foreground/[0.06] text-muted-foreground transition-colors hover:bg-foreground/[0.12] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X weight="bold" className="size-4" />
       </button>

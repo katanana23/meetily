@@ -175,7 +175,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
   'mic-denied': {
     id: 'mic-denied', label: 'mic-denied', description: 'Отказ в микрофоне, звук компьютера есть: карточка и «Записать только звук компьютера»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
-    micPermission: false, systemAudioPermission: true,
+    // микрофон в записи даёт нули: в режиме «только звук компьютера» «Не слышу микрофон» не показывается
+    micPermission: false, systemAudioPermission: true, micLive: 'silent',
   },
   'mic-missing': {
     id: 'mic-missing', label: 'mic-missing', description: 'Микрофона нет в списке устройств, звук компьютера есть',

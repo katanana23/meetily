@@ -26,8 +26,11 @@ interface Controls extends Recording {
   /** Что показывает главная во время записи. */
   view: 'recording' | 'list';
   setView: (view: 'recording' | 'list') => void;
-  /** Старт с любой страницы: главная показывает транскрипт или причину, почему запись не началась. */
-  startAnywhere: () => Promise<void>;
+  /**
+   * Старт с любой страницы: главная показывает транскрипт, а если запись не началась,
+   * у кнопки записи карточка с причиной. systemOnly: «Записать только звук компьютера».
+   */
+  startAnywhere: (options?: { systemOnly?: boolean }) => Promise<void>;
   toggle: () => void;
   hotkey: string;
   /** Где работает сочетание: «в окне ShadeNotes». */
@@ -57,11 +60,14 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
     wasRecording.current = rec.isRecording;
   }, [rec.isRecording]);
 
-  const startAnywhere = useCallback(async () => {
-    setView('recording');
-    if (pathname !== '/') router.push('/');
-    await rec.start();
-  }, [pathname, router, rec]);
+  const startAnywhere = useCallback(
+    async (options?: { systemOnly?: boolean }) => {
+      setView('recording');
+      if (pathname !== '/') router.push('/');
+      await rec.start(options);
+    },
+    [pathname, router, rec],
+  );
 
   const startedAt = useRef<number | null>(null);
   useEffect(() => {

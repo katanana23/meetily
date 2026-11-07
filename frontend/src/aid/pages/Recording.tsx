@@ -23,6 +23,7 @@ import { LivePulse } from '@/aid/components/LivePulse';
 import { FinishingScreen, type FinishStage } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
+import { isShownText } from '@/aid/lib/speech';
 import type { FinishPhase } from '@/aid/lib/recording';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
@@ -160,7 +161,8 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
   // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
   const lastDuration = useRef(0);
   if (duration > 0) lastDuration.current = duration;
-  const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment), [transcripts]);
+  // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
+  const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины

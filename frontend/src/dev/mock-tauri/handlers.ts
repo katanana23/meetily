@@ -270,9 +270,9 @@ export const handlers: Record<string, Handler> = {
   },
 
   // ---------- устройства и звук ----------
-  // без доступа к микрофону ядро не видит входных устройств
+  // микрофона нет: в списке ядра нет входных устройств
   get_audio_devices: (_a, be) =>
-    be.scenario.micPermission === false ? audioDevices.filter((d) => d.device_type !== 'Input') : audioDevices,
+    be.scenario.micDeviceMissing ? audioDevices.filter((d) => d.device_type !== 'Input') : audioDevices,
   // настоящего звука нет: уровни синтетические
   start_audio_level_monitoring: (a, be) => be.startAudioLevels(a?.deviceNames ?? []),
   stop_audio_level_monitoring: (_a, be) => be.stopAudioLevels(),
@@ -280,8 +280,15 @@ export const handlers: Record<string, Handler> = {
   get_audio_backend_info: ok(audioBackends),
   get_current_audio_backend: ok('screencapturekit'),
   set_audio_backend: NULL,
-  trigger_microphone_permission: (_a, be) => be.scenario.micPermission !== false,
-  trigger_system_audio_permission_command: (_a, be) => be.scenario.micPermission !== false,
+  // как ядро: нет микрофона → false; вопрос macOS → ответ через micPromptMs
+  trigger_microphone_permission: (_a, be) => {
+    const granted = be.scenario.micPermission !== false && !be.scenario.micDeviceMissing;
+    const wait = be.scenario.micPromptMs;
+    return wait ? new Promise((resolve) => setTimeout(() => resolve(granted), wait)) : granted;
+  },
+  trigger_system_audio_permission_command: (_a, be) => be.scenario.systemAudioPermission ?? be.scenario.micPermission !== false,
+  // Только заглушки: разрешение macOS, которое в окне Tauri видит getUserMedia (mic-access.ts)
+  aid_mock_mac_mic: (_a, be) => be.macMicAnswer(),
   open_system_settings: warnNative('Открытие системных настроек'),
 
   // ---------- настройки ----------

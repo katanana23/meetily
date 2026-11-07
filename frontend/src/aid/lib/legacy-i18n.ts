@@ -311,6 +311,7 @@ const PATTERNS: Array<[RegExp, (...m: string[]) => string]> = [
   [/^Failed to (?:download|delete) (.+)$/, (_, n) => `Не получилось: ${n}`],
   [/^Download failed: (.+)$/, (_, n) => `Не удалось скачать ${n}`],
   [/^Import complete! (\d+) segments created\.$/, (_, n) => `Готово, реплик: ${n}`],
+  [/^Microphone switched to (.+) for this meeting\.$/, (_, d) => `Микрофон сменился: теперь пишу с «${d}»`],
   [/^Microphone fallback failed for (.+?): (.+)$/, (_, d) => `Не удалось переключиться на «${d}»`],
   [/^Microphone '(.+)' could not be recovered.*$/, (_, d) => `Микрофон «${d}» отключился. Запись идёт без него. Остановите и начните заново.`],
   [/^(\d+) transcript segments saved\.$/, (_, n) => `Реплик: ${n}`],

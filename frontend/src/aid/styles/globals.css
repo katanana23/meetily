@@ -1027,44 +1027,140 @@ html body[data-scroll-locked] {
   pointer-events: none;
 }
 
-/* «Завершаем запись» (FinishingScreen): полосы звука затухающей волной, галочка
-   появляется с мягким увеличением. Только transform и opacity. */
-.aid-finish-bar {
-  transform: scaleY(calc(var(--bar, 1) * 0.6));
-  animation: aid-finish-bar 1.6s ease-in-out infinite;
+/* Экран обработки после «Остановить» (FinishingScreen). Сцены обложки по статусу записи.
+   Волна: полосы этой встречи сходят в ровную линию (1,4 с, ease-out, по очереди), потом
+   линия спокойно дышит. Реплики появляются по очереди (300 мс, сдвиг 150 мс), затем в них
+   по очереди проступает тон Indigo у сроков, дат и имён. Курсор мягко мигает, пока шаг идёт.
+   Свёрнутая карточка: факты проявляются. Только transform, opacity и filter; без движения
+   стоит итоговый кадр текущей сцены. */
+.aid-fin-bar {
+  transform-origin: center;
+  transform: scaleY(0.06);
+  animation: aid-fin-calm 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 14ms);
 }
 
-@keyframes aid-finish-bar {
-  0%,
-  100% {
-    transform: scaleY(calc(var(--bar, 1) * 0.25));
-    opacity: 0.45;
-  }
-  50% {
-    transform: scaleY(var(--bar, 1));
+@keyframes aid-fin-calm {
+  from {
+    transform: scaleY(var(--h, 1));
     opacity: 1;
   }
-}
-
-.aid-finish-pop {
-  animation: aid-finish-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes aid-finish-pop {
-  from {
-    transform: scale(0.6);
-    opacity: 0;
+  85% {
+    opacity: 1;
   }
   to {
-    transform: scale(1);
+    transform: scaleY(0.06);
+    opacity: 0;
+  }
+}
+
+/* Полосы гаснут, на их месте сплошная линия; шаг затянулся: линия медленно дышит */
+.aid-fin-bar {
+  opacity: 0;
+}
+
+.aid-fin-flat {
+  animation:
+    aid-fin-flat 0.4s ease-out 1.2s both,
+    aid-fin-breathe 3.2s ease-in-out 2.2s infinite;
+}
+
+@keyframes aid-fin-flat {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-fin-breathe {
+  0%,
+  100% {
     opacity: 1;
   }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.aid-fin-line,
+.aid-fin-folded {
+  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Срок, дата или имя: тон Indigo (роль ИИ, намёк на будущие итоги) проступает под словом.
+   Прозрачный тон: в светлой теме светлая сирень под тёмным текстом, в тёмной тёмная под белым */
+.aid-fin-mark {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  color: inherit;
+}
+
+.aid-fin-mark::before {
+  content: '';
+  position: absolute;
+  inset: -1px -3px;
+  z-index: -1;
+  border-radius: 6px;
+  background: hsl(var(--indigo) / 0.34);
+  animation: aid-fin-mark 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes aid-fin-mark {
+  from {
+    opacity: 0;
+    transform: scaleX(0.6);
+  }
+}
+
+.aid-fin-caret {
+  animation: aid-fin-caret 1.2s ease-in-out infinite;
+}
+
+@keyframes aid-fin-caret {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* Сохраняю: карточка чуть сворачивается; сохранено: на месте */
+.aid-fin-card {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aid-fin-card[data-scene='saving'] {
+  transform: scale(0.97);
+}
+
+/* Переход в страницу встречи: карточка обложки перетекает в шапку (lib/in-place-router.tsx) */
+:root[data-morph] .aid-fin-card,
+:root[data-morph] main .aid-sticky-head {
+  view-transition-name: aid-meeting;
+}
+
+::view-transition-group(aid-meeting) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aid-finish-bar,
-  .aid-finish-pop {
+  .aid-fin-bar,
+  .aid-fin-flat,
+  .aid-fin-line,
+  .aid-fin-folded,
+  .aid-fin-mark::before,
+  .aid-fin-caret {
     animation: none;
+  }
+
+  .aid-fin-card {
+    transition: none;
   }
 }
 
@@ -1638,55 +1734,6 @@ html body[data-scroll-locked] {
 
   .aid-ob-bar,
   .aid-ob-dot {
-    transition: none;
-  }
-}
-
-/* ВРЕМЕННО: эскизы экрана обработки (FinishingSketches.tsx). Удаляются после выбора. */
-.aid-fs-line {
-  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.aid-fs-line-1 {
-  animation-delay: 0.15s;
-}
-.aid-fs-line-2 {
-  animation-delay: 0.3s;
-}
-.aid-fs-caret {
-  animation: aid-fs-caret 1s steps(1) infinite;
-}
-@keyframes aid-fs-caret {
-  50% {
-    opacity: 0;
-  }
-}
-.aid-fs-card {
-  transition:
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.4s;
-}
-.aid-fs-gather {
-  animation: aid-fs-gather 2.4s ease-in-out infinite;
-}
-@keyframes aid-fs-gather {
-  0%,
-  100% {
-    transform: none;
-  }
-  50% {
-    transform: scale(0.98);
-  }
-}
-.aid-fs-done {
-  transform: scale(1.02);
-}
-@media (prefers-reduced-motion: reduce) {
-  .aid-fs-line,
-  .aid-fs-caret,
-  .aid-fs-gather {
-    animation: none;
-  }
-  .aid-fs-card {
     transition: none;
   }
 }

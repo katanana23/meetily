@@ -3,15 +3,21 @@
 // общим, и одна зависшая проверка выключала обе кнопки.
 //
 // Ограничение ядра: команды «спросить доступ» отвечают, удалось ли открыть поток звука,
-// а не что решил человек. Отдельной команды «узнать состояние доступа без запроса» нет.
-// После возврата из Системных настроек ответ часто не меняется, пока приложение не
-// перезапустят (так macOS применяет разрешение микрофона), поэтому неизменившийся ответ
-// показываем нейтрально: «Проверим при первой записи», а не «Доступ есть».
+// а не что решил человек: при отказе macOS поток открывается и пишет нули. Отдельной
+// команды «узнать состояние доступа без запроса» нет.
+//
+// Микрофон на macOS уточняем через окно приложения (macMicrophonePermission в
+// mic-access.ts: getUserMedia в WebView упирается в настоящее разрешение macOS). Его
+// ответ «есть» или «нет» главнее ответа команды: при отказе плитка честно говорит
+// «Доступ закрыт» и даёт «Открыть настройки». Если окно проверить не может, остаётся
+// прежнее правило: после возврата из Системных настроек неизменившийся ответ
+// показываем нейтрально, «Проверим при первой записи».
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { SlowError, obLog, openPrivacySettings, requestAccess, type AccessKind, type AccessState } from '@/aid/lib/onboarding';
+import { macMicrophonePermission } from '@/aid/lib/mic-access';
 
 /** Доступ можно считать решённым: есть, не проверить сейчас (проверим при записи) или macOS не ответила. */
 export const accessSettled = (s: AccessState) => s === 'granted' || s === 'unverified' || s === 'slow';
@@ -40,25 +46,42 @@ export function useAccessChecks() {
     [setPermissionStatus],
   );
 
+  /**
+   * Ответ команды ядра → состояние плитки. Для микрофона сначала спрашиваем окно
+   * приложения: его «есть» или «нет» и есть ответ macOS.
+   */
+  const settle = useCallback(
+    async (kind: AccessKind, granted: boolean, recheck: boolean) => {
+      if (kind === 'microphone') {
+        const mac = await macMicrophonePermission().catch(() => 'unknown' as const);
+        if (mac !== 'unknown') {
+          obLog(`микрофон: команда ядра ${granted}, разрешение macOS ${mac}`);
+          apply(kind, mac);
+          return;
+        }
+      }
+      // Перепроверка после настроек: изменился ответ на «да» — доступ есть;
+      // не изменился — не утверждаем ни того, ни другого
+      if (recheck) apply(kind, granted ? 'granted' : 'unverified');
+      else apply(kind, granted ? 'granted' : 'denied');
+    },
+    [apply],
+  );
+
   const ask = useCallback(
     (kind: AccessKind, recheck: boolean) => {
       setState((prev) => ({ ...prev, [kind]: 'pending' }));
       requestAccess(kind, (granted) => {
         // Поздний ответ после «macOS не ответила»: применить, если человек ещё здесь
-        apply(kind, granted ? 'granted' : recheck ? 'unverified' : 'denied');
+        void settle(kind, granted, recheck);
       })
-        .then((granted) => {
-          // Перепроверка после настроек: изменился ответ на «да» — доступ есть;
-          // не изменился — не утверждаем ни того, ни другого
-          if (recheck) apply(kind, granted ? 'granted' : 'unverified');
-          else apply(kind, granted ? 'granted' : 'denied');
-        })
+        .then((granted) => settle(kind, granted, recheck))
         .catch((error) => {
           if (error instanceof SlowError) apply(kind, 'slow');
-          else apply(kind, recheck ? 'unverified' : 'denied');
+          else void settle(kind, false, recheck);
         });
     },
-    [apply],
+    [apply, settle],
   );
 
   const openSettings = useCallback((kind: AccessKind) => {

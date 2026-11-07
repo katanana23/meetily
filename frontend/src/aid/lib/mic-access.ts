@@ -95,6 +95,18 @@ async function probeWebView(): Promise<MicAccess> {
   }
 }
 
+/**
+ * Разрешение macOS на микрофон через WebView: 'granted', 'denied' или 'unknown'
+ * (не macOS в окне Tauri, WebView проверить не может, микрофона нет). Онбординг
+ * (useAccessChecks) уточняет этим ответ команды trigger_microphone_permission.
+ */
+export async function macMicrophonePermission(): Promise<'granted' | 'denied' | 'unknown'> {
+  if (!isMacTauri()) return 'unknown';
+  const answer = await probeWebView();
+  log(`разрешение macOS через WebView: ${answer}`);
+  return answer === 'granted' || answer === 'denied' ? answer : 'unknown';
+}
+
 /** Проверка перед стартом записи. Может показать вопрос macOS о микрофоне. */
 export async function checkMicrophone(): Promise<MicCheck> {
   const trail: string[] = [];

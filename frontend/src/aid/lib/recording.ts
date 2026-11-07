@@ -14,7 +14,7 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { appDataDir } from '@tauri-apps/api/path';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
@@ -95,6 +95,10 @@ export function useAidRecording() {
   const [blocker, setBlocker] = useState<StartBlocker | null>(null);
   const [micMode, setMicMode] = useState<MicMode>('mic');
   const recording = useRecordingState();
+  // Запись кончилась: следующая (в том числе из трея) снова с микрофоном
+  useEffect(() => {
+    if (!recording.isRecording) setMicMode('mic');
+  }, [recording.isRecording]);
   const { setIsMeetingActive } = useSidebar();
   const { checkPermissions } = usePermissionCheck();
   const outcome = useRecordingOutcome();

@@ -28,7 +28,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/too
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
 import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { isMicBlocker } from '@/aid/lib/recording';
-import { useMicWatch } from '@/aid/lib/mic-watch';
 import { MicAccessCard, MicHint, micHintKind, type MicHintKind } from '@/aid/components/MicNotices';
 import { useRecordingOutcome, type DiscardNotice, type LiveSpeech } from '@/aid/lib/recording-outcome';
 import { formatTimer } from '@/aid/lib/format';
@@ -199,6 +198,26 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
 /** Кнопка записи в покое: круг 88 px, сплошной Mikado, от него расходятся две волны. */
 function RecordButton() {
   const c = useRecordingControls();
+  // Известно, что доступа к микрофону нет: кнопка «нужен доступ» (не лаймовая,
+  // перечёркнутый микрофон, без волн), клик открывает карточку про микрофон
+  if (c.micNeedsAccess && !c.isStarting) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={c.openMicCard}
+            aria-label={t('micNeedsAccess')}
+            data-aid-record="needs-access"
+            className="flex size-[88px] shrink-0 items-center justify-center rounded-full bg-muted text-foreground shadow-lg transition-colors hover:bg-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-95"
+          >
+            <MicrophoneSlash className="size-8" aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{t('micNeedsAccess')}</TooltipContent>
+      </Tooltip>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -236,11 +255,9 @@ export function RecordDock() {
 
   const state = c.isRecording ? 'recording' : c.phase ? 'finishing' : notice ? 'notice' : 'idle';
   // Микрофон: карточка, если запись не началась из-за него, и подсказки во время записи (MicNotices)
-  const { selectedDevices } = useConfig();
-  const micWatch = useMicWatch({ active: c.isRecording && c.micMode === 'mic', paused: c.isPaused, deviceName: selectedDevices?.micDevice });
   const [micHintClosed, setMicHintClosed] = useState<MicHintKind | null>(null);
   useEffect(() => setMicHintClosed(null), [c.isRecording]);
-  const micHint = state === 'recording' ? micHintKind(micWatch, c.micMode === 'system-only', c.duration) : null;
+  const micHint = state === 'recording' ? micHintKind(c.micState, c.micMode === 'system-only', c.micBlind, c.duration) : null;
   const showMicHint = micHint !== null && micHint !== micHintClosed;
   const micBlocker = state === 'idle' && isMicBlocker(c.blocker) ? c.blocker : null;
   const openRecording = () => {

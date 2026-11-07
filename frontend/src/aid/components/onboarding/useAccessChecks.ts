@@ -6,18 +6,18 @@
 // а не что решил человек: при отказе macOS поток открывается и пишет нули. Отдельной
 // команды «узнать состояние доступа без запроса» нет.
 //
-// Микрофон на macOS уточняем через окно приложения (macMicrophonePermission в
+// Микрофон на macOS уточняем через окно приложения (macMicrophoneAnswer в
 // mic-access.ts: getUserMedia в WebView упирается в настоящее разрешение macOS). Его
 // ответ «есть» или «нет» главнее ответа команды: при отказе плитка честно говорит
-// «Доступ закрыт» и даёт «Открыть настройки». Если окно проверить не может, остаётся
-// прежнее правило: после возврата из Системных настроек неизменившийся ответ
-// показываем нейтрально, «Проверим при первой записи».
+// «Доступ закрыт» и даёт «Открыть настройки». Если окно не ответило, «Доступ есть»
+// не показываем никогда: плитка нейтральная, «Проверим при первой записи», а запись
+// пойдёт под страховкой (recording.ts).
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { SlowError, obLog, openPrivacySettings, requestAccess, type AccessKind, type AccessState } from '@/aid/lib/onboarding';
-import { macMicrophonePermission } from '@/aid/lib/mic-access';
+import { macMicrophoneAnswer, rememberMicAccess } from '@/aid/lib/mic-access';
 
 /** Доступ можно считать решённым: есть, не проверить сейчас (проверим при записи) или macOS не ответила. */
 export const accessSettled = (s: AccessState) => s === 'granted' || s === 'unverified' || s === 'slow';
@@ -47,16 +47,27 @@ export function useAccessChecks() {
   );
 
   /**
-   * Ответ команды ядра → состояние плитки. Для микрофона сначала спрашиваем окно
-   * приложения: его «есть» или «нет» и есть ответ macOS.
+   * Ответ команды ядра → состояние плитки. Неуверенность никогда не «Доступ есть».
+   * Микрофон на macOS: ответ окна приложения «есть» или «нет» главнее команды; окно
+   * не ответило — команда может сказать только «нет», её «да» ничего не доказывает
+   * (при отказе поток тоже открывается), поэтому плитка нейтральная: «Проверим при
+   * первой записи». Не macOS: как раньше, по ответу команды.
    */
   const settle = useCallback(
     async (kind: AccessKind, granted: boolean, recheck: boolean) => {
       if (kind === 'microphone') {
-        const mac = await macMicrophonePermission().catch(() => 'unknown' as const);
-        if (mac !== 'unknown') {
-          obLog(`микрофон: команда ядра ${granted}, разрешение macOS ${mac}`);
-          apply(kind, mac);
+        const mac = await macMicrophoneAnswer().catch(() => ({ access: 'unknown' as const, detail: 'ошибка проверки' }));
+        if (mac.access !== null) {
+          obLog(`микрофон: команда ядра ${granted}, разрешение macOS ${mac.access} (${mac.detail})`);
+          if (mac.access === 'granted' || mac.access === 'denied') {
+            rememberMicAccess(mac.access);
+            apply(kind, mac.access);
+          } else if (!granted && !recheck) {
+            rememberMicAccess('denied');
+            apply(kind, 'denied');
+          } else {
+            apply(kind, 'unverified');
+          }
           return;
         }
       }

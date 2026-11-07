@@ -100,6 +100,11 @@ interface Ctx {
   /** Решение уже принято, запись не сохраняется: почему (для заголовка «Тишина» или «Пара фраз»). */
   discardVerdict: 'no-speech' | 'too-little' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
+  /**
+   * Запись остановлена страховкой микрофона (с микрофона только нули): не сохраняется
+   * и в корзину не идёт, без карточки итога (вместо неё карточка про микрофон).
+   */
+  abandon: (handleRecordingStop: StopHandler) => Promise<void>;
   notice: DiscardNotice | null;
   /** Запись тихо сохраняется в «Не распознано»: экран «Сохранено» не показывается. */
   quiet: boolean;
@@ -385,6 +390,27 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [transcriptsRef, handleRecordingStop, showNotice],
   );
 
+  const abandon = useCallback(async (handle: StopHandler) => {
+    if (busy.current) return;
+    busy.current = true;
+    setDiscardVerdict('no-speech');
+    setFinishing('discarding');
+    try {
+      // Папку записи ядро сообщает событием recording-stopped (useRecordingStop)
+      for (let i = 0; i < 30 && !sessionStorage.getItem('last_recording_folder_path'); i++) await sleep(100);
+      const folder = sessionStorage.getItem('last_recording_folder_path');
+      const name = sessionStorage.getItem('last_recording_meeting_name');
+      markDiscarded(folder, name, 0);
+      await handle(false);
+      void purgeDiscarded();
+      console.info(`[aid] Итог записи: с микрофона только нули, не сохраняем (без корзины), папка ${folder ?? 'неизвестна'}`);
+    } finally {
+      busy.current = false;
+      setFinishing(null);
+      setDiscardVerdict(null);
+    }
+  }, []);
+
   // Обработчики из ref: подписки живут всё время работы провайдера и не
   // переподписываются, когда меняются finish и handleRecordingStop.
   const stopRef = useRef({ finish, handleRecordingStop });
@@ -446,8 +472,8 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   }, [update, closeNotice]);
 
   const value = useMemo(
-    () => ({ live, finishing, discardVerdict, finish, notice, quiet }),
-    [live, finishing, discardVerdict, finish, notice, quiet],
+    () => ({ live, finishing, discardVerdict, finish, abandon, notice, quiet }),
+    [live, finishing, discardVerdict, finish, abandon, notice, quiet],
   );
   return <RecordingOutcomeContext.Provider value={value}>{children}</RecordingOutcomeContext.Provider>;
 }

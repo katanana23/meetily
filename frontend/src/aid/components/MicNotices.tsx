@@ -87,8 +87,8 @@ export function MicAccessCard({
   onClose,
 }: {
   blocker: MicBlocker;
-  /** Перепроверить доступ; true — доступ есть. */
-  onRecheck: () => Promise<boolean>;
+  /** Перепроверить доступ: есть, нет или проверить не удалось. */
+  onRecheck: () => Promise<'granted' | 'denied' | 'unknown'>;
   onSystemOnly: () => void;
   onClose: () => void;
 }) {
@@ -99,9 +99,11 @@ export function MicAccessCard({
 
   const recheck = useCallback(async () => {
     setChecking(true);
-    const ok = await onRecheck().catch(() => false);
+    const answer = await onRecheck().catch(() => 'denied' as const);
     setChecking(false);
-    if (ok) aidToast.success(t('micAccessBack'));
+    if (answer === 'granted') aidToast.success(t('micAccessBack'));
+    // Проверить не удалось: карточка уходит, но «доступ есть» не утверждаем
+    else if (answer === 'unknown') aidToast.info(t('micAccessUnknownBack'));
   }, [onRecheck]);
 
   // Вернулись из Системных настроек: перепроверяем сами, без лишнего нажатия
@@ -123,11 +125,11 @@ export function MicAccessCard({
   const hint = denied
     ? blocker.stillDenied
       ? t('micStillDeniedHint')
-      : blocker.coreRefused
-        ? t('micDeniedCoreHint')
-        : systemAudio
-          ? t('micDeniedHint')
-          : t('micDeniedNoSystemHint')
+      : blocker.zeros
+        ? t('micZerosHint')
+        : blocker.unverified
+          ? t('micUnverifiedHint')
+          : t('micDeniedHint')
     : systemAudio
       ? t('micMissingHint')
       : t('micMissingNoSystemHint');
@@ -179,16 +181,18 @@ const HINT = {
   silent: { title: 'micSilentTitle', hint: 'micSilentHint' },
   lost: { title: 'micLostTitle', hint: 'micLostHint' },
   'system-only': { title: 'systemOnlyTitle', hint: 'systemOnlyHint' },
+  blind: { title: 'micBlindTitle', hint: 'micBlindHint' },
 } as const;
 
 export type MicHintKind = keyof typeof HINT;
 
 /** Какую подсказку о микрофоне показать во время записи, или null. */
-export function micHintKind(watch: MicWatchState, systemOnly: boolean, duration: number): MicHintKind | null {
+export function micHintKind(watch: MicWatchState, systemOnly: boolean, blind: boolean, duration: number): MicHintKind | null {
   // Выбор человека: напомнить в первые 8 секунд, дальше не мешать
   if (systemOnly) return duration < 8 ? 'system-only' : null;
   if (watch === 'lost') return 'lost';
   if (watch === 'silent') return 'silent';
+  if (blind) return 'blind';
   return null;
 }
 
@@ -201,11 +205,18 @@ export function MicHint({ kind, onClose }: { kind: MicHintKind; onClose: () => v
         <p className="truncate text-sm font-semibold">{t(HINT[kind].title)}</p>
         <p className="line-clamp-2 text-sm text-muted-foreground">{t(HINT[kind].hint)}</p>
       </div>
-      {kind !== 'system-only' && (
-        <Button size="sm" variant="secondary" className="shrink-0" onClick={() => setSoundCheck(true)}>
-          <SpeakerHigh />
-          {t('soundCheck')}
+      {kind === 'blind' ? (
+        <Button size="sm" variant="secondary" className="shrink-0" onClick={() => void openPrivacySettings('microphone')}>
+          <GearSix />
+          {t('micOpenSettings')}
         </Button>
+      ) : (
+        kind !== 'system-only' && (
+          <Button size="sm" variant="secondary" className="shrink-0" onClick={() => setSoundCheck(true)}>
+            <SpeakerHigh />
+            {t('soundCheck')}
+          </Button>
+        )
       )}
       <CloseButton onClick={onClose} />
       <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />

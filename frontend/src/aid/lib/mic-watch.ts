@@ -17,17 +17,29 @@
 // На паузе ничего не считаем. Где слушать нельзя (не macOS, нет getUserMedia,
 // звук в WebView не запустился), подсказок нет: лучше промолчать, чем соврать.
 //
+// Страховка первых секунд (probe), когда разрешение macOS проверить не удалось:
+// - heard: с микрофона пришёл хоть один ненулевой отсчёт, микрофон пишет;
+// - zeros: MIC_ZERO_GUARD_MS одни цифровые нули (так macOS пишет без доступа):
+//   запись надо остановить без сохранения и показать карточку (recording.ts);
+// - blind: слушать микрофон нельзя, проверить нечем.
+//
 // В браузере на заглушках вместо микрофона событие aid-mock-mic от mock-tauri.
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { isMacTauri } from './mic-access';
+import { isMacTauri, isMock } from './mic-access';
 import { subscribe } from './tauri-events';
 
 /** Ниже этого среднего уровня микрофон считается молчащим, dBFS. */
 export const MIC_SILENT_DBFS = -80;
 /** Сколько тишины с микрофона до подсказки «Не слышу микрофон». */
 export const MIC_SILENT_MS = 15_000;
+/** Сколько первых секунд записи смотреть на цифровые нули. */
+export const MIC_ZERO_GUARD_MS = 3_000;
+/** Пик ниже этого считается цифровым нулём (настоящий микрофон шумит сильнее на порядки). */
+const ZERO_PEAK = 1e-6;
+/** Если за столько не пришло ни одного отсчёта, слушать микрофон нечем. */
+const BLIND_AFTER_MS = 4_000;
 /** Сколько ждать переключения ядра на другой микрофон, прежде чем сказать «Микрофон отключился». */
 const SWITCH_GRACE_MS = 4_000;
 const TICK_MS = 500;
@@ -40,6 +52,14 @@ export type MicWatchState =
   /** Микрофон отключили, ядро на другой не переключилось. */
   | 'lost';
 
+/** Что показали первые секунды: pending, heard, zeros или blind (см. шапку файла). */
+export type MicProbe = 'pending' | 'heard' | 'zeros' | 'blind';
+
+export interface MicWatch {
+  state: MicWatchState;
+  probe: MicProbe;
+}
+
 interface Options {
   /** Идёт запись с микрофоном (не «только звук компьютера»). */
   active: boolean;
@@ -49,7 +69,7 @@ interface Options {
 }
 
 interface MockMicLevel {
-  /** Средний уровень 0…1. */
+  /** Средний уровень 0…1 (он же пик). */
   rms?: number;
   /** Микрофон отключили. */
   lost?: boolean;
@@ -60,7 +80,7 @@ const toDb = (x: number) => 20 * Math.log10(Math.max(x, 1e-9));
 type Source = { stop: () => void };
 
 /** Микрофон через WebView: отдаёт уровень раз в TICK_MS и сообщает, что дорожка закончилась. */
-async function openWebViewMic(deviceName: string | null | undefined, onLevel: (rms: number) => void, onLost: () => void): Promise<Source | null> {
+async function openWebViewMic(deviceName: string | null | undefined, onLevel: (rms: number, peak: number) => void, onLost: () => void): Promise<Source | null> {
   const md = navigator.mediaDevices;
   if (!md?.getUserMedia) return null;
   const constraints: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -90,8 +110,14 @@ async function openWebViewMic(deviceName: string | null | undefined, onLevel: (r
       if (ctx.state !== 'running') return;
       analyser.getFloatTimeDomainData(buf);
       let sum = 0;
-      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-      onLevel(Math.sqrt(sum / buf.length));
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = buf[i];
+        sum += v * v;
+        const a = v < 0 ? -v : v;
+        if (a > peak) peak = a;
+      }
+      onLevel(Math.sqrt(sum / buf.length), peak);
     }, TICK_MS);
     return {
       stop: () => {
@@ -107,27 +133,42 @@ async function openWebViewMic(deviceName: string | null | undefined, onLevel: (r
   }
 }
 
-function isMock(): boolean {
-  return typeof window !== 'undefined' && Boolean((window as unknown as { __MEETILY_MOCK__?: unknown }).__MEETILY_MOCK__);
-}
-
-export function useMicWatch({ active, paused, deviceName }: Options): MicWatchState {
+export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
   const [state, setState] = useState<MicWatchState>('ok');
+  const [probe, setProbe] = useState<MicProbe>('pending');
   const silentMs = useRef(0);
+  const zeroMs = useRef(0);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
   useEffect(() => {
     setState('ok');
+    setProbe('pending');
     silentMs.current = 0;
+    zeroMs.current = 0;
     if (!active) return;
     let cancelled = false;
     let source: Source | null = null;
     let lostTimer: number | undefined;
     let switchedAt = 0;
 
-    const onLevel = (rms: number) => {
+    let heard = false;
+    const blindTimer = window.setTimeout(() => {
+      if (!cancelled && !heard && zeroMs.current === 0) setProbe('blind');
+    }, BLIND_AFTER_MS);
+
+    const onLevel = (rms: number, peak: number) => {
       if (cancelled || pausedRef.current) return;
+      // Страховка первых секунд: один ненулевой отсчёт — микрофон пишет
+      if (!heard) {
+        if (peak > ZERO_PEAK) {
+          heard = true;
+          setProbe('heard');
+        } else {
+          zeroMs.current += TICK_MS;
+          if (zeroMs.current >= MIC_ZERO_GUARD_MS) setProbe('zeros');
+        }
+      }
       if (toDb(rms) < MIC_SILENT_DBFS) {
         silentMs.current += TICK_MS;
         if (silentMs.current >= MIC_SILENT_MS) setState((s) => (s === 'lost' ? s : 'silent'));
@@ -171,17 +212,22 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatchSt
     if (isMock()) {
       offMock = subscribe<MockMicLevel>('aid-mock-mic', (event) => {
         if (event.payload?.lost) onLost();
-        else if (typeof event.payload?.rms === 'number') onLevel(event.payload.rms);
+        else if (typeof event.payload?.rms === 'number') onLevel(event.payload.rms, event.payload.rms);
       });
     } else if (isMacTauri()) {
       void openWebViewMic(deviceName, onLevel, onLost).then((s) => {
         if (cancelled) s?.stop();
+        else if (!s) setProbe('blind');
         else source = s;
       });
+    } else {
+      // Не macOS: слушать микрофон нечем
+      setProbe('blind');
     }
 
     return () => {
       cancelled = true;
+      window.clearTimeout(blindTimer);
       window.clearTimeout(lostTimer);
       offSwitched();
       offMock?.();
@@ -194,5 +240,5 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatchSt
     if (paused) silentMs.current = 0;
   }, [paused]);
 
-  return state;
+  return { state, probe };
 }

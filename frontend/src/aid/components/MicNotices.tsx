@@ -7,7 +7,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, GearSix, MicrophoneSlash, SpeakerHigh, X } from '@phosphor-icons/react';
+import { GearSix, MicrophoneSlash, SpeakerHigh, X } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { SoundCheckDialog } from '@/aid/components/SoundCheck';
@@ -15,6 +15,7 @@ import { openPrivacySettings } from '@/aid/lib/onboarding';
 import type { StartBlocker } from '@/aid/lib/recording';
 import type { MicWatchState } from '@/aid/lib/mic-watch';
 import { aidToast } from '@/aid/lib/toasts';
+import { BRAND_MARK_SRC } from '@/aid/components/BrandMark';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 
@@ -120,19 +121,9 @@ export function MicAccessCard({
   }, [onClose]);
 
   const denied = blocker.kind === 'mic-denied';
-  const systemAudio = Boolean(blocker.systemAudio);
-  const title = denied ? t('micDeniedTitle') : t('micMissingTitle');
-  const hint = denied
-    ? blocker.stillDenied
-      ? t('micStillDeniedHint')
-      : blocker.zeros
-        ? t('micZerosHint')
-        : blocker.unverified
-          ? t('micUnverifiedHint')
-          : t('micDeniedHint')
-    : systemAudio
-      ? t('micMissingHint')
-      : t('micMissingNoSystemHint');
+  const systemAudio = Boolean(blocker.systemAudio) && !(denied && blocker.coreRefused);
+  // Мелкая строка под заголовком только там, где без неё непонятно, что случилось
+  const note = denied ? (blocker.zeros ? t('micNotSaved') : blocker.stillDenied ? t('micRestartNote') : null) : null;
 
   return (
     <CardShell>
@@ -140,33 +131,33 @@ export function MicAccessCard({
         <Sign>
           <MicrophoneSlash />
         </Sign>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-[15px] font-semibold leading-5">{title}</p>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">{hint}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <div className="min-w-0 flex-1 pt-3">
+          <p className="text-[15px] font-semibold leading-5">{denied ? t('micDeniedTitle') : t('micMissingTitle')}</p>
+          {note && <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{note}</p>}
+          {/* Подсказка картинкой: строка «ShadeNotes» с включающимся переключателем, как в Системных настройках */}
+          {denied && <SettingsHint />}
+          <div className="mt-3 flex flex-wrap items-center gap-1">
             {denied ? (
               <Button
                 ref={primary}
-                size="main"
                 disabled={checking}
                 onClick={() => {
                   awaiting.current = true;
                   void openPrivacySettings('microphone');
                 }}
               >
-                {checking ? <Spinner tone="inherit" /> : <GearSix />}
+                {checking && <Spinner tone="inherit" />}
                 {t('micOpenSettings')}
               </Button>
             ) : (
-              <Button ref={primary} size="main" disabled={checking} onClick={() => void recheck()}>
-                {checking ? <Spinner tone="inherit" /> : <ArrowClockwise />}
+              <Button ref={primary} disabled={checking} onClick={() => void recheck()}>
+                {checking && <Spinner tone="inherit" />}
                 {t('checkAgain')}
               </Button>
             )}
-            {systemAudio && !(denied && blocker.coreRefused) && (
-              <Button size="main" variant="secondary" disabled={checking} onClick={onSystemOnly}>
-                <SpeakerHigh />
-                {t('recordSystemOnly')}
+            {systemAudio && (
+              <Button variant="ghost" className="px-4 text-muted-foreground hover:text-foreground" disabled={checking} onClick={onSystemOnly}>
+                {t('systemOnlyShort')}
               </Button>
             )}
           </div>
@@ -174,6 +165,27 @@ export function MicAccessCard({
         <CloseButton onClick={onClose} />
       </div>
     </CardShell>
+  );
+}
+
+/**
+ * Мини-иллюстрация «включите в настройках»: строка «ShadeNotes» и переключатель
+ * в стиле macOS, который плавно включается (цикл 2,5 с, .aid-mic-switch в globals.css).
+ * При «уменьшить движение» стоит включённым. Для читалки экрана одна фраза.
+ */
+function SettingsHint() {
+  return (
+    <div className="mt-3 flex h-11 max-w-[260px] items-center gap-2.5 rounded-nested bg-muted pl-3 pr-3">
+      {/* eslint-disable-next-line @next/next/no-img-element -- статическая выгрузка без оптимизатора изображений */}
+      <img src={BRAND_MARK_SRC} width={20} height={20} alt="" aria-hidden className="size-5 rounded-[5px]" />
+      <span className="flex-1 text-[13px] font-medium" aria-hidden>
+        ShadeNotes
+      </span>
+      <span className="aid-mic-switch relative h-5 w-[34px] shrink-0 rounded-full" aria-hidden>
+        <span className="aid-mic-switch-knob absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow-sm" />
+      </span>
+      <span className="sr-only">{t('micSwitchHint')}</span>
+    </div>
   );
 }
 

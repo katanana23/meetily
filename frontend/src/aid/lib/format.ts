@@ -123,22 +123,17 @@ export function isAutoTitle(title: string | null | undefined): boolean {
 }
 
 /**
- * Название для показа: своё название человека как есть; автоматическое
- * заменяется началом первой осмысленной реплики, а без текста датой
- * («Встреча 3 ноября, 11:37»). Хранимое название не меняется.
+ * Название для показа: своё название человека (или название из итогов ИИ) как есть;
+ * автоматическое «Meeting …» становится датой «Встреча 7 ноября, 09:40». Из текста
+ * встречи название не берётся: первая реплика бывает мусором (песня с компьютера,
+ * «Thank you.» на тишине). Второй аргумент остался для совместимости и не используется.
  */
-export function shownTitle(title: string | null | undefined, fromContent?: string | null): string {
-  if (isAutoTitle(title) && fromContent) return fromContent;
+export function shownTitle(title: string | null | undefined, _fromContent?: string | null): string {
   return displayTitle(title);
 }
 
-/**
- * Текст для поля переименования: полное название без многоточия. Своё название
- * человека как есть; автоматическое: начало первой реплики целиком (без «…»
- * от сокращения в списке), без текста дата.
- */
-export function editableTitle(title: string | null | undefined, fromContent?: string | null): string {
-  if (isAutoTitle(title) && fromContent) return fromContent.replace(/…$/u, '').trim();
+/** Текст для поля переименования: своё название как есть, автоматическое датой. */
+export function editableTitle(title: string | null | undefined, _fromContent?: string | null): string {
   return displayTitle(title);
 }
 

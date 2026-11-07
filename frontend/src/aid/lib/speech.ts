@@ -23,7 +23,7 @@ const SHORT_PHRASE_WORDS = 3;
  */
 export const HALLUCINATIONS: RegExp[] = [
   /^продолжение следует$/,
-  /^субтитры (сделал|сделаны|создавал|подготовил|делал|подогнал)(?=\s|$)/,
+  /^субтитры(?=\s|$)/,
   /^редактор субтитров(?=\s|$)/,
   /^корректор(?=\s|$)/,
   /^спасибо за (просмотр|внимание)$/,
@@ -33,7 +33,9 @@ export const HALLUCINATIONS: RegExp[] = [
   /^(динамичная |спокойная |веселая |грустная )?музыка$/,
   /^(аплодисменты|смех|тишина|шум)$/,
   /^thanks? (you )?for watching(?=\s|$)/,
-  /^thank you$/,
+  /^thank you( so much| very much| all)?$/,
+  /^thanks$/,
+  /^you$/,
   /^subtitles? by(?=\s|$)/,
   /^(music|applause|silence|laughter|blank audio|no speech)$/,
   /amara\.org/,
@@ -62,6 +64,15 @@ export function isHallucination(text: string): boolean {
   const unique = new Set(parts);
   if (parts.length > 1 && unique.size === 1 && words(parts[0]).length <= SHORT_PHRASE_WORDS) return true;
   return HALLUCINATIONS.some((re) => re.test(n));
+}
+
+/**
+ * Показывать ли реплику в интерфейсе. Реплика целиком из галлюцинации на тишине
+ * («Thank you.» на 0:00, «Продолжение следует...», «Субтитры …», «♪») скрывается
+ * в транскрипте; в базе она остаётся как есть.
+ */
+export function isShownText(text: string | null | undefined): boolean {
+  return !isHallucination(text ?? '');
 }
 
 export interface SpeechSegment {

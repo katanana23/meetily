@@ -107,7 +107,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
   const kind = d?.status ?? 'unknown';
   const status = kind !== 'unknown' ? STATUS[kind] : null;
   // Дата не повторяется, если название и так «Встреча 3 ноября, 11:37»
-  const titleIsDate = isAutoTitle(meeting.title) && !d?.contentTitle;
+  const titleIsDate = isAutoTitle(meeting.title);
   const date = meeting.created_at && !titleIsDate ? (timeOnly ? formatTime(meeting.created_at) : formatShortDate(meeting.created_at)) : null;
   // Полезное вместо «Только транскрипт»: длительность и объём. «Итоги готовы» словами
   // не повторяется в каждой строке: это знак Sparkle, подпись есть у диктора

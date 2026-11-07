@@ -1631,3 +1631,96 @@ html body[data-scroll-locked] {
     transition: none;
   }
 }
+
+/* Карточка «Нет доступа к микрофону» (MicNotices): мини-окно Системных настроек,
+   нарисованный указатель подходит и нажимает переключатель, тот включается. Это
+   картинка, а не контрол: нажатие делает указатель, не человек.
+   Цикл 2,8 с: указатель подходит (0–30 %), нажимает (34–40 %), переключатель
+   включается (40–48 %), всё стоит, указатель уходит, сброс (88–100 %).
+   Включённый цвет: лайм роли «выбор и переключатель» (--primary).
+   При «уменьшить движение» переключатель включён, указатель стоит на нём. */
+@keyframes aid-mic-demo-track {
+  0%,
+  40% {
+    background-color: hsl(var(--foreground) / 0.18);
+  }
+  48%,
+  92% {
+    background-color: hsl(var(--primary));
+  }
+  100% {
+    background-color: hsl(var(--foreground) / 0.18);
+  }
+}
+
+@keyframes aid-mic-demo-knob {
+  0%,
+  40% {
+    transform: translateX(0);
+  }
+  48%,
+  92% {
+    transform: translateX(11px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes aid-mic-demo-cursor {
+  0% {
+    opacity: 0;
+    transform: translate(-40px, 10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-40px, 10px);
+  }
+  30% {
+    transform: translate(0, 0) scale(1);
+  }
+  36% {
+    transform: translate(0, 0) scale(0.82);
+  }
+  42%,
+  70% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(-6px, 6px);
+  }
+}
+
+.aid-mic-demo-track {
+  background-color: hsl(var(--foreground) / 0.18);
+  animation: aid-mic-demo-track 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.aid-mic-demo-knob {
+  animation: aid-mic-demo-knob 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.aid-mic-demo-cursor {
+  opacity: 0;
+  transform-origin: 0 0;
+  animation: aid-mic-demo-cursor 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-mic-demo-track {
+    animation: none;
+    background-color: hsl(var(--primary));
+  }
+  .aid-mic-demo-knob {
+    animation: none;
+    transform: translateX(11px);
+  }
+  .aid-mic-demo-cursor {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

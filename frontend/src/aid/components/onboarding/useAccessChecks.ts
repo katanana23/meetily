@@ -3,15 +3,21 @@
 // общим, и одна зависшая проверка выключала обе кнопки.
 //
 // Ограничение ядра: команды «спросить доступ» отвечают, удалось ли открыть поток звука,
-// а не что решил человек. Отдельной команды «узнать состояние доступа без запроса» нет.
-// После возврата из Системных настроек ответ часто не меняется, пока приложение не
-// перезапустят (так macOS применяет разрешение микрофона), поэтому неизменившийся ответ
-// показываем нейтрально: «Проверим при первой записи», а не «Доступ есть».
+// а не что решил человек: при отказе macOS поток открывается и пишет нули. Отдельной
+// команды «узнать состояние доступа без запроса» нет.
+//
+// Микрофон на macOS уточняем через окно приложения (macMicrophoneAnswer в
+// mic-access.ts: getUserMedia в WebView упирается в настоящее разрешение macOS). Его
+// ответ «есть» или «нет» главнее ответа команды: при отказе плитка честно говорит
+// «Доступ закрыт» и даёт «Открыть настройки». Если окно не ответило, «Доступ есть»
+// не показываем никогда: плитка нейтральная, «Проверим при первой записи», а запись
+// пойдёт под страховкой (recording.ts).
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { SlowError, obLog, openPrivacySettings, requestAccess, type AccessKind, type AccessState } from '@/aid/lib/onboarding';
+import { macMicrophoneAnswer, rememberMicAccess } from '@/aid/lib/mic-access';
 
 /** Доступ можно считать решённым: есть, не проверить сейчас (проверим при записи) или macOS не ответила. */
 export const accessSettled = (s: AccessState) => s === 'granted' || s === 'unverified' || s === 'slow';
@@ -40,25 +46,53 @@ export function useAccessChecks() {
     [setPermissionStatus],
   );
 
+  /**
+   * Ответ команды ядра → состояние плитки. Неуверенность никогда не «Доступ есть».
+   * Микрофон на macOS: ответ окна приложения «есть» или «нет» главнее команды; окно
+   * не ответило — команда может сказать только «нет», её «да» ничего не доказывает
+   * (при отказе поток тоже открывается), поэтому плитка нейтральная: «Проверим при
+   * первой записи». Не macOS: как раньше, по ответу команды.
+   */
+  const settle = useCallback(
+    async (kind: AccessKind, granted: boolean, recheck: boolean) => {
+      if (kind === 'microphone') {
+        const mac = await macMicrophoneAnswer().catch(() => ({ access: 'unknown' as const, detail: 'ошибка проверки' }));
+        if (mac.access !== null) {
+          obLog(`микрофон: команда ядра ${granted}, разрешение macOS ${mac.access} (${mac.detail})`);
+          if (mac.access === 'granted' || mac.access === 'denied') {
+            rememberMicAccess(mac.access);
+            apply(kind, mac.access);
+          } else if (!granted && !recheck) {
+            rememberMicAccess('denied');
+            apply(kind, 'denied');
+          } else {
+            apply(kind, 'unverified');
+          }
+          return;
+        }
+      }
+      // Перепроверка после настроек: изменился ответ на «да» — доступ есть;
+      // не изменился — не утверждаем ни того, ни другого
+      if (recheck) apply(kind, granted ? 'granted' : 'unverified');
+      else apply(kind, granted ? 'granted' : 'denied');
+    },
+    [apply],
+  );
+
   const ask = useCallback(
     (kind: AccessKind, recheck: boolean) => {
       setState((prev) => ({ ...prev, [kind]: 'pending' }));
       requestAccess(kind, (granted) => {
         // Поздний ответ после «macOS не ответила»: применить, если человек ещё здесь
-        apply(kind, granted ? 'granted' : recheck ? 'unverified' : 'denied');
+        void settle(kind, granted, recheck);
       })
-        .then((granted) => {
-          // Перепроверка после настроек: изменился ответ на «да» — доступ есть;
-          // не изменился — не утверждаем ни того, ни другого
-          if (recheck) apply(kind, granted ? 'granted' : 'unverified');
-          else apply(kind, granted ? 'granted' : 'denied');
-        })
+        .then((granted) => settle(kind, granted, recheck))
         .catch((error) => {
           if (error instanceof SlowError) apply(kind, 'slow');
-          else apply(kind, recheck ? 'unverified' : 'denied');
+          else void settle(kind, false, recheck);
         });
     },
-    [apply],
+    [apply, settle],
   );
 
   const openSettings = useCallback((kind: AccessKind) => {

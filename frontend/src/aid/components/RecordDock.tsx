@@ -260,8 +260,10 @@ export function RecordDock() {
   const showSpeechHint =
     state === 'recording' && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
   // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
+  // Встречу открыли с экрана обработки раньше перехода (клик по обложке, Enter): «Открываю встречу» уже не нужно
+  const meetingOpen = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('id');
   const onFinishingScreen =
-    state === 'finishing' && pathname === '/' && c.view === 'recording' && typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('id');
+    state === 'finishing' && pathname === '/' && c.view === 'recording' && (!meetingOpen || c.phase === 'opening');
 
   // Итог уходит плавно: последний показанный держим ещё 280 мс с анимацией ухода
   const [leaving, setLeaving] = useState<DiscardNotice | null>(null);

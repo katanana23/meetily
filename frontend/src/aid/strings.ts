@@ -88,6 +88,8 @@ const ru = {
   savingHint: 'Это займёт несколько секунд.',
   saved: 'Встреча сохранена',
   savedHint: 'Открываю её.',
+  finishSavedHint: 'Открываю её. Нажмите Enter, чтобы не ждать.',
+  openMeeting: 'Открыть встречу',
   discardedNoSpeech: 'Тишина. Сохранять нечего',
   discardedNoSpeechHint: 'Запись не сохранена: речи не было.',
   discardedTooLittle: 'Пара фраз. Сохранять не стали',

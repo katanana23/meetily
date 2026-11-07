@@ -81,7 +81,11 @@ export function InPlaceMeetingRouter({ enabled, children }: { enabled: boolean; 
       const toHome = target === '/' || target.startsWith('/?') || target.startsWith('/#');
       if (!toHome || !onHome()) return router[method](target, options);
       const go = () => {
-        if (method === 'push') window.history.pushState(null, '', target);
+        // Та же встреча ещё раз (открыли с экрана обработки, потом переход оригинала; страница
+        // встречи к тому времени убирает из адреса source): без новой записи в истории
+        const next = new URL(target, window.location.href).searchParams.get('id');
+        const same = next !== null && next === new URLSearchParams(window.location.search).get('id');
+        if (method === 'push' && !same) window.history.pushState(null, '', target);
         else window.history.replaceState(null, '', target);
         if (options?.scroll !== false) window.scrollTo({ top: 0 });
       };

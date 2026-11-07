@@ -737,7 +737,8 @@ function HomeContent() {
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
   // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording';
+  // Сохранённую встречу открыли с экрана обработки раньше перехода оригинала: показываем её
+  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording' && !(rec.phase === 'opening' && meetingId);
 
   const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
   if (FinishingPreview && preview) return <FinishingPreview stage={preview} />;

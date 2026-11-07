@@ -8,6 +8,8 @@
 // - saving (SAVING): реплики гаснут, карточка сворачивается в «шапку встречи»: название и факты;
 // - saved (COMPLETED): галочка; дальше карточка перетекает в шапку страницы встречи
 //   (view-transition-name aid-meeting, переход в lib/in-place-router.tsx).
+// Показ сцен отстаёт от настоящих шагов не больше чем на 3 с за весь путь (useSceneStage); когда
+// встреча сохранена, клик по обложке или Enter открывают её сразу, не дожидаясь перехода.
 // Если шаг длится долго, сцена дышит: медленная пульсация линии, мягкий курсор. Ролика по
 // кругу и выдуманных процентов нет. Под обложкой заголовок шага, факты встречи (числа
 // считаются вверх) и шаги в одну строку: текущий на тон-подложке со спиннером, готовые
@@ -15,7 +17,7 @@
 // текущей стадии (globals.css, .aid-fin-*).
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Check } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import type { Segment } from '@/aid/lib/meeting';
@@ -33,7 +35,7 @@ const COPY: Record<Exclude<FinishStage, 'discarded'>, { title: string; hint: str
   stopped: { title: t('finishTranscribing'), hint: t('finishStoppedHint') },
   transcribing: { title: t('finishStepTranscribe'), hint: t('finishTranscribingHint') },
   saving: { title: t('saving'), hint: t('savingHint') },
-  saved: { title: t('saved'), hint: t('savedHint') },
+  saved: { title: t('saved'), hint: t('finishSavedHint') },
 };
 /** Полос в волне: вся запись делится на столько отрезков. */
 const WAVE_BARS = 48;
@@ -47,6 +49,8 @@ interface Props {
   title: string | null;
   durationSec: number;
   segments: Segment[];
+  /** Встреча сохранена: открыть её сразу (клик по обложке, Enter). Без него обложка не нажимается. */
+  onOpen?: () => void;
   /** Секунды записи, когда слышали речь (LiveSpeech.speechTimes): волна этой встречи. */
   speechTimes: number[];
 }
@@ -54,20 +58,33 @@ interface Props {
 const ORDER: FinishStage[] = ['stopped', 'transcribing', 'saving', 'saved'];
 /** Сколько держать сцену, прежде чем показать следующую: успеть увидеть её движение. */
 const MIN_SCENE_MS: Partial<Record<FinishStage, number>> = { stopped: 1400, transcribing: 1600, saving: 1000 };
+/** Потолок искусственной задержки всего пути: насколько «Встреча сохранена» может отстать от настоящего сохранения. */
+const DELAY_CAP_MS = 3000;
 
 /**
  * Сцена идёт строго за статусом записи, по порядку и без пропусков: если ядро проскочило
  * стадию быстрее, чем её видно (на быстрой машине «Запись остановлена» длится доли секунды),
- * сцена держится не меньше MIN_SCENE_MS. Ничего не выдумываем: показываем только стадии,
- * которые уже были, с небольшой задержкой. «Не сохраняем» показывается сразу.
+ * сцена держится до MIN_SCENE_MS. Отставание показа от настоящих шагов за весь путь не больше
+ * DELAY_CAP_MS: если обработка закончилась быстро, сцены укорачиваются пропорционально
+ * (4 с минимумов сжимаются в 3 с); если шаг сам шёл долго, следующая сцена держит свой
+ * минимум из оставшегося запаса. Ничего не выдумываем: показываем только стадии, которые
+ * уже были. «Не сохраняем» сразу.
  */
 function useSceneStage(stage: FinishStage): FinishStage {
   // Начинаем с текущей стадии: экран, открытый посреди сохранения, не проигрывает прошлые сцены
   const [shown, setShown] = useState<FinishStage>(stage);
-  // С какого момента видна текущая сцена: смена статуса не перезапускает отсчёт
+  // Когда ядро дошло до каждой стадии (проскоченные получают то же время)
+  const arrived = useRef<Partial<Record<FinishStage, number>>>({});
+  // Когда показана текущая сцена и насколько она к этому моменту отставала от статуса
   const since = useRef(0);
+  const lag = useRef(0);
+  useEffect(() => {
+    const now = performance.now();
+    for (const x of ORDER.slice(0, ORDER.indexOf(stage) + 1)) arrived.current[x] ??= now;
+  }, [stage]);
   useEffect(() => {
     since.current = performance.now();
+    lag.current = since.current - (arrived.current[shown] ?? since.current);
   }, [shown]);
   useEffect(() => {
     if (stage === 'discarded') {
@@ -77,15 +94,40 @@ function useSceneStage(stage: FinishStage): FinishStage {
     const at = ORDER.indexOf(shown);
     const target = ORDER.indexOf(stage);
     if (at < 0 || target <= at) return;
-    const wait = reducedMotion() ? 0 : Math.max(0, (MIN_SCENE_MS[shown] ?? 0) - (performance.now() - since.current));
+    const wait = reducedMotion() ? 0 : Math.max(0, since.current + sceneDwell(shown, lag.current) - performance.now());
     const id = window.setTimeout(() => setShown(ORDER[at + 1]), wait);
     return () => window.clearTimeout(id);
   }, [stage, shown]);
   return shown;
 }
 
-export function FinishingScreen({ stage: actual, discardCopy, title, durationSec: rawDuration, segments, speechTimes }: Props) {
+/**
+ * Сколько держать сцену, если к её началу показ уже отстал от статуса на `lag` мс: её минимум,
+ * сжатый так, чтобы она и все следующие до «Сохранено» уложились в остаток потолка. Отставание
+ * каждой следующей сцены не больше отставания этой плюс её показ, поэтому итог не больше потолка.
+ */
+export function sceneDwell(scene: FinishStage, lag: number): number {
+  const min = MIN_SCENE_MS[scene] ?? 0;
+  const rest = ORDER.slice(ORDER.indexOf(scene), ORDER.indexOf('saved')).reduce((sum, x) => sum + (MIN_SCENE_MS[x] ?? 0), 0);
+  if (!min || !rest) return 0;
+  return min * Math.min(1, Math.max(0, DELAY_CAP_MS - lag) / rest);
+}
+
+export function FinishingScreen({ stage: actual, discardCopy, title, durationSec: rawDuration, segments, speechTimes, onOpen }: Props) {
   const stage = useSceneStage(actual);
+  // Enter открывает сохранённую встречу, если фокус не в поле и не на другой кнопке
+  useEffect(() => {
+    if (!onOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest('input, textarea, select, button, a, [contenteditable="true"], [role="button"]')) return;
+      e.preventDefault();
+      onOpen();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onOpen]);
   // Целые секунды: карточка и факты показывают одно и то же число
   const durationSec = Math.floor(rawDuration);
   const copy = stage === 'discarded' ? discardCopy ?? { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') } : COPY[stage];
@@ -95,7 +137,7 @@ export function FinishingScreen({ stage: actual, discardCopy, title, durationSec
   return (
     <section role="status" aria-live="polite" className="m-auto w-full max-w-[640px] py-5">
       <div className="w-full">
-        <Cover stage={stage} title={title} lines={lines.slice(-3)} speechTimes={speechTimes} durationSec={durationSec} words={words} replies={lines.length} />
+        <Cover stage={stage} onOpen={onOpen} title={title} lines={lines.slice(-3)} speechTimes={speechTimes} durationSec={durationSec} words={words} replies={lines.length} />
         <h1 className="mt-6 text-balance text-[22px] font-bold leading-7">{copy.title}</h1>
         <p className="mt-2 max-w-[52ch] text-pretty text-[15px] leading-6 text-muted-foreground">{copy.hint}</p>
         <dl className="mt-6 grid grid-cols-3 gap-2">
@@ -176,6 +218,7 @@ function Fact({ label, value, format, delay = 0 }: { label: string; value: numbe
 
 function Cover({
   stage,
+  onOpen,
   title,
   lines,
   speechTimes,
@@ -184,6 +227,7 @@ function Cover({
   replies,
 }: {
   stage: FinishStage;
+  onOpen?: () => void;
   title: string | null;
   lines: Segment[];
   speechTimes: number[];
@@ -195,7 +239,27 @@ function Cover({
   // Сохраняю и сохранено: карточка сворачивается до шапки встречи (название и факты)
   const folded = scene === 'saving' || scene === 'saved';
   return (
-    <div aria-hidden className="flex aspect-[2/1] items-center justify-center rounded-nested bg-muted p-5">
+    <div
+      // Сохранено: вся обложка открывает встречу (клик, Enter и пробел с фокусом на ней)
+      {...(onOpen
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            'aria-label': t('openMeeting'),
+            onClick: onOpen,
+            onKeyDown: (e: ReactKeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            },
+          }
+        : { 'aria-hidden': true })}
+      className={cn(
+        'flex aspect-[2/1] items-center justify-center rounded-nested bg-muted p-5',
+        onOpen && 'aid-fin-open cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring',
+      )}
+    >
       {/* Карточка около 70 % площади обложки, чуть выше центра. При переходе к встрече перетекает в её шапку (globals.css, data-morph) */}
       <div
         data-scene={scene}

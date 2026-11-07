@@ -27,6 +27,8 @@ import type { FinishPhase } from '@/aid/lib/recording';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { RecordingStatus, useRecordingState } from '@/contexts/RecordingStateContext';
+import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import { useRouter } from 'next/navigation';
 
 interface RecordingViewProps {
   isPaused: boolean;
@@ -148,6 +150,12 @@ function useTranscriptionProblems() {
 export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, discardVerdict = null }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
   const { status } = useRecordingState();
+  const router = useRouter();
+  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting
+  // и сам откроет её через 2 с; по клику или Enter открываем раньше тем же адресом
+  // (повтор того же адреса in-place-router не дублирует в истории)
+  const { currentMeeting } = useSidebar();
+  const savedId = status === RecordingStatus.COMPLETED && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
   // После остановки таймер записи обнуляется: для экрана обработки держим последнюю длительность.
   // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
   const lastDuration = useRef(0);
@@ -182,6 +190,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
           durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
           segments={segments}
           speechTimes={live.speechTimes}
+          onOpen={savedId && phase === 'opening' ? () => router.push(`/meeting-details?id=${savedId}&source=recording`) : undefined}
         />
       </main>
     );

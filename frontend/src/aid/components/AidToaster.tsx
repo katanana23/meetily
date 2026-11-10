@@ -1,5 +1,6 @@
-// Уведомления Aid: sonner в наших токенах и теме, справа снизу,
-// крестик справа. Тосты оригинала проходят через installAidToasts.
+// Уведомления Aid: sonner в наших токенах и теме, справа снизу. Сами тосты рисует
+// общий компонент Notice (ui/notice.tsx, через installAidToasts в lib/toasts.tsx), как
+// итог записи у капсулы. ICONS и крестик sonner остаются для toast.promise, если появится.
 'use client';
 
 import { useEffect, useState } from 'react';

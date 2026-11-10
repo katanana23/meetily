@@ -376,14 +376,14 @@ function CopyButton({ disabled, getText }: { disabled: boolean; getText: () => P
   );
 }
 
-function IconAction({ label, onClick, children, destructive }: { label: string; onClick: () => void; children: React.ReactNode; destructive?: boolean }) {
+function IconAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="secondary"
           size="icon"
-          className={cn('size-14 [&_svg]:size-6', destructive ? 'hover:text-destructive' : '')}
+          className="size-14 [&_svg]:size-6"
           onClick={onClick}
           aria-label={label}
         >
@@ -604,7 +604,7 @@ function MeetingDetailsContent() {
           <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
             <FolderOpen />
           </IconAction>
-          <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)} destructive>
+          <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)}>
             <Trash />
           </IconAction>
         </div>

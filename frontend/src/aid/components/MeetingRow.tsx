@@ -63,13 +63,11 @@ function IconAction({
   ariaLabel,
   onClick,
   children,
-  destructive,
 }: {
   label: string;
   ariaLabel: string;
   onClick: () => void;
   children: React.ReactNode;
-  destructive?: boolean;
 }) {
   return (
     <Tooltip>
@@ -77,7 +75,7 @@ function IconAction({
         <Button
           variant="ghost"
           size="icon"
-          className={cn('size-10 rounded-full text-muted-foreground hover:bg-input [&_svg]:size-5', destructive ? 'hover:text-destructive' : 'hover:text-foreground')}
+          className="size-10 rounded-full text-muted-foreground [&_svg]:size-5"
           onClick={onClick}
           aria-label={ariaLabel}
         >
@@ -187,7 +185,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
             <IconAction label={t('rename')} ariaLabel={`${t('rename')}: ${shown}`} onClick={begin}>
               <PencilSimple />
             </IconAction>
-            <IconAction label={t('delete')} ariaLabel={`${t('delete')}: ${shown}`} onClick={onDelete} destructive>
+            <IconAction label={t('delete')} ariaLabel={`${t('delete')}: ${shown}`} onClick={onDelete}>
               <Trash />
             </IconAction>
           </div>

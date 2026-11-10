@@ -22,7 +22,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform } from '@phosphor-icons/react';
-import { CloseButton } from '@/aid/components/ui/close-button';
+import { Notice } from '@/aid/components/ui/notice';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
@@ -128,19 +128,10 @@ const COPY = {
 } as const;
 
 /**
- * Карточка итога: плотное стекло, скругление плитки. Внутри по бенто: всё на отступе 4 px
- * от кромки, крестик отдельной вложенной плиткой во всю высоту справа (радиус плитки
- * минус 4), значок маленький, но контрастный.
+ * Карточка итога: общее уведомление Aid (ui/notice.tsx): плотное стекло, радиус плитки,
+ * 20 px внутри, знак в круге 44 px слева, крестик справа по той же оси.
  */
 function NoticeCard({ notice }: { notice: DiscardNotice }) {
-  return (
-    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile p-3">
-      <NoticeRow notice={notice} />
-    </div>
-  );
-}
-
-function NoticeRow({ notice }: { notice: DiscardNotice }) {
   const [soundCheck, setSoundCheck] = useState(false);
   const { hold } = notice;
   // Есть основание подозревать звук только у «Ничего не записалось»: там знак Giants и «Проверить звук».
@@ -164,43 +155,33 @@ function NoticeRow({ notice }: { notice: DiscardNotice }) {
     [hold],
   );
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      data-aid-outcome={notice.verdict}
-      // pointerenter не приходит, если карточка появилась под неподвижным курсором (там была «Остановить»)
-      onPointerMove={() => hold('hover', true)}
-      onPointerLeave={() => hold('hover', false)}
-      onFocus={() => hold('focus', true)}
-      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-center gap-3"
-    >
-      <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3">
-        {notice.verdict !== 'cancelled' && (
-          <span
-            className={cn(
-              'flex size-11 shrink-0 items-center justify-center rounded-full [&_svg]:size-5',
-              suspectSound ? 'bg-[hsl(var(--giants)/0.16)] text-giants-ink' : 'bg-muted text-muted-foreground',
-            )}
-            aria-hidden
-          >
-            {suspectSound ? <MicrophoneSlash /> : <Waveform />}
-          </span>
-        )}
-        <div className={cn('min-w-0 flex-1', notice.verdict === 'cancelled' && 'pl-1')}>
-          <p className="truncate text-[15px] font-semibold leading-5">{t(copy.title)}</p>
-          {copy.hint && <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(copy.hint)}</p>}
-        </div>
-        {suspectSound && (
-          <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
-            {t('soundCheck')}
-          </Button>
-        )}
-      </div>
-      {/* Крестик: общий CloseButton, на том же отступе 12 px, что и всё содержимое */}
-      <CloseButton label={t('close')} onClick={notice.dismiss} />
+    <>
+      <Notice
+        role="status"
+        aria-live="polite"
+        data-aid-outcome={notice.verdict}
+        // pointerenter не приходит, если карточка появилась под неподвижным курсором (там была «Остановить»)
+        onPointerMove={() => hold('hover', true)}
+        onPointerLeave={() => hold('hover', false)}
+        onFocus={() => hold('focus', true)}
+        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
+        className="w-[min(560px,calc(100vw-8rem))]"
+        icon={notice.verdict === 'cancelled' ? undefined : suspectSound ? <MicrophoneSlash /> : <Waveform />}
+        tone={suspectSound ? 'giants' : 'neutral'}
+        title={t(copy.title)}
+        hint={copy.hint ? t(copy.hint) : undefined}
+        actions={
+          suspectSound && (
+            <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium" onClick={() => setSoundCheck(true)}>
+              {t('soundCheck')}
+            </Button>
+          )
+        }
+        onClose={notice.dismiss}
+        closeLabel={t('close')}
+      />
       {suspectSound && <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />}
-    </div>
+    </>
   );
 }
 
@@ -381,7 +362,7 @@ export function RecordDock() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="aid-btn-icon size-14 bg-foreground/[0.06] hover:bg-foreground/[0.12] [&_svg]:size-6"
+                  className="aid-icon-btn-glass size-14 [&_svg]:size-6"
                   onClick={() => void c.togglePause()}
                   disabled={c.busy !== null}
                   aria-label={c.isPaused ? t('resumeRecording') : t('pauseRecording')}

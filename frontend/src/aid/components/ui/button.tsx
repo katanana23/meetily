@@ -32,6 +32,12 @@ const buttonVariants = cva(
         icon: 'aid-btn-icon h-12 w-12',
       },
     },
+    // Кнопка из одной иконки: при наведении меняется только подложка, на тон ближе к тексту
+    // (.aid-icon-btn* в globals.css); значок того же цвета
+    compoundVariants: [
+      { size: 'icon', variant: ['secondary', 'outline'], class: 'aid-icon-btn' },
+      { size: 'icon', variant: 'ghost', class: 'aid-icon-btn-ghost' },
+    ],
     defaultVariants: { variant: 'default', size: 'default' },
   },
 );

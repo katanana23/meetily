@@ -296,7 +296,7 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-12 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                    className="size-12 shrink-0 rounded-full text-muted-foreground"
                     onClick={() => setErase(m)}
                     disabled={busy !== null}
                     aria-label={`${t('deleteForever')}: ${displayTitle(m.title)}`}

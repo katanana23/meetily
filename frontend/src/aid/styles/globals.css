@@ -215,7 +215,8 @@
   --normal-border: hsl(var(--border));
   --normal-text: hsl(var(--popover-foreground));
   --border-radius: var(--tile-radius);
-  --width: 380px;
+  /* sonner ставит --width инлайном (356 px): своё значение через !important */
+  --width: 400px !important;
   font-family: var(--font-ui), system-ui, sans-serif;
 }
 
@@ -287,9 +288,11 @@
   stroke-width: 3;
 }
 
-.aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:hover {
+:root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:hover {
+  /* Как у всех кнопок-иконок (.aid-icon-btn-glass): подложка на тон ближе к тексту, значок прежний */
   background: hsl(var(--foreground) / 0.12);
-  color: hsl(var(--foreground));
+  border-color: transparent;
+  color: hsl(var(--muted-foreground) / 0.7);
 }
 
 .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible {
@@ -333,9 +336,15 @@
   color: hsl(var(--primary-foreground));
 }
 
+/* Тосты Aid рисует общий Notice (ui/notice.tsx, lib/toasts.tsx): у sonner это toast.custom
+   без своей разметки, ширину задаём сами */
+:root .aid-toaster [data-sonner-toast].aid-notice-toast {
+  width: var(--width);
+}
+
 /* Пока открыт первый запуск (components/onboarding), прогресс загрузки моделей виден
    на самом экране; тосты загрузки (toast.custom оригинала) его дублируют. */
-body:has(.aid-onboarding) .aid-toaster [data-sonner-toast][data-styled='false'] {
+body:has(.aid-onboarding) .aid-toaster [data-sonner-toast][data-styled='false']:not(.aid-notice-toast) {
   display: none;
 }
 
@@ -584,6 +593,60 @@ html body[data-scroll-locked] {
 .dark {
   --nest-card: 0 0% 9%;
   --nest-muted: 0 0% 14%;
+}
+
+/* Кнопки-иконки (круглые, без текста: крестик, поиск, импорт, действия встречи,
+   сайдбар): при наведении меняется только подложка, на тон ближе к тексту: в тёмной
+   теме светлее, в светлой темнее. Цвет значка при наведении прежний (hover:text-*
+   у таких кнопок не ставить). Три вида по подложке в покое:
+   - .aid-icon-btn: вложенная поверхность (--muted) → --icon-btn-hover;
+   - .aid-icon-btn-ghost: без подложки → --muted;
+   - .aid-icon-btn-glass: на стекле (капсула, уведомления, диалоги) полупрозрачный тон
+     текста 6 % → 12 %, поэтому работает на любой подложке.
+   Button size="icon" получает класс сам (ui/button.tsx), крестик через CloseButton.
+   Двойной класс в :hover сильнее hover:bg-* из Tailwind. */
+:root {
+  --icon-btn-hover: 60 5% 89%;
+  --nest-icon-btn-hover: 60 4% 85%;
+}
+
+.dark {
+  --icon-btn-hover: 0 0% 16%;
+  --nest-icon-btn-hover: 0 0% 20%;
+}
+
+.aid-nest {
+  --icon-btn-hover: var(--nest-icon-btn-hover);
+}
+
+.aid-icon-btn,
+.aid-icon-btn-ghost,
+.aid-icon-btn-glass {
+  transition: background-color 0.15s ease;
+}
+
+.aid-icon-btn {
+  background-color: hsl(var(--muted));
+}
+
+.aid-icon-btn.aid-icon-btn:hover:not(:disabled) {
+  background-color: hsl(var(--icon-btn-hover));
+}
+
+.aid-icon-btn-ghost {
+  background-color: transparent;
+}
+
+.aid-icon-btn-ghost.aid-icon-btn-ghost:hover:not(:disabled) {
+  background-color: hsl(var(--muted));
+}
+
+.aid-icon-btn-glass {
+  background-color: hsl(var(--foreground) / 0.06);
+}
+
+.aid-icon-btn-glass.aid-icon-btn-glass:hover:not(:disabled) {
+  background-color: hsl(var(--foreground) / 0.12);
 }
 
 /* Цветные плитки с ролью: текст #111 и приглушённый #262626 (на Giants 4,9:1,
@@ -916,9 +979,33 @@ html body[data-scroll-locked] {
   opacity: 1;
 }
 
+/* Низ списка под кнопкой записи: строки растворяются к низу так же, как под шапкой
+   (то же стекло и маска, без цветного градиента), на высоту зоны капсулы --dock-space.
+   Только когда список длиннее экрана: при data-fits запаса нет и прятать нечего;
+   без кнопки записи (data-dock-off, настройки) тоже нет. */
+.aid-edge-fade-bottom {
+  position: sticky;
+  z-index: 19;
+  bottom: 0;
+  height: var(--dock-space);
+  margin-top: calc(-1 * var(--dock-space));
+  pointer-events: none;
+  background: hsl(var(--card) / 0.72);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-mask: linear-gradient(transparent, #000);
+  mask: linear-gradient(transparent, #000);
+}
+
+.aid-scroll[data-fits] > .aid-edge-fade-bottom,
+:root[data-dock-off] .aid-edge-fade-bottom {
+  display: none;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .aid-head-flat.aid-glass,
-  .aid-edge-fade {
+  .aid-edge-fade,
+  .aid-edge-fade-bottom {
     background: hsl(var(--card));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

@@ -36,7 +36,7 @@ export function PrivacyChip({ privacy, className, compact }: { privacy: PrivacyI
           <span
             tabIndex={0}
             className={cn(
-              'flex size-12 cursor-default items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex size-12 cursor-default items-center justify-center aid-icon-btn-ghost rounded-full text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               className,
             )}
             aria-label={`${t('privacy')}: ${label}. ${hint}`}

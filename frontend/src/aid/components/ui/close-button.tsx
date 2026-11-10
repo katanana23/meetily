@@ -1,5 +1,6 @@
 // Крестик «Закрыть» один на весь Aid: круглая кнопка 44 px на лёгкой подложке, значок X
-// 14 px светло-серым (цвет подписи на 70 %, при наведении темнеет;
+// 14 px светло-серым (цвет подписи на 70 %). При наведении меняется только подложка, на тон
+// ближе к тексту (.aid-icon-btn-glass, globals.css), значок прежний;
 // bold с чуть более толстым контуром, .aid-close-glyph в globals.css;
 // залитый X в Phosphor нарисован квадратом, CLAUDE.md). Правило отступов: кнопка стоит
 // в углу карточки на том же отступе, что и всё содержимое (сверху, справа, снизу одинаково),
@@ -17,7 +18,7 @@ export function CloseGlyph({ className }: { className?: string }) {
 
 /** Классы круглой кнопки: для своих кнопок и для Radix Close. */
 export const CLOSE_BUTTON =
-  'flex size-11 shrink-0 items-center justify-center rounded-full bg-foreground/[0.06] text-[hsl(var(--muted-foreground)/0.7)] transition-colors hover:bg-foreground/[0.12] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
+  'flex size-11 shrink-0 items-center justify-center aid-icon-btn-glass rounded-full text-[hsl(var(--muted-foreground)/0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
 
 export const CloseButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }>(
   ({ className, label, ...props }, ref) => (

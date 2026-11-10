@@ -13,7 +13,8 @@
 // прокрутки обрезана по радиусу плитки (на главной overflow hidden у самой плитки,
 // в бенто маска .aid-round-clip), поэтому плитки у краёв окна не обрываются
 // плоской линией, а уходят под скругление.
-// Снизу запас --dock-space: над контентом плавает капсула записи (RecordDock).
+// Снизу запас --dock-space: над контентом плавает капсула записи (RecordDock). На главной
+// строки под ней растворяются к низу (.aid-edge-fade-bottom), когда список длиннее экрана.
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -133,6 +134,8 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
         {head('aid-gutter px-5 pb-4 pt-5', true)}
         {header && <div className="aid-edge-fade" data-on={scrolled ? '' : undefined} aria-hidden />}
         <div className={cn('aid-page-content w-full px-5 pb-[var(--dock-pad)]', header ? 'pt-1' : 'pt-5')}>{children}</div>
+        {/* Низ под кнопкой записи: строки растворяются, как под шапкой (только если список длиннее экрана) */}
+        <div className="aid-edge-fade-bottom" aria-hidden />
       </div>
     </main>
   );

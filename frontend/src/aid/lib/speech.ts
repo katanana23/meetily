@@ -47,6 +47,10 @@ export const HALLUCINATIONS: RegExp[] = [
   /^subtitles? by(?=\s|$)/,
   /^(music|applause|silence|laughter|blank audio|no speech)$/,
   /amara\.org/,
+  // Междометия-заполнители одни в реплике: модель без выбора языка (Parakeet) отдаёт их на
+  // коротком куске шума или вдоха, в русской встрече они приходят английскими («Um», «Okay, so»).
+  // Реплика целиком из таких слов не речь; внутри фразы они остаются
+  /^((um+|uh+|hm+|mm+|mhm|ah+|oh+|er+|erm|eh+|ugh|okay so|ok so|so|э+|эм+|мм+|хм+)\s?)+$/,
 ];
 
 function normalize(text: string): string {

@@ -83,8 +83,8 @@ export interface DiscardNotice {
 interface Ctx {
   live: LiveSpeech;
   /**
-   * judging: идёт оценка (экран обработки: «Распознаю последние фразы»);
-   * discarding: речи нет, встреча не создаётся (экрана обработки нет, сразу список и карточка).
+   * judging: идёт оценка (карточка у кнопки записи: «Дописываю реплики»);
+   * discarding: речи нет, встреча не создаётся (карточка «запись не сохранена», строки нет).
    */
   finishing: 'judging' | 'discarding' | null;
   finish: (handleRecordingStop: StopHandler) => Promise<RecordingVerdict>;
@@ -192,8 +192,13 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   );
 
   const showNotice = useCallback(
-    (verdict: DiscardNotice['verdict']) => {
+    (verdict: DiscardNotice['verdict'], persist = false) => {
       closeNotice();
+      // Предпросмотр в разработке: карточка стоит, пока адрес тот же
+      if (persist) {
+        setNotice({ verdict, hold, dismiss: closeNotice });
+        return;
+      }
       // Тихая отмена уходит сама через 3 с и не задерживается под курсором
       const ms = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MS;
       const max = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MAX_MS;
@@ -205,12 +210,14 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
     [closeNotice, hold, sync],
   );
 
-  // Только в разработке: показать карточку итога по ?notice=cancelled|no-speech|unrecognized,
-  // чтобы смотреть её без записи. В сборке не работает
+  // Только в разработке: показать карточку отбракованной записи по ?finish=discarded
+  // («Слишком коротко») или ?notice=cancelled|no-speech|unrecognized, чтобы смотреть её без
+  // записи. В сборке не работает
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
-    const v = new URLSearchParams(window.location.search).get('notice');
-    if (v === 'cancelled' || v === 'no-speech' || v === 'unrecognized') showNotice(v);
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('finish') === 'discarded' ? 'cancelled' : params.get('notice');
+    if (v === 'cancelled' || v === 'no-speech' || v === 'unrecognized') showNotice(v, true);
   }, [showNotice]);
 
   // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
@@ -318,11 +325,11 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
           return verdict;
         }
 
-        // Текста нет: встреча не создаётся (раздела «Не распознано» нет). Экран обработки
-        // гаснет сразу (finishing 'discarding' → фаза null), на его месте список и одна
-        // карточка по контексту: короткая пустая запись — тихая «Запись отменена: она была
-        // пустой» (3 с); длиннее, детектор молчал — «Ничего не записалось» с «Проверить звук»;
-        // детектор слышал речь — «Речь не распознана», нейтральная. Файл звука остаётся в
+        // Текста нет: встреча не создаётся (раздела «Не распознано» нет). Строка обработки в
+        // списке гаснет (finishing 'discarding' → фаза null), карточка у кнопки записи та же,
+        // с итогом по контексту: короткая запись — «Слишком коротко - запись не сохранена»
+        // (уходит сама через 3 с); длиннее, детектор молчал — «Речи не было» с «Проверить
+        // звук»; детектор слышал речь — «Речь не распознана». Файл звука остаётся в
         // папке записей, как у оригинала при «не сохранять». Пометка «не сохранять» ставится до любой записи в базу, поэтому
         // такая встреча не появится в списке и не откроется по адресу. В базу не пишем
         // (оригинальный путь handleRecordingStop(false)); то, что успело попасть в базу

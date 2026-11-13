@@ -1143,165 +1143,123 @@ html body[data-scroll-locked] {
   pointer-events: none;
 }
 
-/* Экран обработки после «Остановить» (FinishingScreen). Сцены обложки по статусу записи.
-   Волна: полосы этой встречи сходят в ровную линию (0,8 с, ease-out, по очереди), потом
-   линия спокойно дышит. Реплики появляются по очереди (300 мс, сдвиг 150 мс), затем в них
-   по очереди проступает тон Indigo у сроков, дат и имён. Курсор мягко мигает, пока шаг идёт.
-   Свёрнутая карточка: факты проявляются. Смена шага и действия финала проявляются из
-   размытия (0,3 с). Маскот появляется из размытия и стоит неподвижно; дышит только подложка
-   обложки (opacity, 5 с). Только transform, opacity и filter; без движения стоит итоговый
-   кадр текущей сцены. */
-.aid-fin-step {
-  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Карточка после «Остановить» (FinishCard у кнопки записи). Знак шага в круге 44 px:
+   три полосы 3 × 14 px. transcribing: вертикальные полосы волны записи дышат по очереди;
+   saving: полосы поворачиваются и становятся строками текста разной длины по левому краю,
+   строки мягко мерцают, как при наборе; saved: строки гаснут, на их месте галочка;
+   discarded: полосы опадают в точки. Переходы между шагами 0,45 с, только transform и
+   opacity; при «уменьшить движение» без анимаций, сразу знак шага. Смена текста шага
+   проявляется из размытия (.aid-fg-text). */
+.aid-fg {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
-.aid-fin-mascot {
-  animation: aid-ob-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+.aid-fg-bar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin: -7px 0 0 -1.5px;
+  --x: calc((var(--i) - 1) * 6px);
+  --y: calc((var(--i) - 1) * 5px);
+  transform: translate(var(--x), 0);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 40ms),
+    opacity 0.3s ease calc(var(--i) * 40ms);
 }
 
-.aid-fin-surface {
-  animation: aid-fin-surface 5s ease-in-out infinite;
+.aid-fg-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: currentColor;
 }
 
-@keyframes aid-fin-surface {
-  50% {
-    opacity: 0.55;
-  }
+/* Волна записи: полосы дышат по очереди */
+.aid-fg[data-stage='transcribing'] .aid-fg-in {
+  animation: aid-fg-wave 0.9s ease-in-out calc(var(--i) * 0.15s) infinite alternate;
 }
 
-.aid-fin-bar {
-  transform-origin: center;
-  transform: scaleY(0.06);
-  animation: aid-fin-calm 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--i, 0) * 6ms);
-}
-
-@keyframes aid-fin-calm {
+@keyframes aid-fg-wave {
   from {
-    transform: scaleY(var(--h, 1));
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
+    transform: scaleY(0.35);
   }
   to {
-    transform: scaleY(0.06);
-    opacity: 0;
+    transform: scaleY(1);
   }
 }
 
-/* Полосы гаснут, на их месте сплошная линия; шаг затянулся: линия медленно дышит */
-.aid-fin-bar {
+/* Строки текста: поворот на 90°, длина 1 / 0,6 / 0,85, все от левого края */
+.aid-fg[data-stage='saving'] .aid-fg-bar,
+.aid-fg[data-stage='saved'] .aid-fg-bar {
+  --len: 1;
+  transform: translate(calc((var(--len) - 1) * 7px), var(--y)) rotate(90deg) scaleY(var(--len));
+}
+
+.aid-fg[data-stage='saving'] .aid-fg-bar:nth-child(2),
+.aid-fg[data-stage='saved'] .aid-fg-bar:nth-child(2) {
+  --len: 0.6;
+}
+
+.aid-fg[data-stage='saving'] .aid-fg-bar:nth-child(3),
+.aid-fg[data-stage='saved'] .aid-fg-bar:nth-child(3) {
+  --len: 0.85;
+}
+
+.aid-fg[data-stage='saving'] .aid-fg-in {
+  animation: aid-fg-type 1.1s ease-in-out calc(var(--i) * 0.2s) infinite alternate;
+}
+
+@keyframes aid-fg-type {
+  to {
+    opacity: 0.4;
+  }
+}
+
+.aid-fg[data-stage='saved'] .aid-fg-bar {
   opacity: 0;
 }
 
-.aid-fin-flat {
-  animation:
-    aid-fin-flat 0.4s ease-out 0.7s both,
-    aid-fin-breathe 3.2s ease-in-out 1.5s infinite;
+/* Отбракована: полосы опадают в точки */
+.aid-fg[data-stage='discarded'] .aid-fg-bar {
+  transform: translate(var(--x), 0) scaleY(0.22);
 }
 
-@keyframes aid-fin-flat {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes aid-fin-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
-.aid-fin-line,
-.aid-fin-folded {
-  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--d, 0ms);
-}
-
-/* Срок, дата или имя: тон Indigo (роль ИИ, намёк на будущие итоги) проступает под словом.
-   Прозрачный тон: в светлой теме светлая сирень под тёмным текстом, в тёмной тёмная под белым */
-.aid-fin-mark {
-  position: relative;
-  isolation: isolate;
-  background: transparent;
-  color: inherit;
-}
-
-.aid-fin-mark::before {
-  content: '';
+.aid-fg-check {
   position: absolute;
-  inset: -1px -3px;
-  z-index: -1;
-  border-radius: 6px;
-  background: hsl(var(--indigo) / 0.34);
-  animation: aid-fin-mark 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--d, 0ms);
+  inset: 0;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 0.25s ease 0.15s,
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s;
 }
 
-@keyframes aid-fin-mark {
-  from {
-    opacity: 0;
-    transform: scaleX(0.6);
-  }
+.aid-fg[data-stage='saved'] .aid-fg-check {
+  opacity: 1;
+  transform: scale(1);
 }
 
-.aid-fin-caret {
-  animation: aid-fin-caret 1.2s ease-in-out infinite;
-}
-
-@keyframes aid-fin-caret {
-  50% {
-    opacity: 0.15;
-  }
-}
-
-/* Сохраняю: карточка чуть сворачивается; сохранено: на месте */
-.aid-fin-card {
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.aid-fin-card[data-scene='saving'] {
-  transform: scale(0.97);
-}
-
-
-/* Переход в страницу встречи: название встречи на экране обработки перетекает в шапку
-   страницы встречи (lib/in-place-router.tsx) */
-:root[data-morph] .aid-fin-card,
-:root[data-morph] main .aid-sticky-head {
-  view-transition-name: aid-meeting;
-}
-
-::view-transition-group(aid-meeting) {
-  animation-duration: 0.45s;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 0.3s;
+.aid-fg-text {
+  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aid-fin-step,
-  .aid-fin-mascot,
-  .aid-fin-surface,
-  .aid-fin-bar,
-  .aid-fin-flat,
-  .aid-fin-line,
-  .aid-fin-folded,
-  .aid-fin-mark::before,
-  .aid-fin-caret {
-    animation: none;
+  .aid-fg-bar,
+  .aid-fg-check {
+    transition: none;
   }
 
-  .aid-fin-card {
-    transition: none;
+  .aid-fg .aid-fg-in,
+  .aid-fg-text {
+    animation: none;
   }
 }
 

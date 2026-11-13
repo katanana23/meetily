@@ -316,7 +316,7 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  // Текста нет (discarding): экран обработки гаснет сразу, на его месте список и карточка
+  // Текста нет (discarding): строка обработки в списке гаснет сразу, карточка говорит итог
   const phase: FinishPhase | null = outcome.finishing === 'discarding'
     ? null
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS

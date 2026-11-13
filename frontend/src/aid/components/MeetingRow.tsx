@@ -58,6 +58,29 @@ export function StatusThumb({ kind }: { kind: MeetingStatus }) {
   );
 }
 
+/**
+ * Встреча, которая ещё обрабатывается после «Остановить»: первой строкой списка, в
+ * миниатюре спиннер, под названием время и шаг. Та же геометрия, что у MeetingRow, без
+ * действий и без перехода: встречи в базе ещё нет. Когда сохранится, на её месте
+ * встанет обычная строка (Home.tsx).
+ */
+export function PendingRow({ title, stage, done = false }: { title: string; stage: string; done?: boolean }) {
+  const now = formatTime(new Date());
+  return (
+    <li className="flex min-h-[64px] select-none items-center gap-3 rounded-nested py-2 pl-2 pr-3" aria-busy={!done} data-aid-pending>
+      {/* Сохранена, а список ещё не перечитан (доли секунды): знак транскрипта вместо спиннера */}
+      <StatusThumb kind={done ? 'transcript' : 'summarizing'} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-medium">{title}</span>
+        <span className="mt-0.5 block text-sm text-muted-foreground" role="status">
+          <span className="sr-only">, </span>
+          {[now, stage].filter(Boolean).join(' · ')}
+        </span>
+      </span>
+    </li>
+  );
+}
+
 function IconAction({
   label,
   ariaLabel,

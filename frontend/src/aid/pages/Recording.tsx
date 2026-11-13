@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
 import { Stop, Warning } from '@phosphor-icons/react';
-import { BRAND_MARK_SRC } from '@/aid/components/BrandMark';
+import { FinishGlyph } from '@/aid/components/FinishCard';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
@@ -21,28 +21,19 @@ import { Page, TILE } from '@/aid/components/Page';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
-import { FinishingScreen, type FinishStage } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import { isShownText } from '@/aid/lib/speech';
-import type { FinishPhase } from '@/aid/lib/recording';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
-import { RecordingStatus, useRecordingState } from '@/contexts/RecordingStateContext';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
-import { useRouter } from 'next/navigation';
 
 interface RecordingViewProps {
   isPaused: boolean;
-  phase: FinishPhase | null;
   duration: number;
   live: LiveSpeech;
   /** К списку встреч: запись продолжается, управление в кнопке записи внизу. */
   onBack: () => void;
   onStop: () => void;
-  /** Встреча сохранена, экран обработки ждёт открытия (recording-controls.tsx). */
-  finished?: { id: string } | null;
-  onFinished?: (finished: { id: string } | null) => void;
 }
 
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается.
@@ -66,15 +57,6 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
       </div>
     </div>
   );
-}
-
-/** Шаг экрана обработки по статусу записи оригинала (RecordingStateContext), без таймеров. */
-function finishStage(phase: FinishPhase | null, status: RecordingStatus): FinishStage {
-  if (status === RecordingStatus.STOPPING) return 'stopped';
-  if (status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
-  if (status === RecordingStatus.SAVING) return 'saving';
-  if (status === RecordingStatus.COMPLETED || phase === null) return 'saved';
-  return phase === 'opening' ? 'saved' : phase === 'saving' ? 'saving' : 'transcribing';
 }
 
 const NOTICE_KEY = 'show_recording_notification'; // тот же ключ, что у оригинала (recordingNotification.tsx)
@@ -144,34 +126,10 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, finished = null, onFinished }: RecordingViewProps) {
+export function RecordingView({ isPaused, duration, live, onBack, onStop }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
-  const { status } = useRecordingState();
-  const router = useRouter();
-  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting.
-  // Через 2 с он сбросит статус и очистит реплики; экран обработки держится (finished) и сам
-  // открывает встречу: по кнопке, Enter или через 3 с без нажатий (FinishingScreen)
-  const { currentMeeting } = useSidebar();
-  const completedId = status === RecordingStatus.COMPLETED && phase === 'opening' && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
-  useEffect(() => {
-    if (completedId) onFinished?.({ id: completedId });
-  }, [completedId, onFinished]);
-  // Экран ушёл (открыли встречу, настройки, список): «Записано» больше не держим
-  useEffect(() => () => onFinished?.(null), [onFinished]);
-  const savedId = completedId ?? finished?.id ?? null;
-  // После остановки таймер записи обнуляется: для экрана обработки держим последнюю длительность.
-  // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
-  const lastDuration = useRef(0);
-  if (duration > 0) lastDuration.current = duration;
   // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
-  const current = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
-  // Оригинальный хук очищает реплики при переходе к встрече: экран «Записано» держит последние
-  const kept = useRef(current);
-  if (current.length) kept.current = current;
-  const segments = current.length || !(phase || finished) ? current : kept.current;
-  const titleRef = useRef(meetingTitle);
-  if (meetingTitle) titleRef.current = meetingTitle;
-  const shownMeetingTitle = meetingTitle || (phase || finished ? titleRef.current : null);
+  const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
   const endRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
@@ -189,24 +147,6 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
   const [settledIds] = useState(() => new Set(segments.map((x) => x.id)));
   // Реплика допечатана (печатная машинка в TranscriptList): докрутить к концу
   const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
-
-  if (phase || finished) {
-    const open = (summarize: boolean) => savedId && router.push(`/meeting-details?id=${encodeURIComponent(savedId)}${summarize ? '&summarize=1' : ''}`);
-    // Своя плитка без запаса под капсулу записи: на этом экране её нет (RecordDock)
-    return (
-      <main className="aid-page-in aid-scroll relative block h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
-        <FinishingScreen
-          stage={finishStage(phase, status)}
-          title={shownMeetingTitle ? displayTitle(shownMeetingTitle) : null}
-          durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
-          segments={segments}
-          speechTimes={live.speechTimes}
-          onOpen={savedId ? () => open(false) : undefined}
-          onSummarize={savedId ? () => open(true) : undefined}
-        />
-      </main>
-    );
-  }
 
   // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
   // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
@@ -249,11 +189,16 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
       <section className={`${TILE} flex flex-col`} aria-label={t('liveTranscript')}>
         <h2 className="mb-4 text-[22px] font-bold leading-7 tracking-tight">{t('transcript')}</h2>
         {segments.length === 0 ? (
-          // Ждём речь: по центру плитки маскот (логотип, неподвижный, мягко появляется) и одна строка.
-          // Снизу запас под капсулу записи: центр по видимой части плитки, строка не уходит под капсулу
+          // Ждём речь: по центру плитки мягкая иллюстрация (та же волна записи, что в карточке
+          // после «Остановить», крупнее, на вложенной поверхности) и одна строка. Логотип не
+          // повторяем. Снизу запас под капсулу записи: строка не уходит под неё
           <div className="flex min-h-[228px] flex-1 flex-col items-center justify-center gap-3 pb-[var(--dock-space)]" role="status">
-            <img src={BRAND_MARK_SRC} width={56} height={56} alt="" draggable={false} className="aid-fin-mascot size-14 select-none" />
-            <p className="aid-fin-step text-[15px] font-semibold">{t('waitingSpeech')}</p>
+            <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+              <span className="scale-[1.6]">
+                <FinishGlyph stage="transcribing" />
+              </span>
+            </span>
+            <p className="aid-fg-text text-[15px] font-semibold">{t('waitingSpeech')}</p>
           </div>
         ) : (
           <div className="max-w-[760px]">

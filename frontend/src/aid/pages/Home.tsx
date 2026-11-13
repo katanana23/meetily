@@ -5,7 +5,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
 import { ArrowClockwise, ArrowCounterClockwise, Chats, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
@@ -18,7 +17,7 @@ import { Page } from '@/aid/components/Page';
 import AidSettings from '@/aid/pages/Settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { MeetingRow, PendingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
 import { daysLeft, deleteForever, emptyTrash, isTrashed, loadTrash, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
@@ -28,7 +27,8 @@ import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import MeetingDetails from '@/aid/pages/MeetingDetails';
 import { type StartBlocker } from '@/aid/lib/recording';
-import { useRecordingControls } from '@/aid/lib/recording-controls';
+import { useRecordingControls, type FinishState } from '@/aid/lib/recording-controls';
+import { previewFinish } from '@/aid/lib/finish-preview';
 import { isDiscarded, isKept, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
 import { cn } from '@/aid/lib/utils';
@@ -414,13 +414,15 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
 const GROUP_LABEL = { today: 'groupToday', yesterday: 'groupYesterday', week: 'groupWeek', earlier: 'groupEarlier' } as const;
 
 interface HomeViewProps {
+  /** Обработка после «Остановить»: строка новой встречи со спиннером (recording-controls.tsx). */
+  finish: FinishState | null;
   onStart: () => void;
   blocker: StartBlocker | null;
   onDismissBlocker: () => void;
   startError: string | null;
 }
 
-function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewProps) {
+function HomeView({ finish, onStart, blocker, onDismissBlocker, startError }: HomeViewProps) {
   const { meetings: sidebarMeetings, setMeetings } = useSidebar();
   const { state, setState, reload } = useMeetingsList(sidebarMeetings);
   const [toDelete, setToDelete] = useState<MeetingListItem | null>(null);
@@ -509,6 +511,15 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       .map((g) => ({ group: g, items: sorted.filter((m) => dateGroup(m.created_at) === g) }))
       .filter((x) => x.items.length > 0);
   }, [groups, filter]);
+
+  // Встреча ещё обрабатывается: строка со спиннером первой в «Сегодня», пока в списке нет
+  // сохранённой встречи. Отбракованная запись строки не получает (карточка у кнопки записи)
+  const listIds = state.kind === 'ready' ? state.meetings : [];
+  const pending =
+    finish && !search && filter === 'all' && (finish.stage !== 'saved' || (finish.meetingId !== null && !listIds.some((m) => m.id === finish.meetingId)))
+      ? { title: finish.title ? displayTitle(finish.title) : t('recording'), stage: finish.stage === 'saving' ? t('finishSaving') : finish.stage === 'saved' ? t('finishSaved') : t('finishTranscribing') }
+      : null;
+  const shownGroups = pending && !dated.some((g) => g.group === 'today') ? [{ group: 'today' as DateGroup, items: [] as MeetingListItem[] }, ...dated] : dated;
 
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
   const listFilter = filter === 'all' || filter === 'summary';
@@ -657,7 +668,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {state.kind === 'ready' && groups.main.length === 0 && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
+          {state.kind === 'ready' && groups.main.length === 0 && !pending && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
           {state.kind === 'ready' && filter === 'summary' && !search && groups.main.length > 0 && dated.length === 0 && (
             <EmptyFilter title={t('noSummaries')} hint={t('noSummariesHint')} icon={Sparkle} />
           )}
@@ -695,13 +706,14 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
 
           {!search &&
-            dated.map(({ group, items }) => (
+            (state.kind === 'ready' ? shownGroups : []).map(({ group, items }) => (
               <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-5 first:mt-1">
                 {/* Мелкий надзаголовок группы */}
                 <h2 id={`aid-group-${group}`} className="pb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {t(GROUP_LABEL[group])}
                 </h2>
                 <ul className="grid grid-cols-1 gap-x-6 gap-y-1 @[1100px]:grid-cols-2">
+                  {group === 'today' && pending && <PendingRow title={pending.title} stage={pending.stage} done={finish?.stage === 'saved'} />}
                   {items.map((m) => (
                     <MeetingRow
                       key={m.id}
@@ -738,31 +750,17 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
-// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved); в сборку не попадает
-const FinishingPreview =
-  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
-const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved'] as const;
-
 function HomeContent() {
   const rec = useRecordingControls();
   const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
-  // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  // После стопа экран обработки держится до открытия встречи (rec.finished), но уступает
-  // встрече и настройкам, если их открыли
-  const finishing = (rec.phase !== null || rec.finished !== null) && !meetingId && params.get('view') !== 'settings';
-  const showRecording = (rec.isRecording || finishing) && rec.view === 'recording';
-
-  const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
-  if (FinishingPreview && preview) return <FinishingPreview stage={preview} short={params.get('size') === 'short'} />;
-  if (showRecording) {
+  // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше.
+  // После «Остановить» сразу список: экрана обработки нет, шаг показывают строка и карточка
+  if (rec.isRecording && rec.view === 'recording') {
     return (
       <RecordingView
         isPaused={rec.isPaused}
-        phase={rec.phase}
-        finished={rec.finished}
-        onFinished={rec.setFinished}
         duration={rec.duration}
         live={rec.live}
         onBack={() => rec.setView('list')}
@@ -773,7 +771,7 @@ function HomeContent() {
   if (meetingId) return <MeetingDetails key={meetingId} />;
   // Настройки тоже здесь, по ?view=settings (in-place-router.tsx): отдельная страница в Tauri зависала
   if (params.get('view') === 'settings') return <AidSettings />;
-  return <HomeView onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
+  return <HomeView finish={previewFinish(params) ?? rec.finish} onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
 }
 
 export default function Home() {

@@ -9,7 +9,6 @@
 'use client';
 
 import { useContext, useMemo, type ReactNode } from 'react';
-import { finishHeld } from './finish-hold';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 type Router = NonNullable<React.ContextType<typeof AppRouterContext>>;
@@ -37,40 +36,6 @@ function onHome(): boolean {
   return path === '/' || path === '/index.html';
 }
 
-/**
- * Переход «Встреча сохранена» → страница встречи без скачка: карточка обложки экрана
- * обработки (FinishingScreen) перетекает в шапку встречи: обеим на время перехода дано
- * имя aid-meeting (:root[data-morph], globals.css). View Transitions есть в Chromium и в
- * WebKit macOS 15; где их нет или включено «уменьшить движение», обычный переход с мягким
- * проявлением страницы. Ждём шапку встречи не дольше 800 мс, потом снимок всё равно.
- */
-function morphToMeeting(go: () => void): boolean {
-  const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => { finished: Promise<void> } };
-  // Переход запускает оригинальный хук остановки, когда сохранение готово; сцена обложки
-  // может ещё догонять статус (минимальное время показа), поэтому годится любая
-  const card = document.querySelector('.aid-fin-card');
-  if (!card || !doc.startViewTransition || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
-  const root = document.documentElement;
-  root.setAttribute('data-morph', '');
-  // Во время смены кадров браузер не рисует и не вызывает requestAnimationFrame: ждём таймером
-  const ready = () =>
-    new Promise<void>((resolve) => {
-      const started = performance.now();
-      const check = () => {
-        const head = document.querySelector('main .aid-sticky-head');
-        if ((head && !document.querySelector('.aid-fin-card')) || performance.now() - started > 800) resolve();
-        else window.setTimeout(check, 16);
-      };
-      window.setTimeout(check, 16);
-    });
-  const vt = doc.startViewTransition(() => {
-    go();
-    return ready();
-  });
-  void vt.finished.finally(() => root.removeAttribute('data-morph'));
-  return true;
-}
-
 export function InPlaceMeetingRouter({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const router = useContext(AppRouterContext);
   const patched = useMemo<Router | null>(() => {
@@ -78,23 +43,21 @@ export function InPlaceMeetingRouter({ enabled, children }: { enabled: boolean; 
     const route = (href: string, method: 'push' | 'replace', options?: Parameters<Router['push']>[1]) => {
       const meeting = inPlaceHref(href);
       const target = meeting ?? href;
+      // Переход оригинала к только что сохранённой встрече (?source=recording) пропускаем на
+      // любой странице: после «Остановить» человек остаётся там, где был, встречу открывает
+      // «Открыть» в карточке у кнопки записи (RecordDock)
+      if (MEETING_PATH.test(href) && href.includes('source=recording')) return;
       // На месте: встреча и возврат к списку (/ и /?…), пока открыта главная
       const toHome = target === '/' || target.startsWith('/?') || target.startsWith('/#');
       if (!toHome || !onHome()) return router[method](target, options);
       const next = meeting ? new URL(target, window.location.href).searchParams.get('id') : null;
-      // Переход оригинала к только что сохранённой встрече (?source=recording): пока экран
-      // обработки на месте, встречу открывает он сам (по кнопке или через 3 с, finish-hold.ts)
-      if (meeting && method === 'push' && finishHeld() && href.includes('source=recording')) return;
-      // Та же встреча ещё раз (открыли с экрана обработки, потом переход оригинала):
-      // ничего не делаем, адрес и параметры (summarize) не трогаем
+      // Та же встреча ещё раз: ничего не делаем, адрес и параметры (summarize) не трогаем
       if (method === 'push' && next !== null && next === new URLSearchParams(window.location.search).get('id')) return;
       const go = () => {
         if (method === 'push') window.history.pushState(null, '', target);
         else window.history.replaceState(null, '', target);
         if (options?.scroll !== false) window.scrollTo({ top: 0 });
       };
-      // После записи: карточка экрана обработки перетекает в шапку страницы встречи
-      if (meeting && morphToMeeting(go)) return;
       go();
     };
     return {

@@ -457,32 +457,6 @@ body {
   --dock-pad: var(--tile-pad, 20px);
 }
 
-/* Обрезка колонки плиток по радиусу плитки (Page layout="bento"). Прокрутка шире
-   колонки на 8 px (полоса в поле окна), поэтому overflow + border-radius не
-   подходит: правые углы разошлись бы с краем плиток. Маска из двух полос и
-   четырёх кругов даёт скруглённый прямоугольник ровно по краю плиток, а полосу
-   прокрутки справа оставляет видимой. */
-.aid-round-clip {
-  --clip-r: var(--tile-radius);
-  --clip-sb: 8px;
-  -webkit-mask:
-    linear-gradient(#000 0 0) 0 var(--clip-r) / calc(100% - var(--clip-sb)) calc(100% - 2 * var(--clip-r)) no-repeat,
-    linear-gradient(#000 0 0) var(--clip-r) 0 / calc(100% - var(--clip-sb) - 2 * var(--clip-r)) 100% no-repeat,
-    linear-gradient(#000 0 0) right 0 top 0 / var(--clip-sb) 100% no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat;
-  mask:
-    linear-gradient(#000 0 0) 0 var(--clip-r) / calc(100% - var(--clip-sb)) calc(100% - 2 * var(--clip-r)) no-repeat,
-    linear-gradient(#000 0 0) var(--clip-r) 0 / calc(100% - var(--clip-sb) - 2 * var(--clip-r)) 100% no-repeat,
-    linear-gradient(#000 0 0) right 0 top 0 / var(--clip-sb) 100% no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) left 0 bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) top 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat,
-    radial-gradient(circle at var(--clip-r) var(--clip-r), #000 calc(var(--clip-r) - 0.5px), transparent var(--clip-r)) right var(--clip-sb) bottom 0 / calc(2 * var(--clip-r)) calc(2 * var(--clip-r)) no-repeat;
-}
-
 /* Лоадеры. Вращение без подложки и без цвета акцента: в кнопке спиннер берёт
    цвет текста кнопки, вне кнопки цвет --loader. Скелетон без рамок и теней. */
 .aid-spinner {
@@ -935,32 +909,90 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Шапка страницы (PageHeader в Page.tsx), одна на все экраны: в покое без подложки, при
-   прокрутке стекло без рамки, блика, тени и скруглений. Тон стекла и полосы под ним из
-   --head-surface: плитка (tile: главная, настройки) или фон окна (bento: встреча, запись),
-   поэтому шапка везде лежит «в» своей поверхности, а не отдельной карточкой. Нижний край
-   без линии: под шапкой полоса 28 px (.aid-edge-fade), где размытие и тон плавно сходят на
-   нет (scroll edge effect из Liquid Glass macOS 26); контент уходит под шапку как под воду.
-   Маска затухания не декоративный градиент: она нужна, чтобы граница не резала строки. */
+/* Полоса страницы (PageHeader в Page.tsx), одна на все экраны, как large title у Apple:
+   большой заголовок прокручивается с контентом, наверху компактная полоса без подложки.
+   Под полосой контент размывается, а не затемняется: три слоя backdrop-filter с масками
+   (прогрессивное размытие), сильное у верха и сходит на нет к нижнему краю полосы. Ни тона,
+   ни градиента поверх контента; слои проявляются, когда страницу прокрутили. */
+.aid-head-blur {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.aid-head-blur > span {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.aid-head-wrap[data-scrolled] .aid-head-blur > span {
+  opacity: 1;
+}
+
+.aid-head-blur > span:nth-child(1) {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask: linear-gradient(#000 0%, #000 75%, transparent 100%);
+  mask: linear-gradient(#000 0%, #000 75%, transparent 100%);
+}
+
+.aid-head-blur > span:nth-child(2) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask: linear-gradient(#000 0%, #000 62%, transparent 94%);
+  mask: linear-gradient(#000 0%, #000 62%, transparent 94%);
+}
+
+.aid-head-blur > span:nth-child(3) {
+  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(32px);
+  -webkit-mask: linear-gradient(#000 0%, #000 50%, transparent 85%);
+  mask: linear-gradient(#000 0%, #000 50%, transparent 85%);
+}
+
+/* Название в полосе: появляется, когда большой заголовок ушёл под полосу */
+.aid-head-title {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.aid-head-title.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-head-blur > span,
+  .aid-head-title {
+    transition: none;
+  }
+}
+
+/* Без прозрачности: под полосой сплошной тон поверхности вместо размытия */
+@media (prefers-reduced-transparency: reduce) {
+  .aid-head-blur > span {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  .aid-head-blur > span:nth-child(1) {
+    background: hsl(var(--head-surface));
+  }
+}
+
 main[data-layout='tile'] {
   --head-surface: var(--card);
 }
 
 main[data-layout='bento'] {
   --head-surface: var(--background);
-}
-
-.aid-sticky-head {
-  transition:
-    background-color 0.3s ease,
-    -webkit-backdrop-filter 0.3s ease,
-    backdrop-filter 0.3s ease;
-}
-
-.aid-sticky-head.is-scrolled {
-  background: hsl(var(--head-surface) / 0.72);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  backdrop-filter: blur(24px) saturate(160%);
 }
 
 /* Кнопки и чипы в шапке на тоне текста (6 %, при наведении 12 %), а не на вложенной
@@ -976,26 +1008,6 @@ main[data-layout='bento'] {
 .aid-sticky-head .bg-muted:hover:not(:disabled),
 .aid-sticky-head .bg-secondary:hover:not(:disabled) {
   background-color: hsl(var(--foreground) / 0.12);
-}
-
-.aid-edge-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 28px;
-  pointer-events: none;
-  opacity: 0;
-  background: hsl(var(--head-surface) / 0.72);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-mask: linear-gradient(#000, transparent);
-  mask: linear-gradient(#000, transparent);
-  transition: opacity 0.3s ease;
-}
-
-.aid-edge-fade[data-on] {
-  opacity: 1;
 }
 
 /* Низ под кнопкой записи: контент растворяется к низу так же, как под шапкой (то же
@@ -1017,14 +1029,12 @@ main[data-layout='bento'] {
   mask: linear-gradient(transparent, #000);
 }
 
-main:has(> .aid-scroll[data-fits]) > .aid-edge-fade-bottom,
+main:has(.aid-scroll[data-fits]) > .aid-edge-fade-bottom,
 :root[data-dock-off] .aid-edge-fade-bottom {
   display: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .aid-sticky-head.is-scrolled,
-  .aid-edge-fade,
   .aid-edge-fade-bottom {
     background: hsl(var(--head-surface));
     -webkit-backdrop-filter: none;

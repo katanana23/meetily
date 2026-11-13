@@ -147,19 +147,18 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
   // их не перепечатываем; всё, что пришло после, печатается, включая первую
   const [settledIds] = useState(() => new Set(segments.map((x) => x.id)));
 
-  // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
-  // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
-  const header = (
-    <div className="flex items-center gap-4">
-      <BackButton label={t('backFromRecording')} onClick={onBack} />
-      <div className="min-w-0">
-        <h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
-      </div>
-    </div>
-  );
+  // Шапка: «Назад» к списку (запись идёт дальше), большое название прокручивается с
+  // лентой, в полосе остаётся короткое. Состояние записи, таймер, уровень речи, пауза и
+  // «Остановить» только в капсуле записи (RecordDock).
+  const title = meetingTitle ? displayTitle(meetingTitle) : t('recording');
 
   return (
-    <Page layout="bento" header={header}>
+    <Page
+      layout="bento"
+      leading={<BackButton label={t('backFromRecording')} onClick={onBack} />}
+      title={title}
+      hero={<h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{title}</h1>}
+    >
       {/* Уведомления одной плиткой: «Похоже, встреча закончилась», напоминание об участниках, ошибки */}
       <ConsentTile>
         {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}

@@ -536,15 +536,10 @@ function HomeView({ finish, onStart, blocker, onDismissBlocker, startError }: Ho
   // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
   // кнопками, ниже чипы-фильтры. Поле поиска выезжает влево, лупа становится крестиком, чипы на месте;
   // Esc и крестик сворачивают и очищают, пустое поле сворачивается при потере фокуса. Запись в капсуле внизу (RecordDock)
-  const header = (
+  // Шапка как large title: в полосе поиск и импорт, большой заголовок с подписью и чипы-фильтры
+  // прокручиваются со списком; при прокрутке в полосе остаётся «Встречи» (Page)
+  const actions = (
     <>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
-        {/* Подпись в одну строку: когда поле поиска растёт, она обрезается, а не переносится (без скачка) */}
-        <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
         {showSearch && (
           // Поиск: поле выезжает влево отдельной таблеткой, а сама кнопка остаётся на месте,
           // и лупа в ней превращается в крестик «Закрыть поиск» (как в Finder и Музыке на macOS).
@@ -597,8 +592,12 @@ function HomeView({ finish, onStart, blocker, onDismissBlocker, startError }: Ho
             <TooltipContent side="bottom">{t('importAudio')}</TooltipContent>
           </Tooltip>
         )}
-      </div>
-    </div>
+    </>
+  );
+  const hero = (
+    <>
+      <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
+      <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
     {state.kind !== 'error' && (
       <div className="mt-5">
         <FilterChips value={filter} onChange={setFilter} counts={counts} />
@@ -608,7 +607,7 @@ function HomeView({ finish, onStart, blocker, onDismissBlocker, startError }: Ho
   );
 
   return (
-    <Page header={header}>
+    <Page title={t('homeTitle')} actions={actions} hero={hero}>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">

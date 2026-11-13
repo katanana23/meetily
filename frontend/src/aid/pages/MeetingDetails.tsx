@@ -418,10 +418,10 @@ function LoadingState() {
   return (
     <Page
       layout="bento"
-      header={
+      leading={<Skeleton className="size-14 rounded-full" />}
+      hero={
         <div role="status" aria-busy="true" aria-label={t('loading')}>
-          <Skeleton className="size-14 rounded-full" />
-          <Skeleton className="mt-5 h-10 w-2/3 rounded-full" />
+          <Skeleton className="h-10 w-2/3 rounded-full" />
           <Skeleton className="mt-4 h-5 w-64 rounded-full" />
         </div>
       }
@@ -456,7 +456,7 @@ function InTrash({ id, title }: { id: string; title: string }) {
     }
   };
   return (
-    <Page layout="bento" header={<BackLink />}>
+    <Page layout="bento" leading={<BackLink />}>
       <div className={cn(TILE, 'py-10')}>
         <h1 className="text-balance text-[36px] font-bold leading-10 tracking-tight">{t('inTrashTitle')}</h1>
         <p className="mt-2 max-w-md text-pretty text-[15px] text-muted-foreground">{t('inTrashHint')}</p>
@@ -523,7 +523,7 @@ function MeetingDetailsContent() {
 
   if (m.meeting.kind === 'not-found') {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         <div className={cn(TILE, 'py-10')}>
           <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('meetingNotFound')}</h1>
           <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
@@ -534,7 +534,7 @@ function MeetingDetailsContent() {
 
   if (m.meeting.kind === 'error' || !meta) {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         {m.meeting.kind === 'error' && <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />}
       </Page>
     );
@@ -543,7 +543,7 @@ function MeetingDetailsContent() {
   // Запись с пометкой «не сохранять» (решение после стопа) по прямому адресу не открывается
   if (isDiscarded(meta)) {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         <div className={cn(TILE, 'py-10')}>
           <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('notSavedTitle')}</h1>
           <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
@@ -602,51 +602,49 @@ function MeetingDetailsContent() {
   const openFolder = () =>
     void openMeetingFolder(meta.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
 
-  const header = (
+  // Полоса: «Назад» и действия; большое название и мета прокручиваются с контентом, при
+  // прокрутке в полосе остаётся короткое название (Page, large title)
+  const actions = (
     <>
-      {/* Действия в одной строке с «Ко всем встречам», чтобы название занимало всю ширину */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <BackLink />
-        <div className="flex flex-wrap items-center gap-2">
-          {showGenerate && (
-            // 56 px, Indigo: роль итогов и ИИ
-            <Button variant="indigo" size="main" onClick={() => void m.generateSummary()}>
-              <Sparkle />
-              {t('generateSummary')}
-            </Button>
-          )}
-          <CopyButton
-            disabled={empty}
-            getText={async () => {
-              const transcript = transcriptAsText(await m.loadAll());
-              const summaryText = showSummary && summaryReady ? markdownToPlain(summaryForPage(summaryReady, shownTitle)) : null;
-              return summaryText ? `${shownTitle}\n\n${t('summary')}\n${summaryText}\n\n${t('transcript')}\n${transcript}` : transcript;
-            }}
-          />
-          <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
-            <FolderOpen />
-          </IconAction>
-          <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)}>
-            <Trash />
-          </IconAction>
-        </div>
-      </div>
-      <div className="mt-5 min-w-0">
-        <Title shown={shownTitle} editable={editableTitle(meta.title)} onRename={rename} />
-        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
-              <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
-              <dd className="tabular text-[15px] font-medium">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      {showGenerate && (
+        // 56 px, Indigo: роль итогов и ИИ
+        <Button variant="indigo" size="main" onClick={() => void m.generateSummary()}>
+          <Sparkle />
+          {t('generateSummary')}
+        </Button>
+      )}
+      <CopyButton
+        disabled={empty}
+        getText={async () => {
+          const transcript = transcriptAsText(await m.loadAll());
+          const summaryText = showSummary && summaryReady ? markdownToPlain(summaryForPage(summaryReady, shownTitle)) : null;
+          return summaryText ? `${shownTitle}\n\n${t('summary')}\n${summaryText}\n\n${t('transcript')}\n${transcript}` : transcript;
+        }}
+      />
+      <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
+        <FolderOpen />
+      </IconAction>
+      <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)}>
+        <Trash />
+      </IconAction>
     </>
+  );
+  const hero = (
+    <div className="min-w-0">
+      <Title shown={shownTitle} editable={editableTitle(meta.title)} onRename={rename} />
+      <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
+        {facts.map((f) => (
+          <div key={f.label} className="min-w-0">
+            <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
+            <dd className="tabular text-[15px] font-medium">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 
   return (
-    <Page layout="bento" header={header}>
+    <Page layout="bento" leading={<BackLink />} title={shownTitle} actions={actions} hero={hero}>
       {empty ? (
         <SilentRecording
           folder={meta.folder_path ?? null}

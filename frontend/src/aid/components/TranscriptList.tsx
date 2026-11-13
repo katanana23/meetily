@@ -68,6 +68,44 @@ interface TranscriptListProps {
   settledIds?: ReadonlySet<string>;
 }
 
+interface RowProps {
+  text: string;
+  time: string;
+  /** Ширина колонки времени в ch: по самой длинной метке. */
+  timeCh: number;
+  speaker: string | null;
+  /** Спикер сменился: имя строкой над текстом и отступ больше. */
+  newSpeaker: boolean;
+  first: boolean;
+  live: boolean;
+  /** Печатать по буквам (новая реплика во время записи). */
+  animate: boolean;
+  /** Последняя реплика: в конце мигает курсор. */
+  last: boolean;
+  onTyped?: () => void;
+}
+
+/**
+ * Строка транскрипта. Пропсы простые (строки, числа, флаги), поэтому новая реплика
+ * перерисовывает только себя и прежнюю последнюю (у неё уходит курсор), а не весь список:
+ * экран записи пересобирает массив реплик на каждое событие ядра.
+ */
+const Row = memo(function Row({ text, time, timeCh, speaker, newSpeaker, first, live, animate, last, onTyped }: RowProps) {
+  return (
+    <li style={{ gridTemplateColumns: `${timeCh}ch 1fr` }} className={cn('grid items-baseline gap-x-4', first ? '' : newSpeaker ? 'pt-6' : 'pt-2.5')}>
+      <time className="tabular select-none text-[13px] leading-7 text-muted-foreground">{time}</time>
+      <div className="min-w-0">
+        {newSpeaker && <p className="text-[13px] font-semibold leading-7 text-foreground">{speaker}</p>}
+        <p className="text-pretty leading-7 text-foreground/90">
+          {speaker && !newSpeaker && <span className="sr-only">{speaker}: </span>}
+          {live ? <TypedText text={text} animate={animate} onDone={onTyped} /> : text}
+          {live && last && <span className="aid-caret" aria-hidden />}
+        </p>
+      </div>
+    </li>
+  );
+});
+
 export const TranscriptList = memo(function TranscriptList({ segments, live = false, onTyped, settledIds }: TranscriptListProps) {
   // Реплики, которые были при первом показе, не перепечатываются
   const initial = useRef<ReadonlySet<string> | null>(null);
@@ -77,24 +115,21 @@ export const TranscriptList = memo(function TranscriptList({ segments, live = fa
     <ol className="text-[15px]" aria-live={live ? 'polite' : undefined}>
       {segments.map((s, i) => {
         const prev = segments[i - 1];
-        const newSpeaker = Boolean(s.speaker) && s.speaker !== prev?.speaker;
-        const last = i === segments.length - 1;
         return (
-          <li
+          // key по id реплики: он не меняется, поэтому строки не пересоздаются
+          <Row
             key={s.id}
-            style={{ gridTemplateColumns: `${timeCh}ch 1fr` }}
-            className={cn('grid items-baseline gap-x-4', i === 0 ? '' : newSpeaker ? 'pt-6' : 'pt-2.5')}
-          >
-            <time className="tabular select-none text-[13px] leading-7 text-muted-foreground">{segmentTime(s)}</time>
-            <div className="min-w-0">
-              {newSpeaker && <p className="text-[13px] font-semibold leading-7 text-foreground">{s.speaker}</p>}
-              <p className="text-pretty leading-7 text-foreground/90">
-                {s.speaker && !newSpeaker && <span className="sr-only">{s.speaker}: </span>}
-                {live ? <TypedText text={s.text} animate={!initial.current!.has(s.id)} onDone={onTyped} /> : s.text}
-                {live && last && <span className="aid-caret" aria-hidden />}
-              </p>
-            </div>
-          </li>
+            text={s.text}
+            time={segmentTime(s)}
+            timeCh={timeCh}
+            speaker={s.speaker}
+            newSpeaker={Boolean(s.speaker) && s.speaker !== prev?.speaker}
+            first={i === 0}
+            live={live}
+            animate={!initial.current!.has(s.id)}
+            last={i === segments.length - 1}
+            onTyped={onTyped}
+          />
         );
       })}
     </ol>

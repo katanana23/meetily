@@ -8,9 +8,10 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { Stop, Warning } from '@phosphor-icons/react';
+import { ArrowDown, Stop, Warning } from '@phosphor-icons/react';
+import { useFollowTail } from '@/aid/lib/follow-tail';
 import { FinishGlyph } from '@/aid/components/FinishCard';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
@@ -130,7 +131,7 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
   const { transcripts, meetingTitle } = useTranscripts();
   // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
-  const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
   const [silenceDismissedAt, setSilenceDismissedAt] = useState(0);
@@ -139,14 +140,12 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
   const showLongSilence =
     live.tracking && !isPaused && live.lastSpeechAt !== null && duration - silentSince >= LONG_SILENCE_SEC;
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [segments.length]);
+  // Лента едет за новыми репликами, только если человек внизу (lib/follow-tail.ts)
+  const hasLines = segments.length > 0;
+  const { atBottom, jumpToEnd } = useFollowTail(listRef, hasLines);
   // Реплики, которые уже были, когда экран записи открылся (вернулись из списка):
   // их не перепечатываем; всё, что пришло после, печатается, включая первую
   const [settledIds] = useState(() => new Set(segments.map((x) => x.id)));
-  // Реплика допечатана (печатная машинка в TranscriptList): докрутить к концу
-  const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
   // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
   // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
@@ -201,10 +200,25 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
             <p className="aid-fg-text text-[15px] font-semibold">{t('waitingSpeech')}</p>
           </div>
         ) : (
-          <div className="max-w-[760px]">
-            <TranscriptList segments={segments} live onTyped={scrollToEnd} settledIds={settledIds} />
-            <div ref={endRef} />
-          </div>
+          <>
+            <div ref={listRef} className="max-w-[760px]">
+              <TranscriptList segments={segments} live settledIds={settledIds} />
+            </div>
+            {/* Прокрутили вверх: лента стоит, над капсулой записи «К новым». Нулевая высота:
+                появление кнопки не двигает ленту */}
+            {!atBottom && (
+              <div className="pointer-events-none sticky bottom-[calc(var(--dock-space)-12px)] z-20 flex h-0 justify-center">
+                <button
+                  type="button"
+                  onClick={jumpToEnd}
+                  className="aid-glass aid-dock-in pointer-events-auto absolute bottom-0 flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4"
+                >
+                  <ArrowDown aria-hidden />
+                  {t('toLatest')}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
     </Page>

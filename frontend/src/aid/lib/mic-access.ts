@@ -139,7 +139,13 @@ export async function macMicrophoneAnswer(): Promise<MacAnswer> {
   const started = performance.now();
   const took = () => `${Math.round(performance.now() - started)} мс`;
   try {
-    const result = await timeout(md.getUserMedia({ audio: true }), PROMPT_WAIT_MS);
+    // Без эхоподавления, шумодава и автоусиления: с ними WebKit открывает микрофон в режиме
+    // обработки голоса (VoiceProcessingIO), а macOS на это время приглушает другие приложения:
+    // музыка резко стихала при нажатии «Записать». Для проверки доступа обработка не нужна
+    const result = await timeout(
+      md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }),
+      PROMPT_WAIT_MS,
+    );
     if (result === 'timeout') return { access: 'unknown', detail: `нет ответа за ${PROMPT_WAIT_MS / 1000} с` };
     result.getTracks().forEach((track) => track.stop());
     return { access: 'granted', detail: `поток открылся за ${took()}` };

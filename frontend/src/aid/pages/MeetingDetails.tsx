@@ -667,7 +667,7 @@ function MeetingDetailsContent() {
           <section
             aria-label={t('transcript')}
             className={cn(TILE, glow && 'relative isolate')}
-            style={glow ? { paddingBottom: 'var(--dock-space)' } : undefined}
+            style={glow ? { paddingBottom: 'var(--glow-h)' } : undefined}
           >
             {glow && <VoiceGlow mode={glow} />}
             <div className={MEASURE}>

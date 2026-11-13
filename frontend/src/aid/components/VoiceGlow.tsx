@@ -9,15 +9,15 @@
 // - off: уходит за 0,4 с, потом цикл стоит и холст пустой.
 //
 // Расход: один requestAnimationFrame, кадры только пока свечение видно на экране и окно
-// активно (в фокусе и не свёрнуто), DPR не больше 2, холст только высотой зоны капсулы
-// (--dock-space). При prefers-reduced-motion, prefers-reduced-transparency и без WebGL
+// активно (в фокусе и не свёрнуто), холст в 1× (свечение мягкое, Retina не нужна) и
+// только высотой зоны свечения (--glow-h). При prefers-reduced-motion, prefers-reduced-transparency и без WebGL
 // вместо холста статичная мягкая полоса (.aid-glow-static).
 //
 // Размещение: первым ребёнком плитки с классом relative isolate. Слой во всю плитку,
 // обрезан по её скруглению (overflow: clip, не hidden: hidden сделал бы его областью
 // прокрутки и сломал sticky); внутри холст прилипает к нижнему краю видимой области,
 // поэтому свечение у капсулы, даже когда плитка длиннее экрана. Слой под текстом
-// (-z-10 внутри isolate), последняя реплика выше зоны: у плитки снизу запас --dock-space.
+// (-z-10 внутри isolate), последняя реплика выше зоны: у плитки снизу запас --glow-h.
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -28,10 +28,11 @@ export type VoiceGlowMode = 'listen' | 'paused' | 'think' | 'off';
 
 const VS = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }';
 
-// Шейдер прототипа: цвет течёт вдоль края (fbm), высота растёт с голосом, светлая кромка
-// по краю и скруглениям, белая сердцевина там, где гуще. Отличия: нижний край прямо по
-// низу холста (скругление только снизу, верх холста не край), uAmp для ухода, uLine для
-// паузы (тонкая линия), верх холста всегда пустой: там последняя реплика.
+// По мотивам прототипа: цвет течёт вдоль края, холмы растут с голосом, мягкая кромка
+// по краю и скруглениям. Отличия: холмы из трёх бегущих синусоид (плавные волны без
+// столбов шума), ядро с широким ореолом (граница уходит в фон), размеры в CSS-пикселях
+// (одинаковые волны на любой ширине плитки), скругление только снизу, uAmp для ухода,
+// uLine для паузы (тонкая линия), верх холста всегда пустой: там последняя реплика.
 const FS = `
 precision mediump float;
 uniform vec2 uRes;
@@ -41,10 +42,10 @@ float sdRoundBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return lengt
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
   return mix(mix(hash(i), hash(i + vec2(1., 0.)), u.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), u.x), u.y); }
-float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.02; a *= .5; } return v; }
 vec3 apal(float t){
   t = fract(t);
-  vec3 c0 = vec3(1., .40, .50), c1 = vec3(1., .72, .45), c2 = vec3(.52, .60, 1.), c3 = vec3(.76, .50, .98);
+  // Розовый, персиковый, сиреневый, барвинок: соседние цвета смешиваются без серого
+  vec3 c0 = vec3(1., .40, .50), c1 = vec3(1., .72, .45), c2 = vec3(.76, .50, .98), c3 = vec3(.52, .60, 1.);
   float s = t * 4.;
   return s < 1. ? mix(c0, c1, s) : s < 2. ? mix(c1, c2, s - 1.) : s < 3. ? mix(c2, c3, s - 2.) : mix(c3, c0, s - 3.);
 }
@@ -56,32 +57,46 @@ void main(){
   float sd = sdRoundBox(px - vec2(W * .5, H * 2.), vec2(W * .5, H * 2.), uRadius);
   float inside = 1. - smoothstep(-1., 1., sd);
   if (inside <= 0. || uAmp <= 0.) { gl_FragColor = vec4(0.); return; }
+  // Всё в CSS-пикселях: волны одного размера на любой ширине плитки
+  float X = px.x / uPx;
+  float y = px.y / uPx;
+  float top = H / uPx;
   float x = px.x / W;
-  float y = px.y;
   float t = uTime;
   float L = uLevel;
 
-  float flow = fbm(vec2(x * 1.6 - t * .12, t * .07));
-  vec3 hue = apal(x * .85 + flow * .9 + t * .045);
+  // Цвет медленно течёт вдоль края: один слой гладкого шума, без ряби
+  float flow = vnoise(vec2(X / 420. - t * .1, t * .05));
+  vec3 hue = apal(X / 1100. + flow * .55 + t * .04);
 
-  float wob = fbm(vec2(x * 2.2 + t * .32, t * .22));
-  float h = H * (.10 + L * (.32 + .40 * wob));
-  float lump = exp(-pow((x - uSweep) / .24, 2.));
-  h = mix(h, H * (.12 + .50 * lump), uThink);
+  // Волны: три бегущие синусоиды разной длины, сумма даёт плавные холмы без столбов
+  float w = sin(X / 83. + t * .9) * .5
+          + sin(X / 49. - t * 1.25 + 1.7) * .32
+          + sin(X / 31. + t * 1.7 + 4.1) * .18;
+  w = smoothstep(-.9, .9, w);
+  // Холмы то выше, то ниже: медленный шум по длине волны
+  float swell = .55 + .45 * vnoise(vec2(X / 520. + t * .18, t * .12));
+  float h = 14. + L * (26. + 120. * w * swell);
+  // Думает: мягкий холм ходит из стороны в сторону
+  float lump = exp(-pow((x - uSweep) / .22, 2.));
+  h = mix(h, 16. + 96. * lump * (.75 + .25 * w), uThink);
   // Пауза: тонкая линия по краю
-  h = mix(h, 3. * uPx, uLine);
+  h = mix(h, 3., uLine);
 
-  float g = exp(-pow(max(y, 0.) / max(h, 1.), 1.25));
-  vec3 col = hue * g * (.75 + 1.1 * L + .55 * uThink);
+  // Ядро и широкий тихий ореол: граница уходит в фон, а не обрывается
+  float g = exp(-pow(y / max(h, 1.), 1.5));
+  float halo = exp(-pow(y / max(h * 2.2, 1.), 1.3));
+  vec3 col = hue * (g * (.5 + .8 * L + .45 * uThink) + halo * (.16 + .2 * L));
 
-  float rim = exp(sd / (3. * uPx)) * smoothstep(H * .35, 0., y);
-  col += mix(hue, vec3(1.), .35) * rim * (.5 + .9 * L + .4 * uThink);
-  col += vec3(1.) * pow(g, 3.) * (.10 + .32 * L + .15 * uThink);
+  // Кромка по краю и скруглениям: широкая и тихая
+  float rim = exp(sd / (10. * uPx)) * smoothstep(60., 0., y);
+  col += mix(hue, vec3(1.), .3) * rim * (.2 + .35 * L + .2 * uThink);
+  col += vec3(1.) * pow(g, 5.) * (.05 + .2 * L + .1 * uThink);
 
-  // Верх холста пустой: последняя реплика над зоной свечения читается
-  col *= smoothstep(H * .98, H * .4, y);
+  // Верх холста пустой и сходит на нет плавно: последняя реплика над свечением
+  col *= smoothstep(top, top * .35, y);
 
-  col = 1. - exp(-col * 1.15);
+  col = 1. - exp(-col * 1.1);
   col *= mix(.9, 1., uDark) * mix(1., .6, uLine) * uAmp;
   float a = clamp(max(col.r, max(col.g, col.b)) * mix(1.1, 1., uDark), 0., 1.) * inside;
   gl_FragColor = vec4(col * inside, a);
@@ -92,6 +107,10 @@ type Uniforms = Record<(typeof UNIFORMS)[number], WebGLUniformLocation | null>;
 
 /** Радиус плитки, px (--tile-radius). */
 const TILE_RADIUS = 24;
+/** Масштаб холста: 1 CSS px на пиксель холста, не DPR экрана. */
+const RENDER_SCALE = 1;
+// Уровень свечения в тишине при записи (0..1)
+const LISTEN_FLOOR = 0.15;
 /** Уход после «Остановить», мс. */
 const FADE_OUT_MS = 400;
 
@@ -199,7 +218,8 @@ export function VoiceGlow({ mode, className }: { mode: VoiceGlowMode; className?
     const active = () => document.visibilityState === 'visible' && document.hasFocus();
 
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Свечение мягкое: холст в 1×, на Retina в 4 раза меньше работы шейдера без видимой разницы
+      dpr = RENDER_SCALE;
       const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
       const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -240,7 +260,8 @@ export function VoiceGlow({ mode, className }: { mode: VoiceGlowMode; className?
       time += dt / 1000;
       sweep += dt * 0.0016;
 
-      const target = m === 'listen' ? voiceAmount(readRecordingLevel()) : m === 'think' ? 0.28 : 0;
+      // В тишине свечение не гаснет до нитки: низкие холмы остаются, голос их поднимает
+      const target = m === 'listen' ? LISTEN_FLOOR + (1 - LISTEN_FLOOR) * voiceAmount(readRecordingLevel()) : m === 'think' ? 0.28 : 0;
       // Быстрая атака, медленный спад
       const k = target > level ? 1 - Math.exp(-dt / 45) : 1 - Math.exp(-dt / 260);
       level += (target - level) * k;

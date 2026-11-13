@@ -952,6 +952,13 @@ html body[data-scroll-locked] {
   mask: linear-gradient(#000 0%, #000 50%, transparent 85%);
 }
 
+/* Корневой экран: большой заголовок поднят в строку полосы (Page, marginTop); он и подпись
+   под ним не заходят под действия справа */
+.aid-hero-root > h1,
+.aid-hero-root > h1 + p {
+  padding-right: calc(var(--head-actions-w, 0px) + 12px);
+}
+
 /* Название в полосе: появляется, когда большой заголовок ушёл под полосу */
 .aid-head-title {
   opacity: 0;

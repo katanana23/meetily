@@ -25,7 +25,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { cn } from '@/aid/lib/utils';
 
 /** Класс is-scrolling на время прокрутки: по нему полоса проявляется (см. .aid-scroll). */
-export function useScrollActivity<T extends HTMLElement>(heroRef?: RefObject<HTMLElement>) {
+export function useScrollActivity<T extends HTMLElement>(heroRef?: RefObject<HTMLElement>, root = false) {
   const ref = useRef<T>(null);
   const [scrolled, setScrolled] = useState(false);
   /** Большой заголовок ушёл под полосу: название в полосе. */
@@ -45,8 +45,11 @@ export function useScrollActivity<T extends HTMLElement>(heroRef?: RefObject<HTM
       // Название в полосе, когда заголовок страницы (первая строка hero) скрылся под ней
       const title = hero?.querySelector<HTMLElement>('h1') ?? hero;
       if (title && bar) {
-        const top = title.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
-        setCollapsed(top < bar.offsetHeight);
+        const bottom = title.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+        // Дочерний экран: заголовок под полосой, название в полосе, когда он ушёл под неё.
+        // Корневой: заголовок в одной строке с действиями, название в полосе, когда он
+        // поднялся над своим местом (его низ выше верхнего отступа полосы плюс полстроки)
+        setCollapsed(bottom < (root ? ROOT_COLLAPSE_PX : bar.offsetHeight));
       } else setCollapsed(el.scrollTop > 0);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
@@ -76,13 +79,31 @@ interface PageProps {
   className?: string;
 }
 
+/** Корневой экран: название в полосе, когда низ большого заголовка поднялся выше этого. */
+const ROOT_COLLAPSE_PX = 40;
+/** Полоса: 20 сверху, кнопка 56, 12 снизу. Корневой заголовок встаёт в её строку: на 20 от верха. */
+const BAR_H = 88;
+const ROOT_HERO_SHIFT = BAR_H - 20;
+
 /** Плитка бенто: нейтральная, радиус 24, отступ 20 px. */
 export const TILE = 'rounded-tile bg-card p-5';
 
 export function Page({ leading, title, actions, hero, children, layout = 'tile', className }: PageProps) {
   const heroRef = useRef<HTMLDivElement>(null);
-  const { ref, scrolled, collapsed } = useScrollActivity<HTMLDivElement>(heroRef);
+  // Корневой экран (без «Назад»): большой заголовок в одной строке с действиями, без пустого
+  // этажа над ним. Дочерний: полоса с «Назад» и действиями, заголовок под ней
+  const root = !leading && Boolean(hero);
+  const { ref, scrolled, collapsed } = useScrollActivity<HTMLDivElement>(heroRef, root);
   const header = leading || title || actions;
+  // Ширина действий в полосе: у корневого экрана большой заголовок не заходит под них
+  useEffect(() => {
+    const el = ref.current;
+    const acts = el?.querySelector<HTMLElement>(':scope .aid-head-actions');
+    if (!el || !acts) return;
+    const ro = new ResizeObserver(() => el.style.setProperty('--head-actions-w', `${acts.offsetWidth}px`));
+    ro.observe(acts);
+    return () => ro.disconnect();
+  }, [ref, actions]);
   // Высота шапки в --head-h у области прокрутки: полоса прокрутки начинается под шапкой, а не за стеклом
   useEffect(() => {
     const el = ref.current;
@@ -128,7 +149,11 @@ export function Page({ leading, title, actions, hero, children, layout = 'tile',
   }, [ref, layout]);
   const head = header && <PageHeader scrolled={scrolled} collapsed={collapsed} leading={leading} title={title} actions={actions} />;
   const heroBlock = hero && (
-    <div ref={heroRef} className={cn('aid-hero min-w-0 px-5', layout === 'bento' ? 'pb-2' : 'pb-4', !header && 'pt-5')}>
+    <div
+      ref={heroRef}
+      className={cn('aid-hero min-w-0 px-5', layout === 'bento' ? 'pb-2' : 'pb-4', !header && 'pt-5', root && header && 'aid-hero-root')}
+      style={root && header ? { marginTop: -ROOT_HERO_SHIFT } : undefined}
+    >
       {hero}
     </div>
   );
@@ -204,7 +229,7 @@ export function PageHeader({
         >
           {title}
         </p>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && <div className="aid-head-actions flex shrink-0 items-center gap-2">{actions}</div>}
       </header>
     </div>
   );

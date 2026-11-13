@@ -127,6 +127,9 @@ export interface MacAnswer {
  * задаёт вопрос, и ответ ждёт решения человека (до PROMPT_WAIT_MS).
  * На заглушках ответ задаёт сценарий (команда aid_mock_mac_mic).
  */
+/** Пауза после закрытия микрофона WebView, прежде чем его откроет ядро. */
+const MIC_RELEASE_MS = 800;
+
 export async function macMicrophoneAnswer(): Promise<MacAnswer> {
   if (isMock()) {
     const access = await invoke<MacAnswer['access']>('aid_mock_mac_mic').catch(() => null);
@@ -139,9 +142,19 @@ export async function macMicrophoneAnswer(): Promise<MacAnswer> {
   const started = performance.now();
   const took = () => `${Math.round(performance.now() - started)} мс`;
   try {
-    const result = await timeout(md.getUserMedia({ audio: true }), PROMPT_WAIT_MS);
+    // Без эхоподавления, шумодава и автоусиления: с ними WebKit открывает микрофон в режиме
+    // обработки голоса (VoiceProcessingIO), а macOS на это время приглушает другие приложения:
+    // музыка резко стихала при нажатии «Записать». Для проверки доступа обработка не нужна
+    const result = await timeout(
+      md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }),
+      PROMPT_WAIT_MS,
+    );
     if (result === 'timeout') return { access: 'unknown', detail: `нет ответа за ${PROMPT_WAIT_MS / 1000} с` };
     result.getTracks().forEach((track) => track.stop());
+    // WebKit держит микрофон в режиме обработки голоса и после stop() ещё доли секунды. Если
+    // ядро откроет тот же микрофон раньше, macOS не успевает снять обработку («Adding hardware
+    // DSP while IO is running»), и микрофон молчит во всей системе. Даём ей закончить
+    await new Promise((r) => setTimeout(r, MIC_RELEASE_MS));
     return { access: 'granted', detail: `поток открылся за ${took()}` };
   } catch (error) {
     const name = error instanceof DOMException ? error.name : '';

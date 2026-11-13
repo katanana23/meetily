@@ -6,9 +6,11 @@
 //   напоминание «Пишу только звук компьютера». Запись не обрывается.
 'use client';
 
+import { CloseButton as CloseButtonBase } from '@/aid/components/ui/close-button';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GearSix, MicrophoneSlash, SpeakerHigh, X } from '@phosphor-icons/react';
+import { GearSix, MicrophoneSlash, SpeakerHigh } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
+import { NoticeMark, NoticeSurface } from '@/aid/components/ui/notice';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { SoundCheckDialog } from '@/aid/components/SoundCheck';
 import { openPrivacySettings } from '@/aid/lib/onboarding';
@@ -57,26 +59,19 @@ function useWindowReturn(cb: () => void) {
   }, []);
 }
 
+// Подложка и знак общие с остальными уведомлениями (ui/notice.tsx), чтобы карточки не расходились
 function CardShell({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn('aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile py-4 pl-4 pr-3', className)}>{children}</div>
-  );
+  return <NoticeSurface className={cn('w-[min(560px,calc(100vw-8rem))]', className)}>{children}</NoticeSurface>;
 }
 
 function Sign({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5" aria-hidden>
-      {children}
-    </span>
-  );
+  return <NoticeMark>{children}</NoticeMark>;
 }
 
 function CloseButton({ onClick }: { onClick: () => void }) {
   return (
-    // Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md)
-    <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={onClick} aria-label={t('close')}>
-      <X weight="bold" />
-    </Button>
+    // Общий круглый крестик (ui/close-button.tsx): на том же отступе, что и содержимое
+    <CloseButtonBase label={t('close')} onClick={onClick} />
   );
 }
 

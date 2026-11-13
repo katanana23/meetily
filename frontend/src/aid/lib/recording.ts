@@ -175,7 +175,13 @@ export function useAidRecording() {
     async (options: { systemOnly?: boolean } = {}) => {
       if (recording.isRecording || recording.status === RecordingStatus.STARTING || busy) return;
       setBusy('check');
-      const { blocker: problem, mic } = await checkBeforeRecording(checkPermissions, { access: !options.systemOnly });
+      // Доступ уже подтверждён раньше: микрофон WebView не открываем (каждое открытие включает
+      // обработку голоса macOS: приглушает другие приложения и может оставить встроенный
+      // микрофон молчащим, mic-watch.ts). Отзыв доступа поймает ядро (verify_microphone_access)
+      const knownGranted = knownMicAccess() === 'granted';
+      const checked = await checkBeforeRecording(checkPermissions, { access: !options.systemOnly && !knownGranted });
+      const problem = checked.blocker;
+      const mic: MicAccess | null = checked.mic ?? (knownGranted && !options.systemOnly ? 'granted' : null);
       setBusy(null);
       if (mic === 'granted') rememberMicAccess('granted');
       if (problem?.kind === 'mic-denied') rememberMicAccess('denied');
@@ -316,11 +322,9 @@ export function useAidRecording() {
   }, [recording.isRecording, recording.isPaused, busy]);
 
   const status = recording.status;
-  // Тихое сохранение в «Не распознано»: ни «Сохраняем», ни «Сохранено», сразу список
-  const phase: FinishPhase | null = outcome.quiet && (status === RecordingStatus.SAVING || status === RecordingStatus.COMPLETED)
+  // Текста нет (discarding): строка обработки в списке гаснет сразу, карточка говорит итог
+  const phase: FinishPhase | null = outcome.finishing === 'discarding'
     ? null
-    : outcome.finishing === 'discarding'
-    ? 'discarding'
     : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS
       ? 'transcribing'
       : status === RecordingStatus.SAVING
@@ -352,12 +356,10 @@ export function useAidRecording() {
     micBlind: recording.isRecording && micMode === 'mic' && micCheck === 'unverified' && micWatch.probe === 'blind',
     busy,
     live: outcome.live,
-    /** Запись не сохраняется (фаза discarding): тишина или пара фраз. */
-    discardVerdict: outcome.discardVerdict,
     start,
     stop,
     togglePause,
   };
 }
 
-export type FinishPhase = 'transcribing' | 'saving' | 'opening' | 'discarding';
+export type FinishPhase = 'transcribing' | 'saving' | 'opening';

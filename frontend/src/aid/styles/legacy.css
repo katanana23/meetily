@@ -2940,7 +2940,7 @@
 [data-radix-popper-content-wrapper].text-red-400,
 [data-sonner-toast] .text-red-400,
 [data-sonner-toast].text-red-400 {
-  color: hsl(var(--destructive));
+  color: hsl(var(--destructive-ink));
 }
 
 .aid-legacy .text-red-500,
@@ -2953,7 +2953,7 @@
 [data-radix-popper-content-wrapper].text-red-500,
 [data-sonner-toast] .text-red-500,
 [data-sonner-toast].text-red-500 {
-  color: hsl(var(--destructive));
+  color: hsl(var(--destructive-ink));
 }
 
 .aid-legacy .text-red-600,
@@ -2966,7 +2966,7 @@
 [data-radix-popper-content-wrapper].text-red-600,
 [data-sonner-toast] .text-red-600,
 [data-sonner-toast].text-red-600 {
-  color: hsl(var(--destructive));
+  color: hsl(var(--destructive-ink));
 }
 
 .aid-legacy .text-red-700,
@@ -2979,7 +2979,7 @@
 [data-radix-popper-content-wrapper].text-red-700,
 [data-sonner-toast] .text-red-700,
 [data-sonner-toast].text-red-700 {
-  color: hsl(var(--destructive));
+  color: hsl(var(--destructive-ink));
 }
 
 .aid-legacy .text-red-800,
@@ -2992,7 +2992,7 @@
 [data-radix-popper-content-wrapper].text-red-800,
 [data-sonner-toast] .text-red-800,
 [data-sonner-toast].text-red-800 {
-  color: hsl(var(--destructive));
+  color: hsl(var(--destructive-ink));
 }
 
 .aid-legacy .border-red-200,

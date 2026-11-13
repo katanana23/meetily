@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
+  ArrowCounterClockwise,
   ArrowClockwise,
   Check,
   CaretDown,
@@ -25,6 +26,7 @@ import {
 import { Spinner } from '@/aid/components/ui/spinner';
 import { BackButton } from '@/aid/components/BackButton';
 import { isDiscarded } from '@/aid/lib/recording-marks';
+import { isTrashed, loadTrash, onTrashChange, restoreMeeting } from '@/aid/lib/meeting-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
@@ -34,8 +36,8 @@ import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
 import { TranscriptList } from '@/aid/components/TranscriptList';
-import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
-import { readStoredOutcome, takeStayPath } from '@/aid/lib/recording-outcome';
+import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { readStoredOutcome } from '@/aid/lib/recording-outcome';
 import {
   markdownToPlain,
   summaryForPage,
@@ -48,7 +50,8 @@ import { checkReadyToRecord, type StartBlocker } from '@/aid/lib/recording';
 import { aidToast } from '@/aid/lib/toasts';
 import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
-import { countWords, isShownText, MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
+import { countWords, isShownText, MIN_SUMMARY_WORDS } from '@/aid/lib/speech';
+import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -228,7 +231,8 @@ function SummaryBlock({
   summary: SummaryState;
   /** Название в шапке: заголовок итогов, который его повторяет, не показывается. */
   title: string;
-  onRetry: () => void;
+  /** Нет у короткой встречи и во время записи: «Сделать заново» не показывается. */
+  onRetry?: () => void;
 }) {
   // Свёрнуты по умолчанию: главное на странице транскрипт. Раскрываются сами,
   // когда итоги только что сделаны на этой странице.
@@ -242,18 +246,33 @@ function SummaryBlock({
     }
   }, [summary.kind]);
 
-  // Итоги и всё, что делает ИИ: плитка Indigo, текст #111 (8,2:1) в обеих темах
+  // Итоги и всё, что делает ИИ: полоса Indigo, текст #111 в обеих темах.
+  // Пока итоги готовятся: та же полоса, что у готовых (та же высота, без прыжка), в круге
+  // Spinner, а на месте текста итогов Skeleton на нейтральной плитке. Ни свечений, ни мигания
   if (summary.kind === 'processing') {
     return (
-      <div className="aid-role aid-role-indigo flex min-h-[72px] items-center gap-3 rounded-tile px-5 py-4" role="status" aria-live="polite">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10">
-          <Spinner />
-        </span>
-        <div className="min-w-0">
-          <p className="text-base font-semibold">{t('summaryProcessing')}</p>
-          <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
+      <section className="flex flex-col gap-2" role="status" aria-live="polite" aria-busy="true">
+        <div className="aid-role aid-role-indigo flex items-center gap-2 rounded-tile p-3">
+          <div className="flex min-h-12 flex-1 items-center gap-3 pr-3">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10" aria-hidden>
+              <Spinner />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-lg font-bold tracking-tight">{t('summaryProcessing')}</span>
+              <span className="block truncate text-sm text-muted-foreground">{t('summaryProcessingHint')}</span>
+            </span>
+          </div>
         </div>
-      </div>
+        <div className={cn(TILE, 'space-y-3')} aria-hidden>
+          <Skeleton className="h-5 w-1/3 rounded-lg" />
+          <Skeleton className="h-4 w-full max-w-[760px] rounded-lg" />
+          <Skeleton className="h-4 w-11/12 max-w-[700px] rounded-lg" />
+          <Skeleton className="h-4 w-3/4 max-w-[560px] rounded-lg" />
+          <Skeleton className="mt-5 h-5 w-1/4 rounded-lg" />
+          <Skeleton className="h-4 w-5/6 max-w-[640px] rounded-lg" />
+          <Skeleton className="h-4 w-2/3 max-w-[500px] rounded-lg" />
+        </div>
+      </section>
     );
   }
 
@@ -286,10 +305,12 @@ function SummaryBlock({
           <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
         </button>
-        <Button variant="ghost" className={cn('h-12 px-5', ON_ROLE_SOFT)} onClick={onRetry}>
-          <ArrowClockwise />
-          {t('summaryRedo')}
-        </Button>
+        {onRetry && (
+          <Button variant="ghost" className={cn('h-12 px-5', ON_ROLE_SOFT)} onClick={onRetry}>
+            <ArrowClockwise />
+            {t('summaryRedo')}
+          </Button>
+        )}
       </div>
       {open && (
         <article
@@ -374,14 +395,14 @@ function CopyButton({ disabled, getText }: { disabled: boolean; getText: () => P
   );
 }
 
-function IconAction({ label, onClick, children, destructive }: { label: string; onClick: () => void; children: React.ReactNode; destructive?: boolean }) {
+function IconAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="secondary"
           size="icon"
-          className={cn('size-14 [&_svg]:size-6', destructive ? 'hover:text-destructive' : '')}
+          className="size-14 [&_svg]:size-6"
           onClick={onClick}
           aria-label={label}
         >
@@ -397,10 +418,10 @@ function LoadingState() {
   return (
     <Page
       layout="bento"
-      header={
+      leading={<Skeleton className="size-14 rounded-full" />}
+      hero={
         <div role="status" aria-busy="true" aria-label={t('loading')}>
-          <Skeleton className="size-14 rounded-full" />
-          <Skeleton className="mt-5 h-10 w-2/3 rounded-full" />
+          <Skeleton className="h-10 w-2/3 rounded-full" />
           <Skeleton className="mt-4 h-5 w-64 rounded-full" />
         </div>
       }
@@ -420,6 +441,34 @@ function LoadingState() {
   );
 }
 
+/** Встреча в корзине, открытая по адресу: что случилось и «Восстановить». */
+function InTrash({ id, title }: { id: string; title: string }) {
+  const [busy, setBusy] = useState(false);
+  const restore = async () => {
+    setBusy(true);
+    try {
+      await restoreMeeting(id);
+      aidToast.success(t('restored'), { description: title });
+    } catch (error) {
+      aidToast.error(t('restoreFailed'), { description: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Page layout="bento" leading={<BackLink />}>
+      <div className={cn(TILE, 'py-10')}>
+        <h1 className="text-balance text-[36px] font-bold leading-10 tracking-tight">{t('inTrashTitle')}</h1>
+        <p className="mt-2 max-w-md text-pretty text-[15px] text-muted-foreground">{t('inTrashHint')}</p>
+        <Button size="main" className="mt-6" onClick={() => void restore()} disabled={busy}>
+          {busy ? <Spinner tone="inherit" /> : <ArrowCounterClockwise />}
+          {t('restore')}
+        </Button>
+      </div>
+    </Page>
+  );
+}
+
 function MeetingDetailsContent() {
   const params = useSearchParams();
   const meetingId = params.get('id');
@@ -428,6 +477,14 @@ function MeetingDetailsContent() {
   const { meetings, setMeetings, refetchMeetings } = useSidebar();
   const { betaFeatures } = useConfig();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [trashed, setTrashed] = useState(() => (meetingId ? isTrashed(meetingId) : false));
+  useEffect(() => {
+    const sync = () => setTrashed(meetingId ? isTrashed(meetingId) : false);
+    sync();
+    // Кеш мог потеряться: сверить с метками на диске
+    void loadTrash().then(sync);
+    return onTrashChange(sync);
+  }, [meetingId]);
   const [retranscribe, setRetranscribe] = useState(false);
 
   const meta = m.meeting.kind === 'ready' ? m.meeting.meta : null;
@@ -438,18 +495,22 @@ function MeetingDetailsContent() {
   // в базе они остаются (speech.ts, isShownText)
   const visible = useMemo(() => m.segments.filter((x) => isShownText(x.text)), [m.segments]);
 
-  // Запись тихо сохранена в «Не распознано»: оригинальный хук всё равно открыл её
-  // страницу. Возвращаем пользователя туда, где он был (recording-outcome.tsx)
-  const [stayPath] = useState(() => (params.get('source') === 'recording' && typeof window !== 'undefined' ? takeStayPath() : null));
-  useEffect(() => {
-    if (stayPath) router.replace(stayPath, { scroll: false });
-  }, [stayPath, router]);
-
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
+  // ?summarize=1: «Подвести итоги» снаружи страницы — запускаем один раз, когда
+  // встреча загружена и итогов ещё нет, потом метку тоже убираем
+  const summarize = params.get('summarize') === '1';
+  const asked = useRef(false);
+  const segmentsReady = m.meeting.kind === 'ready' && m.summary.kind !== 'loading';
   useEffect(() => {
-    if (!stayPath && meetingId && params.get('source')) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
-  }, [meetingId, params, router, stayPath]);
+    if (!summarize || asked.current || !segmentsReady) return;
+    asked.current = true;
+    if (m.summary.kind === 'empty' && countWords(m.segments.map((x) => x.text).join(' ')) >= MIN_SUMMARY_WORDS) void m.generateSummary();
+  }, [summarize, segmentsReady, m]);
+  useEffect(() => {
+    if (!meetingId) return;
+    if (params.get('source') || (summarize && asked.current)) router.replace(`/meeting-details?id=${encodeURIComponent(meetingId)}`, { scroll: false });
+  }, [meetingId, params, router, summarize, segmentsReady]);
 
   useEffect(() => {
     if (shownTitle) document.title = `${shownTitle} · ${t('appName')}`;
@@ -458,13 +519,11 @@ function MeetingDetailsContent() {
     };
   }, [shownTitle]);
 
-  // Уходим обратно, страницу встречи не показываем даже на мгновение
-  if (stayPath) return null;
   if (m.meeting.kind === 'loading') return <LoadingState />;
 
   if (m.meeting.kind === 'not-found') {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         <div className={cn(TILE, 'py-10')}>
           <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('meetingNotFound')}</h1>
           <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('meetingNotFoundHint')}</p>
@@ -475,7 +534,7 @@ function MeetingDetailsContent() {
 
   if (m.meeting.kind === 'error' || !meta) {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         {m.meeting.kind === 'error' && <ErrorAlert title={t('meetingError')} error={m.meeting.error} onRetry={() => void m.retry()} />}
       </Page>
     );
@@ -484,7 +543,7 @@ function MeetingDetailsContent() {
   // Запись с пометкой «не сохранять» (решение после стопа) по прямому адресу не открывается
   if (isDiscarded(meta)) {
     return (
-      <Page layout="bento" header={<BackLink />}>
+      <Page layout="bento" leading={<BackLink />}>
         <div className={cn(TILE, 'py-10')}>
           <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('notSavedTitle')}</h1>
           <p className="mt-2 max-w-md text-[15px] text-muted-foreground">{t('notSavedHint')}</p>
@@ -492,6 +551,9 @@ function MeetingDetailsContent() {
       </Page>
     );
   }
+
+  // Удалена человеком: лежит в корзине 7 дней, по адресу открывается только с «Восстановить»
+  if (trashed) return <InTrash id={meta.id} title={shownTitle} />;
 
   // Пусто и тогда, когда все реплики оказались галлюцинациями на тишине
   const empty = m.total === 0 || (!m.hasMore && visible.length === 0);
@@ -506,14 +568,17 @@ function MeetingDetailsContent() {
   ].filter(Boolean) as Array<{ label: string; value: string }>;
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
   const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
-  // Короткая запись (меньше 15 слов): итоги из неё не собрать, поэтому ни блока
-  // итогов, ни «Сделать итоги», ни «Сделать заново»: модель заполнила бы разделы
-  // заглушками «Ничего не отмечено»
-  const tooShort = !m.hasMore && countWords(m.segments.map((x) => x.text).join(' ')) < MIN_MEANINGFUL_WORDS;
-  const showSummary = !empty && !tooShort;
-  // «Сделать итоги» в шапке, только пока итогов нет: ход генерации, ошибка
+  // «Подвести итоги» только когда есть из чего: запись остановлена (во время записи
+  // кнопки нет) и в тексте не меньше MIN_SUMMARY_WORDS слов (speech.ts). Иначе модель
+  // заполнила бы разделы заглушками «Ничего не отмечено». Итоги, сделанные раньше, видны
+  // при любой длине, но «Сделать заново» у короткой встречи нет
+  const { isRecording } = useRecordingControls();
+  const enoughText = m.hasMore || countWords(m.segments.map((x) => x.text).join(' ')) >= MIN_SUMMARY_WORDS;
+  const canSummarize = !empty && enoughText && !isRecording;
+  const showSummary = !empty && (m.summary.kind === 'ready' || m.summary.kind === 'processing' || (m.summary.kind === 'failed' && canSummarize));
+  // «Подвести итоги» в шапке, только пока итогов нет: ход генерации, ошибка
   // и «Сделать заново» показываются в блоке итогов над транскриптом
-  const showGenerate = showSummary && m.summary.kind === 'empty';
+  const showGenerate = canSummarize && m.summary.kind === 'empty';
 
   const rename = async (title: string) => {
     await renameMeeting(meta.id, title);
@@ -527,7 +592,7 @@ function MeetingDetailsContent() {
       await deleteMeeting(meta.id);
       await refetchMeetings();
       setConfirmDelete(false);
-      aidToast.success(t('deleted'), { description: t('deletedHint') });
+      toastTrashed(meta.id);
       router.push('/');
     } catch (error) {
       aidToast.error(t('deleteFailed'), { description: String(error) });
@@ -537,51 +602,49 @@ function MeetingDetailsContent() {
   const openFolder = () =>
     void openMeetingFolder(meta.id).catch((error) => aidToast.error(t('openFolderFailed'), { description: String(error) }));
 
-  const header = (
+  // Полоса: «Назад» и действия; большое название и мета прокручиваются с контентом, при
+  // прокрутке в полосе остаётся короткое название (Page, large title)
+  const actions = (
     <>
-      {/* Действия в одной строке с «Ко всем встречам», чтобы название занимало всю ширину */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <BackLink />
-        <div className="flex flex-wrap items-center gap-2">
-          {showGenerate && (
-            // 56 px, Indigo: роль итогов и ИИ
-            <Button variant="indigo" size="main" onClick={() => void m.generateSummary()}>
-              <Sparkle />
-              {t('generateSummary')}
-            </Button>
-          )}
-          <CopyButton
-            disabled={empty}
-            getText={async () => {
-              const transcript = transcriptAsText(await m.loadAll());
-              const summaryText = showSummary && summaryReady ? markdownToPlain(summaryForPage(summaryReady, shownTitle)) : null;
-              return summaryText ? `${shownTitle}\n\n${t('summary')}\n${summaryText}\n\n${t('transcript')}\n${transcript}` : transcript;
-            }}
-          />
-          <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
-            <FolderOpen />
-          </IconAction>
-          <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)} destructive>
-            <Trash />
-          </IconAction>
-        </div>
-      </div>
-      <div className="mt-5 min-w-0">
-        <Title shown={shownTitle} editable={editableTitle(meta.title)} onRename={rename} />
-        <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
-              <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
-              <dd className="tabular text-[15px] font-medium">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      {showGenerate && (
+        // 56 px, Indigo: роль итогов и ИИ
+        <Button variant="indigo" size="main" onClick={() => void m.generateSummary()}>
+          <Sparkle />
+          {t('generateSummary')}
+        </Button>
+      )}
+      <CopyButton
+        disabled={empty}
+        getText={async () => {
+          const transcript = transcriptAsText(await m.loadAll());
+          const summaryText = showSummary && summaryReady ? markdownToPlain(summaryForPage(summaryReady, shownTitle)) : null;
+          return summaryText ? `${shownTitle}\n\n${t('summary')}\n${summaryText}\n\n${t('transcript')}\n${transcript}` : transcript;
+        }}
+      />
+      <IconAction label={t('openRecordingFolder')} onClick={openFolder}>
+        <FolderOpen />
+      </IconAction>
+      <IconAction label={t('deleteMeeting')} onClick={() => setConfirmDelete(true)}>
+        <Trash />
+      </IconAction>
     </>
+  );
+  const hero = (
+    <div className="min-w-0">
+      <Title shown={shownTitle} editable={editableTitle(meta.title)} onRename={rename} />
+      <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
+        {facts.map((f) => (
+          <div key={f.label} className="min-w-0">
+            <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
+            <dd className="tabular text-[15px] font-medium">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 
   return (
-    <Page layout="bento" header={header}>
+    <Page layout="bento" leading={<BackLink />} title={shownTitle} actions={actions} hero={hero}>
       {empty ? (
         <SilentRecording
           folder={meta.folder_path ?? null}
@@ -592,7 +655,7 @@ function MeetingDetailsContent() {
         />
       ) : (
         <>
-          {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
+          {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={canSummarize ? () => void m.generateSummary() : undefined} />}
           {/* Транскрипт отдельной плиткой одним текстовым потоком, колонка до 760 px */}
           <section aria-label={t('transcript')} className={TILE}>
             <div className={MEASURE}>

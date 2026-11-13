@@ -100,7 +100,7 @@ function DemoRecording() {
             <span className="size-2.5 rounded-full bg-record" />
             <span className="w-12 text-[17px] font-bold tabular-nums">00:0{sec}</span>
             <SpeechBars count={6} className="h-5 text-foreground/45" />
-            <span className="ml-1 flex size-8 items-center justify-center rounded-full bg-record text-white">
+            <span className="ml-1 flex size-8 items-center justify-center rounded-full bg-record text-record-foreground">
               <Stop className="size-4" />
             </span>
           </div>

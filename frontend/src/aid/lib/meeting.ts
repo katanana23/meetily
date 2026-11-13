@@ -13,6 +13,7 @@ import {
   readMeetingSummaryLanguage,
 } from '@/lib/summary-language-preferences';
 import { formatOffset } from './format';
+import { pickDuration, recordedSeconds } from './recording-duration';
 
 // ---------- реплики ----------
 
@@ -434,7 +435,9 @@ export function useMeeting(meetingId: string | null) {
       offset.current = list.length;
       setMeeting({ kind: 'ready', meta });
 
-      // длительность: конец последней реплики; для длинных встреч дочитываем одну последнюю
+      // длительность: длина файла звука (recording-duration.ts); если узнать нельзя, конец
+      // последней реплики (для длинных встреч дочитываем одну последнюю)
+      const recorded = recordedSeconds(meta?.folder_path);
       let last: Transcript | undefined = list[list.length - 1];
       if (page.has_more && page.total_count > list.length) {
         const tail = await invoke<TranscriptPage>('api_get_meeting_transcripts', {
@@ -444,7 +447,8 @@ export function useMeeting(meetingId: string | null) {
         }).catch(() => null);
         last = tail?.transcripts?.[0] ?? last;
       }
-      if (req === request.current) setDuration(last?.audio_end_time ?? null);
+      const seconds = pickDuration(await recorded, last?.audio_end_time);
+      if (req === request.current) setDuration(seconds);
     } catch (error) {
       if (req !== request.current) return;
       setMeeting(isNotFound(error) ? { kind: 'not-found' } : { kind: 'error', error: friendlyError(error, 'Не удалось открыть встречу.') });

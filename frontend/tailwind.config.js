@@ -41,15 +41,18 @@ module.exports = {
   				ink: 'hsl(var(--mikado-ink, 72 100% 22%))'
   			},
   			indigo: {
-  				DEFAULT: 'hsl(var(--indigo, 255 89% 79%))',
+  				DEFAULT: 'hsl(var(--indigo, 255 89% 88%))',
   				ink: 'hsl(var(--indigo-ink, 254 64% 57%))'
   			},
   			giants: {
-  				DEFAULT: 'hsl(var(--giants, 18 81% 57%))',
+  				DEFAULT: 'hsl(var(--giants, 18 81% 82%))',
   				ink: 'hsl(var(--giants-ink, 18 76% 37%))'
   			},
   			'on-role': 'hsl(var(--on-role, 0 0% 7%))',
-  			record: 'hsl(var(--record, 4 74% 49%))',
+  			record: {
+  				DEFAULT: 'hsl(var(--record, 4 74% 41%))',
+  				foreground: 'hsl(var(--record-foreground, 0 0% 100%))'
+  			},
   			secondary: {
   				DEFAULT: 'hsl(var(--secondary))',
   				foreground: 'hsl(var(--secondary-foreground))'
@@ -73,7 +76,8 @@ module.exports = {
   			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
+  				foreground: 'hsl(var(--destructive-foreground))',
+  				ink: 'hsl(var(--destructive-ink))'
   			},
   			chart: {
   				'1': 'hsl(var(--chart-1))',

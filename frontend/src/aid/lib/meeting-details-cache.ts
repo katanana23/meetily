@@ -9,12 +9,13 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Transcript } from '@/types';
 import { toSegment } from './meeting';
 import { contentTitle, countWords, isHallucination } from './speech';
+import { pickDuration, recordedSeconds } from './recording-duration';
 
 export type MeetingStatus = 'summary' | 'summarizing' | 'transcript' | 'silent' | 'unknown';
 
 export interface MeetingDetails {
   status: MeetingStatus;
-  /** Секунды: конец последней реплики. */
+  /** Секунды записи: длина файла звука, иначе конец последней реплики (recording-duration.ts). */
   durationSec: number | null;
   words: number;
   /** Первые слова первой осмысленной реплики (для автоматических названий). */
@@ -38,10 +39,12 @@ export function normalizeForSearch(text: string): string {
 }
 
 async function load(meetingId: string): Promise<MeetingDetails> {
-  const [summary, page] = await Promise.allSettled([
+  const [summary, page, meta] = await Promise.allSettled([
     invoke<{ status?: string; data?: unknown } | null>('api_get_summary', { meetingId }),
     invoke<{ transcripts?: Transcript[]; total_count?: number }>('api_get_meeting_transcripts', { meetingId, limit: 5000, offset: 0 }),
+    invoke<{ folder_path?: string | null }>('api_get_meeting_metadata', { meetingId }),
   ]);
+  const recorded = await recordedSeconds(meta.status === 'fulfilled' ? meta.value?.folder_path : null);
   const st = summary.status === 'fulfilled' ? (summary.value?.status ?? '').toLowerCase() : '';
   const list = page.status === 'fulfilled' ? (page.value?.transcripts ?? []) : [];
   const total = page.status === 'fulfilled' ? (page.value?.total_count ?? list.length) : 0;
@@ -54,7 +57,7 @@ async function load(meetingId: string): Promise<MeetingDetails> {
   else if (page.status === 'fulfilled') status = total > 0 ? 'transcript' : 'silent';
   const details: MeetingDetails = {
     status,
-    durationSec: typeof last?.audio_end_time === 'number' ? last.audio_end_time : null,
+    durationSec: pickDuration(recorded, last?.audio_end_time),
     words,
     contentTitle: contentTitle(texts),
   };

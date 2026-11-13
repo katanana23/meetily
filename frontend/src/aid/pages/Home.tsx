@@ -5,10 +5,9 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowClockwise, Chats, FolderOpen, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowCounterClockwise, Chats, MagnifyingGlass, Sparkle, Trash, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Skeleton } from '@/aid/components/ui/skeleton';
@@ -18,24 +17,23 @@ import { Page } from '@/aid/components/Page';
 import AidSettings from '@/aid/pages/Settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
-import { MeetingRow, StatusThumb, type MeetingListItem } from '@/aid/components/MeetingRow';
-import { openTrash } from '@/aid/lib/recording-trash';
+import { MeetingRow, PendingRow, type MeetingListItem } from '@/aid/components/MeetingRow';
+import { daysLeft, deleteForever, emptyTrash, isTrashed, loadTrash, onTrashChange, restoreMeeting, trashedMeetings, type TrashedMeeting } from '@/aid/lib/meeting-trash';
 import { cachedDetails, cachedLines, loadDetails, normalizeForSearch } from '@/aid/lib/meeting-details-cache';
 import { findInTranscript, type TranscriptMatch } from '@/aid/lib/transcript-search';
-import { MIN_MEANINGFUL_WORDS } from '@/aid/lib/speech';
-import { deleteMeeting, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
+import { deleteMeeting, toastTrashed, openMeetingFolder, renameMeeting } from '@/aid/lib/meeting-actions';
 import { warmUpRoutes } from '@/aid/lib/open-meeting';
 import { aidToast } from '@/aid/lib/toasts';
 import { RecordingView } from '@/aid/pages/Recording';
 import MeetingDetails from '@/aid/pages/MeetingDetails';
 import { type StartBlocker } from '@/aid/lib/recording';
-import { useRecordingControls } from '@/aid/lib/recording-controls';
-import { isDiscarded, isKept, isUnrecognized, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
+import { useRecordingControls, type FinishState } from '@/aid/lib/recording-controls';
+import { previewFinish } from '@/aid/lib/finish-preview';
+import { isDiscarded, isKept, marksSnapshot, onMarksChange, purgeDiscarded, setEmptyCleanupAsked } from '@/aid/lib/recording-marks';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
-import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
 import { cn } from '@/aid/lib/utils';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
-import { dateGroup, displayTitle, formatShortDate, isAutoTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
+import { dateGroup, displayTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -58,7 +56,8 @@ function useMeetingsList(refreshKey: unknown) {
     const signal = { cancelled: false };
     current.current = signal;
     try {
-      const all = await invoke<Array<{ id: string; title: string }>>('api_get_meetings');
+      // Корзину сверяем с метками на диске до показа списка: удалённое не мелькнёт
+      const [all] = await Promise.all([invoke<Array<{ id: string; title: string }>>('api_get_meetings'), loadTrash()]);
       // Дату и папку записи ядро отдаёт только в метаданных; число реплик берём одним
       // коротким запросом (limit 1), чтобы пустые записи не мелькнули в списке до подробностей
       const [metas, counts] = await Promise.all([
@@ -81,7 +80,8 @@ function useMeetingsList(refreshKey: unknown) {
       });
       // Встречи с пометкой «не сохранять» не показываются никогда; просроченные удаляются
       if (meetings.some((m) => isDiscarded(m))) void purgeDiscarded();
-      const list = meetings.filter((m) => !isDiscarded(m));
+      // Удалённые человеком лежат в корзине (фильтр «Корзина»), в списке их нет
+      const list = meetings.filter((m) => !isDiscarded(m) && !isTrashed(m.id));
       setState({ kind: 'ready', meetings: list });
       // Состояние итогов, длительность, слова и название из содержания догружаются по очереди
       void loadDetails(
@@ -110,6 +110,8 @@ function useMeetingsList(refreshKey: unknown) {
 
   // «Вернуть» и решение после стопа меняют пометки: перечитать список
   useEffect(() => onMarksChange(() => void load()), [load]);
+  // Удалили или вернули из корзины: перечитать список
+  useEffect(() => onTrashChange(() => void load()), [load]);
 
   // Разработка: заранее скомпилировать страницу встречи, иначе первый клик ждёт 5–7 с
   useEffect(() => warmUpRoutes(), []);
@@ -160,80 +162,6 @@ function StartBlockerPanel({ blocker, onRetry, onClose }: { blocker: StartBlocke
   );
 }
 
-/** Чип «Не распознано»: записи без текста или с парой фраз, с действиями. */
-function UnrecognizedList({
-  meetings,
-  legacy,
-  onDelete,
-  onOpenFolder,
-}: {
-  meetings: MeetingListItem[];
-  legacy: boolean;
-  onDelete: (m: MeetingListItem) => void;
-  onOpenFolder: (m: MeetingListItem) => void;
-}) {
-  const [retranscribe, setRetranscribe] = useState<MeetingListItem | null>(null);
-  const { betaFeatures } = useConfig();
-  const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe);
-  if (meetings.length === 0) {
-    return <EmptyFilter title={t('noUnrecognized')} hint={t('noUnrecognizedHint')} />;
-  }
-  return (
-    <section aria-label={t('unrecognizedSection')}>
-      <p className="mb-3 text-sm text-muted-foreground">{legacy ? t('unrecognizedLegacyHint') : t('unrecognizedHint')}</p>
-      {/* Одна колонка: у строки три действия, в две колонки названия обрезались бы */}
-      <ul className="flex flex-col gap-1">
-        {meetings.map((m) => (
-          <li key={m.id} className="group flex min-h-[64px] flex-wrap items-center gap-3 rounded-nested p-2 transition-colors hover:bg-muted">
-            <Link
-              href={`/meeting-details?id=${encodeURIComponent(m.id)}`}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-nested focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <StatusThumb kind="silent" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-medium" title={displayTitle(m.title)}>
-                  {displayTitle(m.title)}
-                </span>
-                {m.created_at && !isAutoTitle(m.title) && <span className="block text-sm text-muted-foreground">{formatShortDate(m.created_at)}</span>}
-              </span>
-            </Link>
-            <div className="flex shrink-0 items-center gap-1">
-              {canRetranscribe && m.folder_path && (
-                <Button variant="outline" size="sm" onClick={() => setRetranscribe(m)}>
-                  <ArrowClockwise />
-                  {t('retranscribe')}
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => onDelete(m)}>
-                <Trash />
-                {t('delete')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-10 text-muted-foreground"
-                onClick={() => onOpenFolder(m)}
-                aria-label={`${t('openRecordingFolder')}: ${displayTitle(m.title)}`}
-              >
-                <FolderOpen />
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {retranscribe && (
-        <RetranscribeDialog
-          open
-          onOpenChange={(v) => !v && setRetranscribe(null)}
-          meetingId={retranscribe.id}
-          meetingFolderPath={retranscribe.folder_path ?? null}
-          onComplete={() => setRetranscribe(null)}
-        />
-      )}
-    </section>
-  );
-}
-
 /** Пустой результат фильтра: иконка в круге, заголовок и подсказка, слева по краю списка. */
 function EmptyFilter({
   title,
@@ -258,39 +186,152 @@ function EmptyFilter({
   );
 }
 
-/** Чип «Корзина»: что туда попадает и кнопка открыть папку. Сама корзина в файлах, не в базе. */
-function TrashPanel() {
-  const { storageLocations, loadPreferences } = useConfig();
+/** Встречи в корзине: удалённые человеком, 7 дней можно вернуть (meeting-trash.ts). */
+function useTrashed(): TrashedMeeting[] {
+  const [list, setList] = useState<TrashedMeeting[]>(() => trashedMeetings());
   useEffect(() => {
-    void loadPreferences();
-  }, [loadPreferences]);
-  const root = storageLocations?.recordings ?? null;
-  const open = async () => {
-    if (!root) return;
+    setList(trashedMeetings());
+    return onTrashChange(() => setList(trashedMeetings()));
+  }, []);
+  return list;
+}
+
+/** Подтверждение окончательного удаления: одна встреча или вся корзина. */
+function EraseDialog({ title, hint, onConfirm, onClose }: { title: string; hint: string; onConfirm: () => Promise<void>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const confirm = async () => {
+    setBusy(true);
     try {
-      await openTrash(root);
-    } catch (error) {
-      aidToast.error(t('openFolderFailed'), { description: String(error) });
+      await onConfirm();
+      onClose();
+    } finally {
+      setBusy(false);
     }
   };
   return (
-    <EmptyFilter title={t('trashPanelTitle')} hint={t('trashPanelHint')} icon={Trash}>
-      <Button size="main" className="mt-5" onClick={() => void open()} disabled={!root}>
-        <FolderOpen />
-        {t('openTrash')}
-      </Button>
-    </EmptyFilter>
+    <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
+      <DialogContent>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{hint}</DialogDescription>
+        <DialogFooter>
+          <Button variant="outline" size="main" onClick={onClose} disabled={busy}>
+            {t('cancel')}
+          </Button>
+          <Button variant="destructive" size="main" onClick={() => void confirm()} disabled={busy}>
+            {busy ? <Spinner tone="inherit" /> : <Trash />}
+            {t('deleteForever')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-type Filter = 'all' | 'summary' | 'unrecognized' | 'trash';
+/** Фильтр «Корзина»: удалённые встречи, срок, «Восстановить» и «Удалить насовсем»; сверху «Очистить корзину». */
+function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [erase, setErase] = useState<TrashedMeeting | 'all' | null>(null);
+  const restore = async (m: TrashedMeeting) => {
+    setBusy(m.id);
+    try {
+      await restoreMeeting(m.id);
+      onRestored();
+      aidToast.success(t('restored'), { description: displayTitle(m.title) });
+    } catch (error) {
+      aidToast.error(t('restoreFailed'), { description: String(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const eraseOne = async (m: TrashedMeeting) => {
+    try {
+      await deleteForever(m.id);
+      aidToast.success(t('deletedForever'), { description: displayTitle(m.title) });
+    } catch (error) {
+      aidToast.error(t('deleteFailed'), { description: String(error) });
+      throw error;
+    }
+  };
+  const eraseAll = async () => {
+    const n = await emptyTrash();
+    aidToast.success(t('trashEmptied'), { description: n ? `${n} ${plural(n, 'запись', 'записи', 'записей')}` : undefined });
+  };
+  if (items.length === 0) {
+    return (
+      <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash} />
+    );
+  }
+  return (
+    <section aria-label={t('filterTrash')}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
+        <Button variant="ghost" className="-mr-2 shrink-0 text-muted-foreground hover:text-destructive-ink" onClick={() => setErase('all')}>
+          <Trash />
+          {t('emptyTrash')}
+        </Button>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {items.map((m) => {
+          const days = daysLeft(m);
+          return (
+            <li key={m.id} className="flex min-h-[64px] items-center gap-3 rounded-nested p-2">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+                <Trash className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-medium" title={displayTitle(m.title)}>
+                  {displayTitle(m.title)}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  {m.trashedFolder === null && `${t('trashFileStayed')} · `}
+                  {t('trashDaysLeft')} {days} {plural(days, 'день', 'дня', 'дней')}
+                </span>
+              </span>
+              <Button variant="secondary" className="shrink-0" onClick={() => void restore(m)} disabled={busy !== null}>
+                {busy === m.id ? <Spinner tone="inherit" /> : <ArrowCounterClockwise />}
+                {t('restore')}
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-12 shrink-0 rounded-full text-muted-foreground"
+                    onClick={() => setErase(m)}
+                    disabled={busy !== null}
+                    aria-label={`${t('deleteForever')}: ${displayTitle(m.title)}`}
+                  >
+                    <Trash />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('deleteForever')}</TooltipContent>
+              </Tooltip>
+            </li>
+          );
+        })}
+      </ul>
+      {erase === 'all' && (
+        <EraseDialog title={t('emptyTrashTitle')} hint={t('emptyTrashHint')} onConfirm={eraseAll} onClose={() => setErase(null)} />
+      )}
+      {erase && erase !== 'all' && (
+        <EraseDialog
+          title={t('deleteForeverTitle')}
+          hint={`«${displayTitle(erase.title)}». ${t('deleteForeverHint')}`}
+          onConfirm={() => eraseOne(erase)}
+          onClose={() => setErase(null)}
+        />
+      )}
+    </section>
+  );
+}
+
+type Filter = 'all' | 'summary' | 'trash';
 
 /** Чипы-фильтры таблетками: выбранный Mikado (роль «выделение»), счётчик серым. */
 function FilterChips({ value, onChange, counts }: { value: Filter; onChange: (f: Filter) => void; counts: Partial<Record<Filter, number>> }) {
   const items: Array<{ id: Filter; label: string }> = [
     { id: 'all', label: t('filterAll') },
     { id: 'summary', label: t('filterSummary') },
-    { id: 'unrecognized', label: t('filterUnrecognized') },
     { id: 'trash', label: t('filterTrash') },
   ];
   return (
@@ -353,8 +394,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
         </DialogTitle>
         <DialogDescription>
           {n === 1
-            ? 'В ней нет ни одной реплики. Файл звука останется в папке записей. Если там был разговор, нажмите «Оставить»: запись будет в фильтре «Не распознано».'
-            : 'В них нет ни одной реплики. Файлы звука останутся в папке записей. Если в какой-то был разговор, нажмите «Оставить»: такие записи будут в фильтре «Не распознано».'}
+            ? 'В ней нет ни одной реплики. Она 7 дней полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить».'
+            : 'В них нет ни одной реплики. Они 7 дней полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить».'}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" size="main" onClick={keep} disabled={busy}>
@@ -373,13 +414,15 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
 const GROUP_LABEL = { today: 'groupToday', yesterday: 'groupYesterday', week: 'groupWeek', earlier: 'groupEarlier' } as const;
 
 interface HomeViewProps {
+  /** Обработка после «Остановить»: строка новой встречи со спиннером (recording-controls.tsx). */
+  finish: FinishState | null;
   onStart: () => void;
   blocker: StartBlocker | null;
   onDismissBlocker: () => void;
   startError: string | null;
 }
 
-function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewProps) {
+function HomeView({ finish, onStart, blocker, onDismissBlocker, startError }: HomeViewProps) {
   const { meetings: sidebarMeetings, setMeetings } = useSidebar();
   const { state, setState, reload } = useMeetingsList(sidebarMeetings);
   const [toDelete, setToDelete] = useState<MeetingListItem | null>(null);
@@ -407,7 +450,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       patch((list) => list.filter((x) => x.id !== toDelete.id));
       setMeetings(sidebarMeetings.filter((x) => x.id !== toDelete.id));
       setToDelete(null);
-      aidToast.success(t('deleted'), { description: t('deletedHint') });
+      toastTrashed(toDelete.id);
     } catch (error) {
       aidToast.error(t('deleteFailed'), { description: String(error) });
     }
@@ -431,24 +474,14 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
     setQuery('');
   };
   const [filter, setFilter] = useState<Filter>('all');
+  const trashed = useTrashed();
 
-  // Записи без единой реплики в общий список не попадают: либо раздел «Не распознано»
-  // внизу, либо (оставленные пользователем через «Вернуть») обычная строка
+  // Раздела «Не распознано» нет: встреча без текста не создаётся (recording-outcome.tsx),
+  // все встречи в одном списке. Старые записи без единой реплики тоже в списке; про них
+  // один раз спрашиваем «Удалить пустые записи?» (в корзину)
   const groups = useMemo(() => {
-    if (state.kind !== 'ready') return { main: [], unrecognized: [], legacyEmpty: [] };
-    // Помечена «не распознано» после стопа (детектор слышал речь, осмысленного текста нет)
-    // или старая запись без единой реплики; возвращённые через «Вернуть» остаются в общем списке
-    // Пара фраз (меньше 15 слов по подробностям строки) тоже уходит вниз: из неё не
-    // собрать ни транскрипт для чтения, ни итоги
-    const aside = (m: MeetingListItem) =>
-      !isKept(m) &&
-      (isUnrecognized(m) || m.transcriptCount === 0 || (m.details !== null && m.details.status !== 'unknown' && m.details.words < MIN_MEANINGFUL_WORDS));
-    const unrecognized = state.meetings.filter(aside);
-    return {
-      main: state.meetings.filter((m) => !aside(m)),
-      unrecognized,
-      legacyEmpty: unrecognized.filter((m) => !isUnrecognized(m) && m.transcriptCount === 0),
-    };
+    if (state.kind !== 'ready') return { main: [], legacyEmpty: [] };
+    return { main: state.meetings, legacyEmpty: state.meetings.filter((m) => !isKept(m) && m.transcriptCount === 0) };
   }, [state]);
 
   // Поиск: по названию в базе, по тому, что видно в списке, и по тексту реплик.
@@ -479,26 +512,34 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
       .filter((x) => x.items.length > 0);
   }, [groups, filter]);
 
+  // Встреча ещё обрабатывается: строка со спиннером первой в «Сегодня», пока в списке нет
+  // сохранённой встречи. Отбракованная запись строки не получает (карточка у кнопки записи)
+  const listIds = state.kind === 'ready' ? state.meetings : [];
+  const pending =
+    finish && !search && filter === 'all' && (finish.stage !== 'saved' || (finish.meetingId !== null && !listIds.some((m) => m.id === finish.meetingId)))
+      ? { title: finish.title ? displayTitle(finish.title) : t('recording'), stage: finish.stage === 'saving' ? t('finishSaving') : finish.stage === 'saved' ? t('finishSaved') : t('finishTranscribing') }
+      : null;
+  const shownGroups = pending && !dated.some((g) => g.group === 'today') ? [{ group: 'today' as DateGroup, items: [] as MeetingListItem[] }, ...dated] : dated;
+
   const askCleanup = state.kind === 'ready' && !cleanupClosed && !marksSnapshot().emptyCleanupAsked && groups.legacyEmpty.length > 0;
   const listFilter = filter === 'all' || filter === 'summary';
   const showSearch = listFilter && state.kind !== 'error' && (state.kind !== 'ready' || groups.main.length > 0);
   const counts: Partial<Record<Filter, number>> =
     state.kind === 'ready'
-      ? { all: groups.main.length, summary: groups.main.filter((m) => m.details?.status === 'summary').length, unrecognized: groups.unrecognized.length }
+      ? {
+          all: groups.main.length,
+          summary: groups.main.filter((m) => m.details?.status === 'summary').length,
+          trash: trashed.length,
+        }
       : {};
 
   // Шапка в плитке списка (как в Я.Музыке): заголовок 36/40 с подписью, справа поиск и импорт круглыми
   // кнопками, ниже чипы-фильтры. Поле поиска выезжает влево, лупа становится крестиком, чипы на месте;
   // Esc и крестик сворачивают и очищают, пустое поле сворачивается при потере фокуса. Запись в капсуле внизу (RecordDock)
-  const header = (
+  // Шапка как large title: в полосе поиск и импорт, большой заголовок с подписью и чипы-фильтры
+  // прокручиваются со списком; при прокрутке в полосе остаётся «Встречи» (Page)
+  const actions = (
     <>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
-        {/* Подпись в одну строку: когда поле поиска растёт, она обрезается, а не переносится (без скачка) */}
-        <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
         {showSearch && (
           // Поиск: поле выезжает влево отдельной таблеткой, а сама кнопка остаётся на месте,
           // и лупа в ней превращается в крестик «Закрыть поиск» (как в Finder и Музыке на macOS).
@@ -551,8 +592,12 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             <TooltipContent side="bottom">{t('importAudio')}</TooltipContent>
           </Tooltip>
         )}
-      </div>
-    </div>
+    </>
+  );
+  const hero = (
+    <>
+      <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('homeTitle')}</h1>
+      <p className="mt-1 truncate text-sm text-muted-foreground">{t('homeSubtitle')}</p>
     {state.kind !== 'error' && (
       <div className="mt-5">
         <FilterChips value={filter} onChange={setFilter} counts={counts} />
@@ -562,7 +607,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 
   return (
-    <Page header={header}>
+    <Page title={t('homeTitle')} actions={actions} hero={hero}>
       {blocker && <StartBlockerPanel blocker={blocker} onRetry={onStart} onClose={onDismissBlocker} />}
       {!blocker && startError && (
         <Alert variant="destructive">
@@ -599,10 +644,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           {/* Список в той же плитке под шапкой: строки встреч без вложенных карточек.
               @container: от 1100 px ширины списка строки в две колонки */}
           <section aria-label={t('meetingsList')} className="@container">
-          {filter === 'unrecognized' && state.kind === 'ready' && (
-            <UnrecognizedList meetings={groups.unrecognized} legacy={groups.legacyEmpty.length > 0} onDelete={setToDelete} onOpenFolder={openFolder} />
-          )}
-          {filter === 'trash' && <TrashPanel />}
+          {filter === 'trash' && <TrashPanel items={trashed} onRestored={() => void reload()} />}
           {listFilter && (<>
           {state.kind === 'loading' && (
             <div className="space-y-1" role="status" aria-busy="true" aria-label={t('loading')}>
@@ -625,7 +667,7 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
             </div>
           )}
 
-          {state.kind === 'ready' && groups.main.length === 0 && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
+          {state.kind === 'ready' && groups.main.length === 0 && !pending && <EmptyFilter title={t('noMeetings')} hint={t('noMeetingsHint')} />}
           {state.kind === 'ready' && filter === 'summary' && !search && groups.main.length > 0 && dated.length === 0 && (
             <EmptyFilter title={t('noSummaries')} hint={t('noSummariesHint')} icon={Sparkle} />
           )}
@@ -663,13 +705,14 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
           )}
 
           {!search &&
-            dated.map(({ group, items }) => (
+            (state.kind === 'ready' ? shownGroups : []).map(({ group, items }) => (
               <section key={group} aria-labelledby={`aid-group-${group}`} className="mt-5 first:mt-1">
                 {/* Мелкий надзаголовок группы */}
                 <h2 id={`aid-group-${group}`} className="pb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {t(GROUP_LABEL[group])}
                 </h2>
                 <ul className="grid grid-cols-1 gap-x-6 gap-y-1 @[1100px]:grid-cols-2">
+                  {group === 'today' && pending && <PendingRow title={pending.title} stage={pending.stage} done={finish?.stage === 'saved'} />}
                   {items.map((m) => (
                     <MeetingRow
                       key={m.id}
@@ -706,39 +749,28 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
-// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved|discarded); в сборку не попадает
-const FinishingPreview =
-  process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
-const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved', 'discarded'] as const;
-
 function HomeContent() {
   const rec = useRecordingControls();
   const params = useSearchParams();
   // Встреча открывается здесь же, по ?id= (open-meeting.ts, in-place-router.tsx)
   const meetingId = params.get('id');
-  // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше
-  // Сохранённую встречу открыли с экрана обработки раньше перехода оригинала: показываем её
-  const showRecording = (rec.isRecording || rec.phase !== null) && rec.view === 'recording' && !(rec.phase === 'opening' && meetingId);
-
-  const preview = PREVIEW_STAGES.find((x) => x === params.get('finish'));
-  if (FinishingPreview && preview) return <FinishingPreview stage={preview} />;
-  if (showRecording) {
+  // Во время записи главная показывает транскрипт; «Назад» переключает на список, запись идёт дальше.
+  // После «Остановить» сразу список: экрана обработки нет, шаг показывают строка и карточка
+  if (rec.isRecording && rec.view === 'recording') {
     return (
       <RecordingView
         isPaused={rec.isPaused}
-        phase={rec.phase}
         duration={rec.duration}
         live={rec.live}
         onBack={() => rec.setView('list')}
         onStop={rec.stop}
-        discardVerdict={rec.discardVerdict}
       />
     );
   }
   if (meetingId) return <MeetingDetails key={meetingId} />;
   // Настройки тоже здесь, по ?view=settings (in-place-router.tsx): отдельная страница в Tauri зависала
   if (params.get('view') === 'settings') return <AidSettings />;
-  return <HomeView onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
+  return <HomeView finish={previewFinish(params) ?? rec.finish} onStart={() => void rec.startAnywhere()} blocker={rec.blocker} onDismissBlocker={rec.dismissBlocker} startError={rec.startError} />;
 }
 
 export default function Home() {

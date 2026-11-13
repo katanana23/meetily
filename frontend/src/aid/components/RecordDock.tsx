@@ -5,9 +5,9 @@
 // - запись: стеклянная капсула (.aid-glass): красная точка с кольцом на речь,
 //   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
 //   стеклянной карточкой над капсулой;
-// - завершение: капсула со спиннером: «Слушаю последние секунды», «Сохраняю встречу»;
-// - запись не сохранена или не распознана: карточка с крестиком;
-//   «Речь не распознана» плиткой Giants (роль «Не распознано»), остальное стеклом.
+// - после «Остановить»: на месте кнопки записи одна карточка (FinishCard), которая меняет
+//   состояние на месте: «Дописываю реплики» → «Сохраняю» → «Встреча сохранена» с «Открыть»
+//   и крестиком; запись отбракована: та же карточка «Слишком коротко - запись не сохранена».
 // Смена состояния появляется из размытия (.aid-dock-in), только transform,
 // opacity и filter; prefers-reduced-motion их выключает.
 // Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
@@ -21,15 +21,17 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ChatText, Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Warning, Waveform, X } from '@phosphor-icons/react';
+import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform } from '@phosphor-icons/react';
+import { FinishCard, type FinishCardStage, type DiscardReason } from '@/aid/components/FinishCard';
 import { Button } from '@/aid/components/ui/button';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { SoundCheckDialog, silenceCause, useSoundState } from '@/aid/components/SoundCheck';
-import { useRecordingControls } from '@/aid/lib/recording-controls';
+import { useRecordingControls, type FinishState } from '@/aid/lib/recording-controls';
+import { previewFinish } from '@/aid/lib/finish-preview';
 import { isMicBlocker } from '@/aid/lib/recording';
 import { MicAccessCard, MicHint, micHintKind, type MicHintKind } from '@/aid/components/MicNotices';
-import { useRecordingOutcome, type DiscardNotice, type LiveSpeech } from '@/aid/lib/recording-outcome';
+import { useRecordingOutcome, type LiveSpeech } from '@/aid/lib/recording-outcome';
 import { formatTimer } from '@/aid/lib/format';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
@@ -120,79 +122,12 @@ function SpeechHint({ heard }: { heard: boolean }) {
   );
 }
 
-const COPY = {
-  'no-speech': { title: 'noSpeechNoticeTitle', hint: 'noSpeechNoticeHint' },
-  'too-little': { title: 'tooLittleNoticeTitle', hint: 'tooLittleNoticeHint' },
-  unrecognized: { title: 'unrecognizedNoticeTitle', hint: 'unrecognizedNoticeHint' },
-} as const;
-
-/** Карточка итога: плотное стекло, скругление плитки, воздух внутри. */
-function NoticeCard({ notice }: { notice: DiscardNotice }) {
-  return (
-    <div className="aid-glass aid-glass-dense relative w-[min(560px,calc(100vw-8rem))] rounded-tile py-4 pl-4 pr-3">
-      <NoticeRow notice={notice} />
-    </div>
-  );
-}
-
-function NoticeRow({ notice }: { notice: DiscardNotice }) {
-  const [soundCheck, setSoundCheck] = useState(false);
-  const { hold } = notice;
-  // Esc закрывает (если не открыт диалог проверки звука)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !soundCheck && notice.dismiss();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [notice, soundCheck]);
-  // Пока открыта «Проверить звук», карточка не уходит: иначе диалог закрылся бы вместе с ней
-  useEffect(() => hold('dialog', soundCheck), [hold, soundCheck]);
-  useEffect(
-    () => () => {
-      hold('hover', false);
-      hold('focus', false);
-      hold('dialog', false);
-    },
-    [hold],
-  );
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      data-aid-outcome={notice.verdict}
-      // pointerenter не приходит, если карточка появилась под неподвижным курсором (там была «Остановить»)
-      onPointerMove={() => hold('hover', true)}
-      onPointerLeave={() => hold('hover', false)}
-      onFocus={() => hold('focus', true)}
-      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && hold('focus', false)}
-      className="flex w-full min-w-0 items-center gap-4"
-    >
-      {/* Спокойно и с воздухом: знак в круге 44 px слева (что случилось), две короткие строки,
-          справа тихое действие текстом и крестик. Цвет роли только у знака «Не распознано» */}
-      <span
-        className={cn(
-          'flex size-11 shrink-0 items-center justify-center rounded-full [&_svg]:size-5',
-          notice.verdict === 'unrecognized' ? 'bg-[hsl(var(--giants)/0.16)] text-giants-ink' : 'bg-muted text-muted-foreground',
-        )}
-        aria-hidden
-      >
-        {notice.verdict === 'unrecognized' ? <Warning /> : notice.verdict === 'no-speech' ? <MicrophoneSlash /> : <ChatText />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-semibold leading-5">{t(COPY[notice.verdict].title)}</p>
-        <p className="mt-1 truncate text-sm leading-5 text-muted-foreground">{t(COPY[notice.verdict].hint)}</p>
-      </div>
-      {notice.verdict !== 'too-little' && (
-        <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium hover:bg-muted" onClick={() => setSoundCheck(true)}>
-          {t('soundCheck')}
-        </Button>
-      )}
-      {/* Крестик: X в начертании bold (залитый нарисован квадратом, CLAUDE.md) */}
-      <Button variant="ghost" size="icon" className="size-9 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-4" onClick={notice.dismiss} aria-label={t('close')}>
-        <X weight="bold" />
-      </Button>
-      <SoundCheckDialog open={soundCheck} onOpenChange={setSoundCheck} />
-    </div>
-  );
+/** Что показывает карточка после «Остановить». */
+interface CardView {
+  stage: FinishCardStage;
+  title: string | null;
+  meetingId: string | null;
+  reason?: DiscardReason;
 }
 
 /** Кнопка записи в покое: круг 88 px, сплошной Mikado, от него расходятся две волны. */
@@ -257,7 +192,7 @@ function RecordButton() {
 function IdleRecordButton() {
   const pathname = usePathname() ?? '/';
   const params = useSearchParams();
-  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings';
+  const hidden = pathname !== '/' || params.has('id') || params.get('view') === 'settings' || params.has('finish');
   useEffect(() => {
     const root = document.documentElement;
     root.toggleAttribute('data-dock-off', hidden);
@@ -272,7 +207,25 @@ export function RecordDock() {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
 
-  const state = c.isRecording ? 'recording' : c.phase ? 'finishing' : notice ? 'notice' : 'idle';
+  // Разработка: карточка на заданном шаге без записи (?finish=…, finish-preview.ts)
+  const [preview, setPreview] = useState<FinishState | null>(null);
+  useEffect(() => setPreview(previewFinish(new URLSearchParams(window.location.search))), [pathname]);
+  const fromFinish = (f: FinishState): CardView => ({ stage: f.stage, title: f.title, meetingId: f.meetingId });
+  // Одна карточка на все шаги после стопа: обработка и итог из recording-controls, отбракованная
+  // запись из recording-outcome (notice). Ключ состояния один, поэтому она не пересоздаётся
+  const card: CardView | null = preview
+    ? fromFinish(preview)
+    : c.finish
+      ? fromFinish(c.finish)
+      : notice
+        ? { stage: 'discarded', title: null, meetingId: null, reason: notice.verdict }
+        : null;
+  const state = c.isRecording ? 'recording' : card ? 'finishing' : 'idle';
+  const openSaved = (id: string) => {
+    c.dismissFinish();
+    router.push(`/meeting-details?id=${encodeURIComponent(id)}`);
+  };
+  const closeCard = card?.stage === 'discarded' ? notice?.dismiss : c.dismissFinish;
   // Микрофон: карточка, если запись не началась из-за него, и подсказки во время записи (MicNotices)
   const [micHintClosed, setMicHintClosed] = useState<MicHintKind | null>(null);
   useEffect(() => setMicHintClosed(null), [c.isRecording]);
@@ -287,28 +240,27 @@ export function RecordDock() {
   // текста речью не считаются
   const showSpeechHint =
     state === 'recording' && !showMicHint && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
-  // Экран завершения уже на месте (главная, вид записи): капсула его не повторяет
-  // Встречу открыли с экрана обработки раньше перехода (клик по обложке, Enter): «Открываю встречу» уже не нужно
-  const meetingOpen = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('id');
-  const onFinishingScreen =
-    state === 'finishing' && pathname === '/' && c.view === 'recording' && (!meetingOpen || c.phase === 'opening');
-
-  // Итог уходит плавно: последний показанный держим ещё 280 мс с анимацией ухода
-  const [leaving, setLeaving] = useState<DiscardNotice | null>(null);
-  const lastNotice = useRef<DiscardNotice | null>(null);
+  // Карточка уходит плавно: последний вид держим ещё 280 мс с анимацией ухода
+  const [leaving, setLeaving] = useState<CardView | null>(null);
+  const lastCard = useRef<CardView | null>(null);
+  const cardKey = card ? `${card.stage}:${card.meetingId ?? ''}:${card.reason ?? ''}:${card.title ?? ''}` : '';
   useEffect(() => {
-    if (state === 'notice' && notice) {
-      lastNotice.current = notice;
+    if (state === 'finishing' && card) {
+      lastCard.current = card;
       setLeaving(null);
       return;
     }
-    const gone = lastNotice.current;
+    const gone = lastCard.current;
     if (!gone) return;
-    lastNotice.current = null;
+    lastCard.current = null;
+    // Ушла в запись (новый старт): без уходящей копии под капсулой
+    if (state === 'recording') return;
     setLeaving(gone);
     const id = window.setTimeout(() => setLeaving(null), 280);
     return () => window.clearTimeout(id);
-  }, [state, notice]);
+    // card пересоздаётся на каждом рендере; его смысл в cardKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, cardKey]);
 
   return (
     <section
@@ -370,7 +322,7 @@ export function RecordDock() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="aid-btn-icon size-14 bg-foreground/[0.06] hover:bg-foreground/[0.12] [&_svg]:size-6"
+                  className="aid-icon-btn-glass size-14 [&_svg]:size-6"
                   onClick={() => void c.togglePause()}
                   disabled={c.busy !== null}
                   aria-label={c.isPaused ? t('resumeRecording') : t('pauseRecording')}
@@ -382,7 +334,7 @@ export function RecordDock() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="main" className="bg-record px-6 text-white hover:bg-record/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                <Button variant="destructive" size="main" onClick={() => void c.stop()} disabled={c.busy !== null}>
                   {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
                   {t('stopRecording')}
                 </Button>
@@ -394,27 +346,24 @@ export function RecordDock() {
           </div>
         )}
 
-        {state === 'finishing' && !onFinishingScreen && (
-          <div role="status" aria-live="polite" className="aid-glass relative flex h-[72px] items-center gap-3 rounded-full px-7 text-[15px] font-medium">
-            <Spinner />
-            {c.phase === 'opening'
-              ? t('savedShort')
-              : c.phase === 'saving'
-                ? t('savingShort')
-                : c.phase === 'discarding'
-                  ? t('discardingShort')
-                  : t('finishingShort')}
-          </div>
+        {state === 'finishing' && card && (
+          <FinishCard
+            stage={card.stage}
+            title={card.title}
+            reason={card.reason}
+            still={preview !== null}
+            onOpen={card.meetingId && !preview ? () => openSaved(card.meetingId!) : preview && card.meetingId ? () => undefined : undefined}
+            onClose={preview ? () => undefined : closeCard}
+            onHold={card.stage === 'discarded' ? notice?.hold : undefined}
+          />
         )}
-
-        {state === 'notice' && notice && <NoticeCard notice={notice} />}
       </div>
 
       {/* Уходящий итог: тот же вид, плавно гаснет и опускается, пока на его месте проявляется кнопка записи */}
       {leaving && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4" aria-hidden>
           <div className="aid-dock-out">
-            <NoticeCard notice={leaving} />
+            <FinishCard stage={leaving.stage} title={leaving.title} reason={leaving.reason} still onClose={() => undefined} onOpen={leaving.meetingId ? () => undefined : undefined} />
           </div>
         </div>
       )}

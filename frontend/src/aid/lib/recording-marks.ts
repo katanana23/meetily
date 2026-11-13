@@ -26,7 +26,7 @@ export interface DiscardMark {
 
 interface Marks {
   discarded: DiscardMark[];
-  /** Папки записей, где детектор слышал речь, а текста нет («Не распознано»). */
+  /** Устарело: папки «Не распознано» (раздела больше нет). Поле читается и сохраняется, чтобы не менять формат. */
   unrecognized: string[];
   /** Папки записей без текста, которые пользователь раньше вернул сам (кнопкой «Вернуть» до восьмого круга): показываются в общем списке. */
   kept: string[];
@@ -77,12 +77,6 @@ export function markDiscarded(folder: string | null, name: string | null, window
   return mark;
 }
 
-export function markUnrecognized(folder: string | null) {
-  if (!folder) return;
-  const m = read();
-  write({ ...m, unrecognized: uniq([...m.unrecognized, folder]) });
-}
-
 export function setEmptyCleanupAsked() {
   write({ ...read(), emptyCleanupAsked: true });
 }
@@ -105,10 +99,6 @@ function findMark(m: MeetingRef, marks: Marks = read()): DiscardMark | undefined
 /** Встреча помечена «не сохранять»: скрыть из списка и не открывать по адресу. */
 export function isDiscarded(m: MeetingRef): boolean {
   return Boolean(findMark(m));
-}
-
-export function isUnrecognized(m: MeetingRef): boolean {
-  return Boolean(m.folder_path && read().unrecognized.includes(m.folder_path));
 }
 
 export function isKept(m: MeetingRef): boolean {

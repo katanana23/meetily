@@ -42,7 +42,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
           aria-current={active ? 'page' : undefined}
           className={cn(
             SIDEBAR_BUTTON,
-            active ? 'bg-nav-active text-nav-active-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            active ? 'bg-nav-active text-nav-active-foreground' : 'aid-icon-btn-ghost text-muted-foreground',
           )}
         >
           <Icon className="size-6" aria-hidden />
@@ -72,7 +72,7 @@ function RecordingLink({ pathname }: { pathname: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'bg-muted hover:bg-input')}>
+        <Link href="/" aria-label={label} className={cn(SIDEBAR_BUTTON, 'aid-icon-btn')}>
           <span className={cn('size-3 rounded-full', rec.isPaused ? 'bg-foreground/40' : 'aid-dock-dot aid-record-dot')} aria-hidden />
         </Link>
       </TooltipTrigger>

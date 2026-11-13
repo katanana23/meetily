@@ -17,7 +17,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { ArrowUpRight, BookOpen, Flask, FolderOpen, Microphone, SlidersHorizontal, Sparkle, Trash, Waveform } from '@phosphor-icons/react';
-import { openTrash } from '@/aid/lib/recording-trash';
 import { Button } from '@/aid/components/ui/button';
 import { Page } from '@/aid/components/Page';
 import { BackButton } from '@/aid/components/BackButton';
@@ -161,28 +160,6 @@ function StorageRow() {
   );
 }
 
-/** Корзина: пустые записи без звука лежат здесь 7 дней (recording-trash.ts). */
-function TrashRow() {
-  const { storageLocations } = useConfig();
-  const root = storageLocations?.recordings ?? null;
-  const open = async () => {
-    if (!root) return;
-    try {
-      await openTrash(root);
-    } catch (error) {
-      aidToast.error(t('openFolderFailed'), { description: String(error) });
-    }
-  };
-  return (
-    <Row title={t('trashTitle')} hint={t('trashHint')}>
-      <Button variant="outline" onClick={() => void open()} disabled={!root}>
-        <Trash />
-        {t('openTrash')}
-      </Button>
-    </Row>
-  );
-}
-
 function GeneralTab() {
   return (
     // Бенто: разделы отдельными плитками, 8 px между плитками
@@ -192,7 +169,6 @@ function GeneralTab() {
       </Section>
       <Section title={t('settingsSectionStorage')}>
         <StorageRow />
-        <TrashRow />
       </Section>
       <Section title={t('settingsSectionPrivacy')}>
         <Legacy className="aid-legacy-flat">
@@ -267,12 +243,9 @@ function SettingsContent() {
     router.replace(`/settings?tab=${value}`, { scroll: false });
   };
 
-  const header = (
+  const hero = (
     <>
-      <div className="flex items-center gap-4">
-        <BackButton label={t('backToMeetings')} href="/" />
-        <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>
-      </div>
+      <h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>
       <TabsList aria-label={t('navSettings')} className="mt-5">
         {TABS.map((x) => {
           const Icon = x.icon;
@@ -296,7 +269,7 @@ function SettingsContent() {
   return (
     // Tabs снаружи: вкладки в неподвижной шапке, содержимое в прокручиваемой области
     <Tabs value={tab} onValueChange={change} className="flex h-full min-w-0 flex-1">
-      <Page header={header}>
+      <Page leading={<BackButton label={t('backToMeetings')} href="/" />} title={t('navSettings')} hero={hero}>
       <TabsContent value="general" className={TAB}>
         <GeneralTab />
       </TabsContent>
@@ -336,7 +309,7 @@ export default function Settings() {
   return (
     <Suspense
       fallback={
-        <Page header={<h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>}>
+        <Page title={t('navSettings')} hero={<h1 className="text-[36px] font-bold leading-10 tracking-tight">{t('navSettings')}</h1>}>
           <Skeleton className="h-40 w-full rounded-nested" />
         </Page>
       }

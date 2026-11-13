@@ -95,7 +95,7 @@ export function InlineRename({ initial, onSave, onClose, inputClassName, classNa
         type="button"
         variant="ghost"
         size="icon"
-        className="size-10 shrink-0 bg-transparent text-muted-foreground hover:text-foreground [&_svg]:size-5"
+        className="size-10 shrink-0 text-muted-foreground [&_svg]:size-5"
         aria-label={t('cancel')}
         onMouseDown={keepFocus}
         onClick={cancel}

@@ -8,9 +8,11 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
+import { ArrowDown, Stop, Warning } from '@phosphor-icons/react';
+import { useFollowTail } from '@/aid/lib/follow-tail';
+import { FinishGlyph } from '@/aid/components/FinishCard';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
@@ -20,27 +22,19 @@ import { Page, TILE } from '@/aid/components/Page';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
-import { FinishingScreen, type FinishStage } from '@/aid/components/FinishingScreen';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import { isShownText } from '@/aid/lib/speech';
-import type { FinishPhase } from '@/aid/lib/recording';
 import { t } from '@/aid/strings';
 import { useTranscripts } from '@/contexts/TranscriptContext';
-import { RecordingStatus, useRecordingState } from '@/contexts/RecordingStateContext';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
-import { useRouter } from 'next/navigation';
 
 interface RecordingViewProps {
   isPaused: boolean;
-  phase: FinishPhase | null;
   duration: number;
   live: LiveSpeech;
   /** К списку встреч: запись продолжается, управление в кнопке записи внизу. */
   onBack: () => void;
   onStop: () => void;
-  /** Запись не сохраняется: тишина или пара фраз (заголовок экрана завершения). */
-  discardVerdict?: 'no-speech' | 'too-little' | null;
 }
 
 /** Сколько секунд тишины после речи, чтобы спросить «Остановить?». Сама запись не останавливается.
@@ -57,28 +51,13 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
           {t('continueRecording')}
         </Button>
         {/* Красный только у стопа и удаления */}
-        <Button size="main" className="bg-record text-white hover:bg-record/90" onClick={onStop}>
+        <Button variant="destructive" size="main" onClick={onStop}>
           <Stop />
           {t('stopRecording')}
         </Button>
       </div>
     </div>
   );
-}
-
-// Итог решения «не сохранять» (тишина или пара фраз) показывается только после решения;
-// до него стадии экрана обработки идут по статусу записи (FinishingScreen)
-const NO_SPEECH = { title: t('discardedNoSpeech'), hint: t('discardedNoSpeechHint') };
-const TOO_LITTLE = { title: t('discardedTooLittle'), hint: t('discardedTooLittleHint') };
-
-/** Стадия экрана обработки по статусу записи оригинала (RecordingStateContext): сцены обложки по факту, не по таймеру. */
-function finishStage(phase: FinishPhase, status: RecordingStatus): FinishStage {
-  if (phase === 'discarding') return 'discarded';
-  if (status === RecordingStatus.STOPPING) return 'stopped';
-  if (status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
-  if (status === RecordingStatus.SAVING) return 'saving';
-  if (status === RecordingStatus.COMPLETED) return 'saved';
-  return phase === 'opening' ? 'saved' : phase === 'saving' ? 'saving' : 'transcribing';
 }
 
 const NOTICE_KEY = 'show_recording_notification'; // тот же ключ, что у оригинала (recordingNotification.tsx)
@@ -148,22 +127,11 @@ function useTranscriptionProblems() {
   return { error, lagging };
 }
 
-export function RecordingView({ isPaused, phase, duration, live, onBack, onStop, discardVerdict = null }: RecordingViewProps) {
+export function RecordingView({ isPaused, duration, live, onBack, onStop }: RecordingViewProps) {
   const { transcripts, meetingTitle } = useTranscripts();
-  const { status } = useRecordingState();
-  const router = useRouter();
-  // Встреча сохранена (COMPLETED): оригинальный хук остановки уже записал её id в currentMeeting
-  // и сам откроет её через 2 с; по клику или Enter открываем раньше тем же адресом
-  // (повтор того же адреса in-place-router не дублирует в истории)
-  const { currentMeeting } = useSidebar();
-  const savedId = status === RecordingStatus.COMPLETED && currentMeeting && currentMeeting.id !== 'intro-call' ? currentMeeting.id : null;
-  // После остановки таймер записи обнуляется: для экрана обработки держим последнюю длительность.
-  // Если экран открылся уже после остановки, берём время последней реплики или сигнала речи
-  const lastDuration = useRef(0);
-  if (duration > 0) lastDuration.current = duration;
   // Галлюцинации на тишине («Thank you.» на 0:00) не показываем (speech.ts, isShownText)
   const segments = useMemo(() => transcripts.filter((tr) => tr.text?.trim()).map(toSegment).filter((x) => isShownText(x.text)), [transcripts]);
-  const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const problems = useTranscriptionProblems();
   // «Продолжить» откладывает вопрос: следующий раз через те же 2 минуты тишины
   const [silenceDismissedAt, setSilenceDismissedAt] = useState(0);
@@ -172,45 +140,25 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
   const showLongSilence =
     live.tracking && !isPaused && live.lastSpeechAt !== null && duration - silentSince >= LONG_SILENCE_SEC;
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [segments.length]);
+  // Лента едет за новыми репликами, только если человек внизу (lib/follow-tail.ts)
+  const hasLines = segments.length > 0;
+  const { atBottom, jumpToEnd } = useFollowTail(listRef, hasLines);
   // Реплики, которые уже были, когда экран записи открылся (вернулись из списка):
   // их не перепечатываем; всё, что пришло после, печатается, включая первую
   const [settledIds] = useState(() => new Set(segments.map((x) => x.id)));
-  // Реплика допечатана (печатная машинка в TranscriptList): докрутить к концу
-  const scrollToEnd = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), []);
 
-  if (phase) {
-    // Своя плитка без запаса под капсулу записи: на этом экране её нет (RecordDock)
-    return (
-      <main className="aid-page-in aid-scroll relative flex h-full min-w-0 flex-1 overflow-y-auto rounded-tile bg-card px-5">
-        <FinishingScreen
-          stage={finishStage(phase, status)}
-          discardCopy={discardVerdict === 'too-little' ? TOO_LITTLE : NO_SPEECH}
-          title={meetingTitle ? displayTitle(meetingTitle) : null}
-          durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
-          segments={segments}
-          speechTimes={live.speechTimes}
-          onOpen={savedId && phase === 'opening' ? () => router.push(`/meeting-details?id=${savedId}&source=recording`) : undefined}
-        />
-      </main>
-    );
-  }
-
-  // Шапка-плитка: «Назад» к списку (запись идёт дальше) и название. Состояние записи,
-  // таймер, уровень речи, пауза и «Остановить» только в плитке записи (RecordDock).
-  const header = (
-    <div className="flex items-center gap-4">
-      <BackButton label={t('backFromRecording')} onClick={onBack} />
-      <div className="min-w-0">
-        <h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{meetingTitle ? displayTitle(meetingTitle) : t('recording')}</h1>
-      </div>
-    </div>
-  );
+  // Шапка: «Назад» к списку (запись идёт дальше), большое название прокручивается с
+  // лентой, в полосе остаётся короткое. Состояние записи, таймер, уровень речи, пауза и
+  // «Остановить» только в капсуле записи (RecordDock).
+  const title = meetingTitle ? displayTitle(meetingTitle) : t('recording');
 
   return (
-    <Page layout="bento" header={header}>
+    <Page
+      layout="bento"
+      leading={<BackButton label={t('backFromRecording')} onClick={onBack} />}
+      title={title}
+      hero={<h1 className="truncate text-[36px] font-bold leading-10 tracking-tight">{title}</h1>}
+    >
       {/* Уведомления одной плиткой: «Похоже, встреча закончилась», напоминание об участниках, ошибки */}
       <ConsentTile>
         {showLongSilence && <LongSilencePrompt onStop={onStop} onContinue={() => setSilenceDismissedAt(duration)} />}
@@ -236,19 +184,40 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
 
       <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
-      <section className={TILE} aria-label={t('liveTranscript')}>
+      <section className={`${TILE} flex flex-col`} aria-label={t('liveTranscript')}>
         <h2 className="mb-4 text-[22px] font-bold leading-7 tracking-tight">{t('transcript')}</h2>
         {segments.length === 0 ? (
-          <div className="flex flex-col items-start py-6">
-            <SpeakerHigh className="size-6 text-muted-foreground" aria-hidden />
-            <p className="mt-3 text-[15px] font-semibold">{t('waitingSpeech')}</p>
-            <p className="mt-1 max-w-md text-sm text-muted-foreground">{t('waitingSpeechHint')}</p>
+          // Ждём речь: по центру плитки мягкая иллюстрация (та же волна записи, что в карточке
+          // после «Остановить», крупнее, на вложенной поверхности) и одна строка. Логотип не
+          // повторяем. Снизу запас под капсулу записи: строка не уходит под неё
+          <div className="flex min-h-[228px] flex-1 flex-col items-center justify-center gap-3 pb-[var(--dock-space)]" role="status">
+            <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+              <span className="scale-[1.6]">
+                <FinishGlyph stage="transcribing" />
+              </span>
+            </span>
+            <p className="aid-fg-text text-[15px] font-semibold">{t('waitingSpeech')}</p>
           </div>
         ) : (
-          <div className="max-w-[760px]">
-            <TranscriptList segments={segments} live onTyped={scrollToEnd} settledIds={settledIds} />
-            <div ref={endRef} />
-          </div>
+          <>
+            <div ref={listRef} className="max-w-[760px]">
+              <TranscriptList segments={segments} live settledIds={settledIds} />
+            </div>
+            {/* Прокрутили вверх: лента стоит, над капсулой записи «К новым». Нулевая высота:
+                появление кнопки не двигает ленту */}
+            {!atBottom && (
+              <div className="pointer-events-none sticky bottom-[calc(var(--dock-space)-12px)] z-20 flex h-0 justify-center">
+                <button
+                  type="button"
+                  onClick={jumpToEnd}
+                  className="aid-glass aid-dock-in pointer-events-auto absolute bottom-0 flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4"
+                >
+                  <ArrowDown aria-hidden />
+                  {t('toLatest')}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
     </Page>

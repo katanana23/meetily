@@ -2,10 +2,15 @@
 //
 // Ядро уровень звука во время записи не отдаёт (audio-levels шлёт синусоиду, только
 // для проверки звука), а реплики приходят общим потоком микрофона и звука компьютера.
-// Поэтому на macOS слушаем микрофон сами: WebView открывает тот же микрофон
-// (getUserMedia, без шумодава и автоусиления, чтобы не прятать тишину) и раз в
-// полсекунды меряет средний уровень. Запись ядра это не трогает: macOS даёт
-// нескольким программам читать один микрофон.
+// Раньше на macOS слушали микрофон сами через WebView (getUserMedia). Так больше нельзя:
+// WebKit открывает микрофон в режиме обработки голоса (VPAUAggregateAudioDevice), даже без
+// эхоподавления, и macOS приглушает другие приложения на всю запись. Хуже того, пока ядро
+// уже пишет тот же встроенный микрофон, macOS не может добавить ему обработку голоса
+// («Adding hardware DSP while IO is running is not supported»), и микрофон переходит в
+// неисправное состояние: молчит во всей системе до перезапуска coreaudiod (журнал
+// coreaudiod 13 ноября, 18:14). Поэтому во время записи WebView микрофон не открывает:
+// подсказок «Не слышу микрофон» и «Микрофон отключился» по уровню нет, страховка первых
+// секунд без проверки (probe: blind). В заглушках уровень по-прежнему из aid-mock-mic.
 //
 // - Тишина: уровень ниже MIC_SILENT_DBFS дольше MIC_SILENT_MS. Это не «никто не
 //   говорит»: собственный шум микрофона в тихой комнате −70…−50 dBFS, а ниже −80
@@ -27,7 +32,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { isMacTauri, isMock } from './mic-access';
+import { isMock } from './mic-access';
 import { subscribe } from './tauri-events';
 
 /** Ниже этого среднего уровня микрофон считается молчащим, dBFS. */
@@ -77,62 +82,6 @@ interface MockMicLevel {
 
 const toDb = (x: number) => 20 * Math.log10(Math.max(x, 1e-9));
 
-type Source = { stop: () => void };
-
-/** Микрофон через WebView: отдаёт уровень раз в TICK_MS и сообщает, что дорожка закончилась. */
-async function openWebViewMic(deviceName: string | null | undefined, onLevel: (rms: number, peak: number) => void, onLost: () => void): Promise<Source | null> {
-  const md = navigator.mediaDevices;
-  if (!md?.getUserMedia) return null;
-  const constraints: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-  try {
-    if (deviceName) {
-      const devices = await md.enumerateDevices();
-      const match = devices.find((d) => d.kind === 'audioinput' && d.label && (d.label === deviceName || d.label.includes(deviceName)));
-      if (match) constraints.deviceId = { exact: match.deviceId };
-    }
-    const stream = await md.getUserMedia({ audio: constraints });
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) {
-      stream.getTracks().forEach((t) => t.stop());
-      return null;
-    }
-    const ctx = new Ctx();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    void ctx.resume().catch(() => undefined);
-    const buf = new Float32Array(analyser.fftSize);
-    const track = stream.getAudioTracks()[0];
-    const ended = () => onLost();
-    track?.addEventListener('ended', ended);
-    const timer = window.setInterval(() => {
-      // Звук WebView не запущен: нули анализатора были бы ложной тишиной
-      if (ctx.state !== 'running') return;
-      analyser.getFloatTimeDomainData(buf);
-      let sum = 0;
-      let peak = 0;
-      for (let i = 0; i < buf.length; i++) {
-        const v = buf[i];
-        sum += v * v;
-        const a = v < 0 ? -v : v;
-        if (a > peak) peak = a;
-      }
-      onLevel(Math.sqrt(sum / buf.length), peak);
-    }, TICK_MS);
-    return {
-      stop: () => {
-        window.clearInterval(timer);
-        track?.removeEventListener('ended', ended);
-        stream.getTracks().forEach((t) => t.stop());
-        void ctx.close().catch(() => undefined);
-      },
-    };
-  } catch (error) {
-    console.info('[aid] mic: слежение за микрофоном недоступно', error);
-    return null;
-  }
-}
-
 export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
   const [state, setState] = useState<MicWatchState>('ok');
   const [probe, setProbe] = useState<MicProbe>('pending');
@@ -148,7 +97,6 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
     zeroMs.current = 0;
     if (!active) return;
     let cancelled = false;
-    let source: Source | null = null;
     let lostTimer: number | undefined;
     let switchedAt = 0;
 
@@ -188,17 +136,6 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
         if (cancelled || Date.now() - switchedAt < SWITCH_GRACE_MS) return;
         setState('lost');
       }, SWITCH_GRACE_MS);
-      // Слушаем снова микрофон по умолчанию, когда macOS его сменит
-      source?.stop();
-      source = null;
-      if (!isMacTauri()) return;
-      window.setTimeout(() => {
-        if (cancelled) return;
-        void openWebViewMic(null, onLevel, onLost).then((s) => {
-          if (cancelled) s?.stop();
-          else source = s;
-        });
-      }, 1_500);
     };
 
     // Ядро переключилось на другой микрофон: это не «пропал»
@@ -214,14 +151,8 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
         if (event.payload?.lost) onLost();
         else if (typeof event.payload?.rms === 'number') onLevel(event.payload.rms, event.payload.rms);
       });
-    } else if (isMacTauri()) {
-      void openWebViewMic(deviceName, onLevel, onLost).then((s) => {
-        if (cancelled) s?.stop();
-        else if (!s) setProbe('blind');
-        else source = s;
-      });
     } else {
-      // Не macOS: слушать микрофон нечем
+      // Микрофон WebView во время записи не открываем (см. начало файла): слушать нечем
       setProbe('blind');
     }
 
@@ -231,7 +162,6 @@ export function useMicWatch({ active, paused, deviceName }: Options): MicWatch {
       window.clearTimeout(lostTimer);
       offSwitched();
       offMock?.();
-      source?.stop();
     };
   }, [active, deviceName]);
 

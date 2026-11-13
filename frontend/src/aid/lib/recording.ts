@@ -175,7 +175,13 @@ export function useAidRecording() {
     async (options: { systemOnly?: boolean } = {}) => {
       if (recording.isRecording || recording.status === RecordingStatus.STARTING || busy) return;
       setBusy('check');
-      const { blocker: problem, mic } = await checkBeforeRecording(checkPermissions, { access: !options.systemOnly });
+      // Доступ уже подтверждён раньше: микрофон WebView не открываем (каждое открытие включает
+      // обработку голоса macOS: приглушает другие приложения и может оставить встроенный
+      // микрофон молчащим, mic-watch.ts). Отзыв доступа поймает ядро (verify_microphone_access)
+      const knownGranted = knownMicAccess() === 'granted';
+      const checked = await checkBeforeRecording(checkPermissions, { access: !options.systemOnly && !knownGranted });
+      const problem = checked.blocker;
+      const mic: MicAccess | null = checked.mic ?? (knownGranted && !options.systemOnly ? 'granted' : null);
       setBusy(null);
       if (mic === 'granted') rememberMicAccess('granted');
       if (problem?.kind === 'mic-denied') rememberMicAccess('denied');

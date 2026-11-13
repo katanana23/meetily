@@ -29,6 +29,65 @@ fn should_emit_transcript(text: &str) -> bool {
     !text.trim().is_empty()
 }
 
+/// Word for overlap matching: lowercase, letters and digits only, a number word as its digits
+/// (the model writes the same number as "15" in one piece and "пятнадцать" in the next).
+fn overlap_key(word: &str) -> String {
+    let key: String = word.chars().filter(|c| c.is_alphanumeric()).flat_map(|c| c.to_lowercase()).collect();
+    const NUMBERS: [(&str, &str); 37] = [
+        ("ноль", "0"), ("один", "1"), ("одна", "1"), ("два", "2"), ("две", "2"), ("три", "3"), ("четыре", "4"),
+        ("пять", "5"), ("шесть", "6"), ("семь", "7"), ("восемь", "8"), ("девять", "9"), ("десять", "10"),
+        ("одиннадцать", "11"), ("двенадцать", "12"), ("тринадцать", "13"), ("четырнадцать", "14"),
+        ("пятнадцать", "15"), ("шестнадцать", "16"), ("семнадцать", "17"), ("восемнадцать", "18"),
+        ("девятнадцать", "19"), ("двадцать", "20"), ("тридцать", "30"), ("сорок", "40"), ("пятьдесят", "50"),
+        ("шестьдесят", "60"), ("семьдесят", "70"), ("восемьдесят", "80"), ("девяносто", "90"), ("сто", "100"),
+        ("one", "1"), ("two", "2"), ("three", "3"), ("four", "4"), ("five", "5"), ("ten", "10"),
+    ];
+    NUMBERS.iter().find(|(w, _)| *w == key).map(|(_, d)| d.to_string()).unwrap_or(key)
+}
+
+/// The same word cut by the boundary: "пришлёт" at the end of one piece, "шлёт" at the
+/// start of the next (or the other way round).
+fn same_word(a: &str, b: &str) -> bool {
+    a == b || (a.chars().count() >= 3 && b.chars().count() >= 3 && (a.ends_with(b) || b.starts_with(a)))
+}
+
+/// Live pieces cut without a pause (vad.rs, LIVE_OVERLAP_MS) share ~0.5 s of audio, so the
+/// words on the boundary can be recognized twice: "...семь восемь" + "восемь девять...".
+/// Drops the longest run (up to 6 words) that ends `prev` and starts `next`.
+pub(crate) fn strip_overlap(prev: &str, next: &str) -> String {
+    const MAX_WORDS: usize = 6;
+    let prev_words: Vec<String> = prev.split_whitespace().map(overlap_key).filter(|w| !w.is_empty()).collect();
+    let next_words: Vec<&str> = next.split_whitespace().collect();
+    let next_keys: Vec<String> = next_words.iter().map(|w| overlap_key(w)).collect();
+    let max = MAX_WORDS.min(prev_words.len()).min(next_keys.len());
+    for k in (1..=max).rev() {
+        let tail = &prev_words[prev_words.len() - k..];
+        let head: Vec<&String> = next_keys.iter().filter(|w| !w.is_empty()).take(k).collect();
+        if head.len() == k && tail.iter().zip(head.iter()).all(|(a, b)| same_word(a, b)) {
+            // Skip the first k non-empty words of `next`, keeping its own punctuation after them
+            let mut seen = 0;
+            let mut cut = next_words.len();
+            for (i, key) in next_keys.iter().enumerate() {
+                if !key.is_empty() {
+                    seen += 1;
+                }
+                if seen == k {
+                    cut = i + 1;
+                    break;
+                }
+            }
+            let rest = next_words[cut..].join(" ");
+            let rest = rest.trim_start_matches(|c: char| c.is_ascii_punctuation() || c == ' ');
+            let mut chars = rest.chars();
+            return match chars.next() {
+                Some(first) => first.to_uppercase().chain(chars).collect(),
+                None => String::new(),
+            };
+        }
+    }
+    next.to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TranscriptUpdate {
     pub text: String,
@@ -98,6 +157,9 @@ pub fn start_transcription_task<R: Runtime>(
 
             let worker_handle = tokio::spawn(async move {
                 info!("👷 Worker {} started", worker_id);
+                // End time and text of the previous emitted piece: a forced cut overlaps it
+                // (the next piece starts before it ended), and the repeated words are dropped
+                let mut previous_piece: Option<(f64, String)> = None;
 
                 // PRE-VALIDATE model state to avoid repeated async calls per chunk
                 let initial_model_loaded = engine_clone.is_model_loaded().await;
@@ -159,6 +221,16 @@ pub fn start_transcription_task<R: Runtime>(
                             .await
                             {
                                 Ok((transcript, confidence_opt, is_partial)) => {
+                                    let transcript = match &previous_piece {
+                                        Some((prev_end, prev_text)) if chunk_timestamp + 0.05 < *prev_end => {
+                                            let stripped = strip_overlap(prev_text, &transcript);
+                                            if stripped != transcript {
+                                                info!("✂️ Worker {} dropped words repeated by the overlap at {:.2}s", worker_id, chunk_timestamp);
+                                            }
+                                            stripped
+                                        }
+                                        _ => transcript,
+                                    };
                                     let confidence_str = match confidence_opt {
                                         Some(c) => format!("{:.2}", c),
                                         None => "N/A".to_string(),
@@ -203,6 +275,7 @@ pub fn start_transcription_task<R: Runtime>(
 
                                         // Emit transcript update with NEW recording-relative timestamps
 
+                                        previous_piece = Some((audio_end_time, transcript.clone()));
                                         let update = TranscriptUpdate {
                                             text: transcript,
                                             timestamp: format_current_timestamp(), // Wall-clock for reference
@@ -606,3 +679,35 @@ fn format_recording_time(seconds: f64) -> String {
             assert!(!should_emit_transcript("   "));
         }
     }
+
+#[cfg(test)]
+mod overlap_tests {
+    use super::strip_overlap;
+
+    #[test]
+    fn drops_words_repeated_at_forced_cut() {
+        assert_eq!(strip_overlap("Шесть, семь, восемь", "восемь, девять, десять."), "Девять, десять.");
+        assert_eq!(strip_overlap("раз два три четыре", "три четыре пять"), "Пять");
+    }
+
+    #[test]
+    fn keeps_text_without_overlap() {
+        assert_eq!(strip_overlap("Привет всем", "Начинаем обзор"), "Начинаем обзор");
+        assert_eq!(strip_overlap("", "Начинаем"), "Начинаем");
+    }
+
+    #[test]
+    fn whole_piece_repeated_becomes_empty() {
+        assert_eq!(strip_overlap("один два три", "три"), "");
+    }
+
+    #[test]
+    fn number_as_digits_and_words_is_one_word() {
+        assert_eq!(strip_overlap("13, 14, 15", "Пятнадцать, шестнадцать"), "Шестнадцать");
+    }
+
+    #[test]
+    fn word_cut_by_boundary() {
+        assert_eq!(strip_overlap("аналитика пришлёт", "шлёт отчёт по воронке"), "Отчёт по воронке");
+    }
+}

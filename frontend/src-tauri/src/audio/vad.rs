@@ -8,6 +8,42 @@ use std::time::Duration;
 /// sample count and timestamp inside this module is expressed in it.
 const VAD_SAMPLE_RATE: u32 = 16000;
 
+/// Live path only (`with_live_limits`): a speech piece is never held longer than this
+/// without a pause. Music, counting aloud or a monologue have no 500 ms pause, so without
+/// a cap the whole recording stayed in one VAD segment until stop and nothing reached the
+/// live transcript. A real pause still closes the piece earlier.
+pub const LIVE_MAX_SEGMENT_MS: usize = 6_000;
+/// From this length on the piece is cut at the first micro-pause or dip in loudness (between
+/// words), so a forced cut rarely splits a word; at LIVE_MAX_SEGMENT_MS it is cut anyway.
+pub const LIVE_SOFT_CUT_MS: usize = 5_000;
+/// A 30 ms frame quieter than this share of the piece's mean level counts as a dip.
+const LIVE_DIP_RATIO: f32 = 0.35;
+/// Audio shared by two pieces at a forced cut, so a word on the boundary is not lost.
+/// The transcription worker drops the words this overlap repeats.
+pub const LIVE_OVERLAP_MS: usize = 500;
+
+/// Silence added around a forced piece: cut mid-speech, it has no quiet edges, and Parakeet
+/// returns empty text for such a piece (checked on 5 s of counting aloud: empty without
+/// padding, all words with 300 ms of silence on both sides).
+const LIVE_EDGE_PAD_MS: usize = 300;
+
+/// A forced piece with LIVE_EDGE_PAD_MS of silence on both sides; its start moves back by the
+/// pad, so the timestamps still describe the samples.
+fn padded_piece(samples: Vec<f32>, start_ms: f64, confidence: f32) -> SpeechSegment {
+    let pad = ms_to_samples(LIVE_EDGE_PAD_MS);
+    let mut padded = Vec::with_capacity(samples.len() + 2 * pad);
+    padded.resize(pad, 0.0);
+    padded.extend_from_slice(&samples);
+    padded.resize(padded.len() + pad, 0.0);
+    let start = start_ms - LIVE_EDGE_PAD_MS as f64;
+    let end = start + padded.len() as f64 * 1000.0 / VAD_SAMPLE_RATE as f64;
+    SpeechSegment { samples: padded, start_timestamp_ms: start, end_timestamp_ms: end, confidence }
+}
+
+fn ms_to_samples(ms: usize) -> usize {
+    ms * VAD_SAMPLE_RATE as usize / 1000
+}
+
 /// Represents a complete speech segment detected by VAD
 #[derive(Debug, Clone)]
 pub struct SpeechSegment {
@@ -30,6 +66,13 @@ pub struct ContinuousVadProcessor {
     speech_start_sample: usize,
     // State tracking for smart logging
     last_logged_state: bool,
+    // Forced cuts of continuous speech (live path). After the first cut the rest of the
+    // piece accumulates in `current_speech` instead of Silero's own buffer.
+    live_limits: bool,
+    piece_open: bool,
+    piece_start_ms: f64,
+    piece_frames: u32,
+    piece_energy: f32,
 }
 
 impl ContinuousVadProcessor {
@@ -84,7 +127,66 @@ impl ContinuousVadProcessor {
             speech_start_sample: 0,
             // Initialize state tracking
             last_logged_state: false,
+            live_limits: false,
+            piece_open: false,
+            piece_start_ms: 0.0,
+            piece_frames: 0,
+            piece_energy: 0.0,
         })
+    }
+
+    /// Live path (pipeline.rs): cut continuous speech every LIVE_MAX_SEGMENT_MS. Batch
+    /// paths (import.rs, retranscription.rs) do not enable it: they want long pieces.
+    pub fn with_live_limits(mut self) -> Self {
+        self.live_limits = true;
+        self
+    }
+
+    /// Emits the speech accumulated so far once it is LIVE_SOFT_CUT_MS long and the current
+    /// frame is a dip between words, or LIVE_MAX_SEGMENT_MS long in any case, keeping the
+    /// last LIVE_OVERLAP_MS as the start of the next piece. The first cut takes audio from
+    /// Silero's buffer (it includes the pre-speech pad); later cuts use our own accumulator.
+    fn maybe_force_cut(&mut self, chunk: &[f32]) {
+        if !self.live_limits || !self.in_speech {
+            return;
+        }
+        let rms = (chunk.iter().map(|x| x * x).sum::<f32>() / chunk.len().max(1) as f32).sqrt();
+        self.piece_frames += 1;
+        self.piece_energy += rms;
+        let len = if self.piece_open {
+            self.current_speech.len()
+        } else {
+            self.session.get_current_speech().len()
+        };
+        // A dip: Silero already hears no speech in this frame (a micro-pause, also under
+        // music), or the frame is much quieter than the piece
+        let dip = self.session.current_silence_samples() > 0
+            || rms < LIVE_DIP_RATIO * (self.piece_energy / self.piece_frames as f32);
+        if len < ms_to_samples(LIVE_SOFT_CUT_MS) || (len < ms_to_samples(LIVE_MAX_SEGMENT_MS) && !dip) {
+            return;
+        }
+        let (samples, start_ms) = if self.piece_open {
+            (std::mem::take(&mut self.current_speech), self.piece_start_ms)
+        } else {
+            (
+                self.session.get_current_speech().to_vec(),
+                self.speech_start_sample as f64 * 1000.0 / VAD_SAMPLE_RATE as f64,
+            )
+        };
+        let end_ms = start_ms + samples.len() as f64 * 1000.0 / VAD_SAMPLE_RATE as f64;
+        let keep = ms_to_samples(LIVE_OVERLAP_MS).min(samples.len());
+        info!(
+            "VAD: forced cut of continuous speech: {:.1}s piece ({} samples), {} ms overlap",
+            (end_ms - start_ms) / 1000.0,
+            samples.len(),
+            LIVE_OVERLAP_MS
+        );
+        self.current_speech = samples[samples.len() - keep..].to_vec();
+        self.piece_start_ms = end_ms - keep as f64 * 1000.0 / VAD_SAMPLE_RATE as f64;
+        self.piece_open = true;
+        self.piece_frames = 0;
+        self.piece_energy = 0.0;
+        self.speech_segments.push_back(padded_piece(samples, start_ms, 0.85));
     }
 
     /// Process incoming audio samples and return any complete speech segments
@@ -187,6 +289,19 @@ impl ContinuousVadProcessor {
             self.process_chunk(&padded_chunk)?;
         }
 
+        // Live path after a forced cut: the tail is in our own accumulator
+        if self.in_speech && self.piece_open && !self.current_speech.is_empty() {
+            let mut tail = std::mem::take(&mut self.current_speech);
+            // The last VAD frame was padded with zeros to 30 ms: keep only the real audio
+            let real = real_end_sample.saturating_sub((self.piece_start_ms * VAD_SAMPLE_RATE as f64 / 1000.0) as usize);
+            if real > 0 && real < tail.len() {
+                tail.truncate(real);
+            }
+            self.speech_segments.push_back(padded_piece(tail, self.piece_start_ms, 0.8));
+            self.piece_open = false;
+            self.in_speech = false;
+        }
+
         // Force end any ongoing speech
         if self.in_speech && !self.current_speech.is_empty() {
             let real_sample_count = real_end_sample
@@ -275,6 +390,9 @@ impl ContinuousVadProcessor {
                     // ~2x the file duration and sorted to the end of the transcript.
                     self.speech_start_sample = timestamp_ms * VAD_SAMPLE_RATE as usize / 1000;
                     self.current_speech.clear();
+                    self.piece_open = false;
+                    self.piece_frames = 0;
+                    self.piece_energy = 0.0;
                 }
                 VadTransition::SpeechEnd { start_timestamp_ms, end_timestamp_ms, samples } => {
                     // Only log if we were previously in speech state
@@ -284,11 +402,22 @@ impl ContinuousVadProcessor {
                     }
                     self.in_speech = false;
 
-                    // Use samples from VAD transition if available, otherwise use accumulated samples
-                    let speech_samples = if !samples.is_empty() {
-                        samples
+                    // After a forced cut only the tail (with its overlap) is left to send:
+                    // Silero's samples cover the whole utterance, already sent in pieces
+                    if self.piece_open {
+                        // Tail of a piece cut earlier: padded like the other forced pieces
+                        let tail = std::mem::take(&mut self.current_speech);
+                        self.piece_open = false;
+                        self.in_speech = false;
+                        if !tail.is_empty() {
+                            self.speech_segments.push_back(padded_piece(tail, self.piece_start_ms, 0.9));
+                        }
+                        continue;
+                    }
+                    let (speech_samples, start_timestamp_ms) = if !samples.is_empty() {
+                        (samples, start_timestamp_ms)
                     } else {
-                        self.current_speech.clone()
+                        (self.current_speech.clone(), start_timestamp_ms)
                     };
 
                     if !speech_samples.is_empty() {
@@ -313,6 +442,7 @@ impl ContinuousVadProcessor {
         // Accumulate speech if we're currently in a speech state
         if self.in_speech {
             self.current_speech.extend_from_slice(chunk);
+            self.maybe_force_cut(chunk);
         }
 
         self.processed_samples += chunk.len();

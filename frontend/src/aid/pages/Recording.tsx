@@ -10,7 +10,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTauriEvent } from '@/aid/lib/tauri-events';
-import { SpeakerHigh, Stop, Warning } from '@phosphor-icons/react';
+import { Stop, Warning } from '@phosphor-icons/react';
+import { BRAND_MARK_SRC } from '@/aid/components/BrandMark';
 import { BackButton } from '@/aid/components/BackButton';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
@@ -245,13 +246,14 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
 
       <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
-      <section className={TILE} aria-label={t('liveTranscript')}>
+      <section className={`${TILE} flex flex-col`} aria-label={t('liveTranscript')}>
         <h2 className="mb-4 text-[22px] font-bold leading-7 tracking-tight">{t('transcript')}</h2>
         {segments.length === 0 ? (
-          <div className="flex flex-col items-start py-6">
-            <SpeakerHigh className="size-6 text-muted-foreground" aria-hidden />
-            <p className="mt-3 text-[15px] font-semibold">{t('waitingSpeech')}</p>
-            <p className="mt-1 max-w-md text-sm text-muted-foreground">{t('waitingSpeechHint')}</p>
+          // Ждём речь: по центру плитки маскот (логотип, неподвижный, мягко появляется) и одна строка.
+          // Снизу запас под капсулу записи: центр по видимой части плитки, строка не уходит под капсулу
+          <div className="flex min-h-[228px] flex-1 flex-col items-center justify-center gap-3 pb-[var(--dock-space)]" role="status">
+            <img src={BRAND_MARK_SRC} width={56} height={56} alt="" draggable={false} className="aid-fin-mascot size-14 select-none" />
+            <p className="aid-fin-step text-[15px] font-semibold">{t('waitingSpeech')}</p>
           </div>
         ) : (
           <div className="max-w-[760px]">

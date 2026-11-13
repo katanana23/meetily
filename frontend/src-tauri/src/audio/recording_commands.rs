@@ -419,8 +419,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
 
     // Spawn background device event processor (mic-disconnect fallback).
     if let Some(receiver) = device_event_receiver {
-        spawn_device_event_processor(app.clone(), receiver, session);
+        spawn_device_event_processor(app.clone(), receiver, session.clone());
     }
+    spawn_level_emitter(app.clone(), session);
 
     // Flip recording live + reset per-session flags (speech-detected latch,
     // mic-recovery budget). Shared with the other start path — see helper.
@@ -606,8 +607,9 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Spawn background device event processor (mic-disconnect fallback).
     if let Some(receiver) = device_event_receiver {
-        spawn_device_event_processor(app.clone(), receiver, session);
+        spawn_device_event_processor(app.clone(), receiver, session.clone());
     }
+    spawn_level_emitter(app.clone(), session);
 
     // Flip recording live + reset per-session flags (speech-detected latch,
     // mic-recovery budget). Shared with the other start path — see helper.
@@ -1404,6 +1406,59 @@ async fn do_mic_swap(device_name: &str, session: &Arc<super::RecordingState>) ->
     } // lock released
 
     Ok(())
+}
+
+/// Live input level for the UI (`recording-level`, ~30 times a second).
+///
+/// Reads the peak RMS that `AudioCapture` accumulates from the buffers it
+/// already receives: no device is opened and no extra audio stream is created.
+/// Emits only while the session records and is not paused; the task ends
+/// with the session.
+const LEVEL_EMIT_INTERVAL_MS: u64 = 33;
+const LEVEL_FLOOR_DB: f32 = -60.0;
+
+#[derive(Debug, Clone, Serialize)]
+struct RecordingLevel {
+    /// max(mic, system), 0..1
+    level: f32,
+    mic: f32,
+    system: f32,
+}
+
+/// RMS → 0..1 on a dB scale from -60 to 0 dBFS (logarithmic, so quiet
+/// speech still moves and loud speech does not pin the meter).
+fn rms_to_level(rms: f32) -> f32 {
+    if !(rms > 0.0) {
+        return 0.0;
+    }
+    let db = 20.0 * rms.log10();
+    ((db - LEVEL_FLOOR_DB) / -LEVEL_FLOOR_DB).clamp(0.0, 1.0)
+}
+
+fn spawn_level_emitter<R: Runtime>(app: AppHandle<R>, session: Arc<super::RecordingState>) {
+    tokio::spawn(async move {
+        let mut tick =
+            tokio::time::interval(std::time::Duration::from_millis(LEVEL_EMIT_INTERVAL_MS));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tick.tick().await;
+            if !session.is_recording() {
+                break;
+            }
+            // Drain while paused so resume does not flash a stale peak.
+            let (mic_rms, sys_rms) = session.take_input_levels();
+            if session.is_paused() {
+                continue;
+            }
+            let mic = rms_to_level(mic_rms);
+            let system = rms_to_level(sys_rms);
+            let _ = app.emit(
+                "recording-level",
+                RecordingLevel { level: mic.max(system), mic, system },
+            );
+        }
+        debug!("[LEVEL] Level emitter stopped");
+    });
 }
 
 /// Background processor for device monitor events during a recording session.

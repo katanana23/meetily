@@ -121,6 +121,12 @@ pub struct RecordingState {
     // Pause time tracking
     pause_start: Mutex<Option<Instant>>,
     total_pause_duration: Mutex<std::time::Duration>,
+
+    // Live input level for the UI: peak RMS since the last read, per source.
+    // Stored as f32 bits; non-negative floats order the same as their bits,
+    // so fetch_max keeps the loudest buffer between two reads.
+    mic_level_bits: AtomicU32,
+    system_level_bits: AtomicU32,
 }
 
 impl RecordingState {
@@ -140,7 +146,30 @@ impl RecordingState {
             recording_start: Mutex::new(None),
             pause_start: Mutex::new(None),
             total_pause_duration: Mutex::new(std::time::Duration::ZERO),
+            mic_level_bits: AtomicU32::new(0),
+            system_level_bits: AtomicU32::new(0),
         })
+    }
+
+    /// Record the RMS of a captured buffer for the live level meter.
+    /// Called from the capture callback: lock-free, no allocation.
+    pub fn record_input_level(&self, device_type: &DeviceType, rms: f32) {
+        if !rms.is_finite() || rms <= 0.0 {
+            return;
+        }
+        let slot = match device_type {
+            DeviceType::Microphone => &self.mic_level_bits,
+            DeviceType::System => &self.system_level_bits,
+        };
+        slot.fetch_max(rms.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Take the peak RMS per source since the last call (mic, system) and reset.
+    pub fn take_input_levels(&self) -> (f32, f32) {
+        (
+            f32::from_bits(self.mic_level_bits.swap(0, Ordering::Relaxed)),
+            f32::from_bits(self.system_level_bits.swap(0, Ordering::Relaxed)),
+        )
     }
 
     // Recording control
@@ -402,6 +431,8 @@ impl Default for RecordingState {
             recording_start: Mutex::new(None),
             pause_start: Mutex::new(None),
             total_pause_duration: Mutex::new(std::time::Duration::ZERO),
+            mic_level_bits: AtomicU32::new(0),
+            system_level_bits: AtomicU32::new(0),
         }
     }
 }

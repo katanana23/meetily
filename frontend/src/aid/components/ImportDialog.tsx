@@ -240,7 +240,7 @@ export function ImportDialog({ open, onOpenChange, preselectedFile }: Props) {
 
           {error && (
             <div className="flex gap-3 rounded-nested bg-muted p-4" role="alert">
-              <Warning className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
+              <Warning className="mt-0.5 size-5 shrink-0 text-destructive-ink" aria-hidden />
               <p className="min-w-0 break-words text-sm">{error}</p>
             </div>
           )}

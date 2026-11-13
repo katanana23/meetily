@@ -13,11 +13,12 @@ const buttonVariants = cva(
       variant: {
         // Главное действие и выбор: Mikado, текст #111 (11,8:1)
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        // Удаление, ошибка, «Остановить»: красная заливка, текст и иконка всегда белые
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         // Вторичная: вложенная поверхность плитки, без рамки
         outline: 'bg-muted text-foreground hover:bg-input',
         secondary: 'bg-muted text-foreground hover:bg-input',
-        // Итоги и всё, что делает ИИ: Indigo, текст #111 (8,2:1)
+        // Итоги и всё, что делает ИИ: Indigo, текст #111 всегда (Lc 76)
         indigo: 'bg-indigo text-on-role hover:bg-indigo/90',
         ghost: 'text-foreground hover:bg-muted',
         link: 'text-primary-ink underline-offset-4 hover:underline',

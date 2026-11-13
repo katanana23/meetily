@@ -374,7 +374,7 @@ export function RecordDock() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="main" className="bg-record px-6 text-white hover:bg-record/90" onClick={() => void c.stop()} disabled={c.busy !== null}>
+                <Button variant="destructive" size="main" onClick={() => void c.stop()} disabled={c.busy !== null}>
                   {c.busy === 'stop' ? <Spinner tone="inherit" /> : <Stop />}
                   {t('stopRecording')}
                 </Button>

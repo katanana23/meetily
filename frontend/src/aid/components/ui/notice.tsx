@@ -17,7 +17,7 @@ const MARK_TONE: Record<NoticeTone, string> = {
   // «Не распознано» и предупреждения: мягкий тон Giants, знак тёмным Giants
   giants: 'bg-[hsl(var(--giants)/0.16)] text-giants-ink',
   success: 'bg-muted text-primary-ink',
-  error: 'bg-muted text-destructive',
+  error: 'bg-muted text-destructive-ink',
 };
 
 /** Знак уведомления: круг 44 px на вложенной поверхности, иконка 20 px. */

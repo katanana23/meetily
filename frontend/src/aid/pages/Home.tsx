@@ -265,7 +265,7 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
     <section aria-label={t('filterTrash')}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
-        <Button variant="ghost" className="-mr-2 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => setErase('all')}>
+        <Button variant="ghost" className="-mr-2 shrink-0 text-muted-foreground hover:text-destructive-ink" onClick={() => setErase('all')}>
           <Trash />
           {t('emptyTrash')}
         </Button>

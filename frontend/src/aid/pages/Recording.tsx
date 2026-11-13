@@ -58,7 +58,7 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
           {t('continueRecording')}
         </Button>
         {/* Красный только у стопа и удаления */}
-        <Button size="main" className="bg-record text-white hover:bg-record/90" onClick={onStop}>
+        <Button variant="destructive" size="main" onClick={onStop}>
           <Stop />
           {t('stopRecording')}
         </Button>

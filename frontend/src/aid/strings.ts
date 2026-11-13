@@ -159,7 +159,7 @@ const ru = {
   transcript: 'Транскрипт',
   noSummary: 'Итогов пока нет',
   noSummaryHint: 'Модель соберёт решения, задачи и главное. Это до пары минут.',
-  generateSummary: 'Сделать итоги',
+  generateSummary: 'Подвести итоги',
   regenerateSummary: 'Попробовать снова',
   summaryProcessing: 'Готовим итоги',
   summaryProcessingHint: 'Это займёт до пары минут, транскрипт можно читать дальше.',

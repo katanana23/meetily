@@ -51,6 +51,7 @@ import { aidToast } from '@/aid/lib/toasts';
 import { editableTitle, formatDateTime, formatDuration, formatNumber, isAutoTitle, shownTitle as titleForDisplay } from '@/aid/lib/format';
 import { InlineRename } from '@/aid/components/InlineRename';
 import { countWords, isShownText, MIN_SUMMARY_WORDS } from '@/aid/lib/speech';
+import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -230,7 +231,8 @@ function SummaryBlock({
   summary: SummaryState;
   /** Название в шапке: заголовок итогов, который его повторяет, не показывается. */
   title: string;
-  onRetry: () => void;
+  /** Нет у короткой встречи и во время записи: «Сделать заново» не показывается. */
+  onRetry?: () => void;
 }) {
   // Свёрнуты по умолчанию: главное на странице транскрипт. Раскрываются сами,
   // когда итоги только что сделаны на этой странице.
@@ -244,18 +246,33 @@ function SummaryBlock({
     }
   }, [summary.kind]);
 
-  // Итоги и всё, что делает ИИ: плитка Indigo, текст #111 (8,2:1) в обеих темах
+  // Итоги и всё, что делает ИИ: полоса Indigo, текст #111 в обеих темах.
+  // Пока итоги готовятся: та же полоса, что у готовых (та же высота, без прыжка), в круге
+  // Spinner, а на месте текста итогов Skeleton на нейтральной плитке. Ни свечений, ни мигания
   if (summary.kind === 'processing') {
     return (
-      <div className="aid-role aid-role-indigo flex min-h-[72px] items-center gap-3 rounded-tile px-5 py-4" role="status" aria-live="polite">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10">
-          <Spinner />
-        </span>
-        <div className="min-w-0">
-          <p className="text-base font-semibold">{t('summaryProcessing')}</p>
-          <p className="text-sm text-muted-foreground">{t('summaryProcessingHint')}</p>
+      <section className="flex flex-col gap-2" role="status" aria-live="polite" aria-busy="true">
+        <div className="aid-role aid-role-indigo flex items-center gap-2 rounded-tile p-3">
+          <div className="flex min-h-12 flex-1 items-center gap-3 pr-3">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-black/10" aria-hidden>
+              <Spinner />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-lg font-bold tracking-tight">{t('summaryProcessing')}</span>
+              <span className="block truncate text-sm text-muted-foreground">{t('summaryProcessingHint')}</span>
+            </span>
+          </div>
         </div>
-      </div>
+        <div className={cn(TILE, 'space-y-3')} aria-hidden>
+          <Skeleton className="h-5 w-1/3 rounded-lg" />
+          <Skeleton className="h-4 w-full max-w-[760px] rounded-lg" />
+          <Skeleton className="h-4 w-11/12 max-w-[700px] rounded-lg" />
+          <Skeleton className="h-4 w-3/4 max-w-[560px] rounded-lg" />
+          <Skeleton className="mt-5 h-5 w-1/4 rounded-lg" />
+          <Skeleton className="h-4 w-5/6 max-w-[640px] rounded-lg" />
+          <Skeleton className="h-4 w-2/3 max-w-[500px] rounded-lg" />
+        </div>
+      </section>
     );
   }
 
@@ -288,10 +305,12 @@ function SummaryBlock({
           <CaretDown className={cn('ml-auto size-4 transition-transform', open && 'rotate-180')} aria-hidden />
           <span className="sr-only">{open ? t('collapse') : t('expand')}</span>
         </button>
-        <Button variant="ghost" className={cn('h-12 px-5', ON_ROLE_SOFT)} onClick={onRetry}>
-          <ArrowClockwise />
-          {t('summaryRedo')}
-        </Button>
+        {onRetry && (
+          <Button variant="ghost" className={cn('h-12 px-5', ON_ROLE_SOFT)} onClick={onRetry}>
+            <ArrowClockwise />
+            {t('summaryRedo')}
+          </Button>
+        )}
       </div>
       {open && (
         <article
@@ -478,7 +497,7 @@ function MeetingDetailsContent() {
 
   // Оригинальная страница встречи по ?source=recording запускает итоги сама.
   // В Aid итоги делаются только по кнопке, поэтому метку убираем из адреса.
-  // ?summarize=1: «Сделать итоги» на экране обработки — запускаем один раз, когда
+  // ?summarize=1: «Подвести итоги» снаружи страницы — запускаем один раз, когда
   // встреча загружена и итогов ещё нет, потом метку тоже убираем
   const summarize = params.get('summarize') === '1';
   const asked = useRef(false);
@@ -549,14 +568,17 @@ function MeetingDetailsContent() {
   ].filter(Boolean) as Array<{ label: string; value: string }>;
   const canRetranscribe = Boolean(betaFeatures.importAndRetranscribe && meta.folder_path);
   const summaryReady = m.summary.kind === 'ready' ? m.summary.markdown : null;
-  // Короткая запись (меньше 15 слов): итоги из неё не собрать, поэтому ни блока
-  // итогов, ни «Сделать итоги», ни «Сделать заново»: модель заполнила бы разделы
-  // заглушками «Ничего не отмечено»
-  const tooShort = !m.hasMore && countWords(m.segments.map((x) => x.text).join(' ')) < MIN_SUMMARY_WORDS;
-  const showSummary = !empty && !tooShort;
-  // «Сделать итоги» в шапке, только пока итогов нет: ход генерации, ошибка
+  // «Подвести итоги» только когда есть из чего: запись остановлена (во время записи
+  // кнопки нет) и в тексте не меньше MIN_SUMMARY_WORDS слов (speech.ts). Иначе модель
+  // заполнила бы разделы заглушками «Ничего не отмечено». Итоги, сделанные раньше, видны
+  // при любой длине, но «Сделать заново» у короткой встречи нет
+  const { isRecording } = useRecordingControls();
+  const enoughText = m.hasMore || countWords(m.segments.map((x) => x.text).join(' ')) >= MIN_SUMMARY_WORDS;
+  const canSummarize = !empty && enoughText && !isRecording;
+  const showSummary = !empty && (m.summary.kind === 'ready' || m.summary.kind === 'processing' || (m.summary.kind === 'failed' && canSummarize));
+  // «Подвести итоги» в шапке, только пока итогов нет: ход генерации, ошибка
   // и «Сделать заново» показываются в блоке итогов над транскриптом
-  const showGenerate = showSummary && m.summary.kind === 'empty';
+  const showGenerate = canSummarize && m.summary.kind === 'empty';
 
   const rename = async (title: string) => {
     await renameMeeting(meta.id, title);
@@ -635,7 +657,7 @@ function MeetingDetailsContent() {
         />
       ) : (
         <>
-          {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={() => void m.generateSummary()} />}
+          {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={canSummarize ? () => void m.generateSummary() : undefined} />}
           {/* Транскрипт отдельной плиткой одним текстовым потоком, колонка до 760 px */}
           <section aria-label={t('transcript')} className={TILE}>
             <div className={MEASURE}>

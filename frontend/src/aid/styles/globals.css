@@ -935,44 +935,58 @@ html body[data-scroll-locked] {
   }
 }
 
-/* Шапка страницы: в покое обычная плитка, при прокрутке становится стеклом,
-   и плитки проходят под ней размытыми */
+/* Шапка страницы (PageHeader в Page.tsx), одна на все экраны: в покое без подложки, при
+   прокрутке стекло без рамки, блика, тени и скруглений. Тон стекла и полосы под ним из
+   --head-surface: плитка (tile: главная, настройки) или фон окна (bento: встреча, запись),
+   поэтому шапка везде лежит «в» своей поверхности, а не отдельной карточкой. Нижний край
+   без линии: под шапкой полоса 28 px (.aid-edge-fade), где размытие и тон плавно сходят на
+   нет (scroll edge effect из Liquid Glass macOS 26); контент уходит под шапку как под воду.
+   Маска затухания не декоративный градиент: она нужна, чтобы граница не резала строки. */
+main[data-layout='tile'] {
+  --head-surface: var(--card);
+}
+
+main[data-layout='bento'] {
+  --head-surface: var(--background);
+}
+
 .aid-sticky-head {
   transition:
     background-color 0.3s ease,
-    box-shadow 0.3s ease,
     -webkit-backdrop-filter 0.3s ease,
     backdrop-filter 0.3s ease;
 }
 
-.aid-sticky-head:not(.aid-glass) {
-  background: hsl(var(--card));
-}
-
-/* Главная: шапка часть плитки, как в Я.Музыке. При прокрутке стекло без рамки, блика,
-   тени и скруглений. Нижний край без линии: под шапкой полоса 28 px (.aid-edge-fade, Page), где размытие и тон
-   плавно сходят на нет (scroll edge effect из Liquid Glass macOS 26). Маска затухания
-   это не декоративный градиент: он нужен, чтобы граница не резала строки. */
-.aid-head-flat.aid-glass {
-  background: hsl(var(--card) / 0.72);
-  box-shadow: none;
+.aid-sticky-head.is-scrolled {
+  background: hsl(var(--head-surface) / 0.72);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
 }
 
-.aid-head-flat.aid-glass::before {
-  display: none;
+/* Кнопки и чипы в шапке на тоне текста (6 %, при наведении 12 %), а не на вложенной
+   поверхности: шапка лежит то на плитке, то на фоне окна, и на фоне окна вложенный тон
+   почти не виден. На плитке разницы нет: 6 % текста и есть тон вложенной поверхности */
+.aid-sticky-head .aid-icon-btn,
+.aid-sticky-head .bg-muted,
+.aid-sticky-head .bg-secondary {
+  background-color: hsl(var(--foreground) / 0.06);
+}
+
+.aid-sticky-head .aid-icon-btn:hover:not(:disabled),
+.aid-sticky-head .bg-muted:hover:not(:disabled),
+.aid-sticky-head .bg-secondary:hover:not(:disabled) {
+  background-color: hsl(var(--foreground) / 0.12);
 }
 
 .aid-edge-fade {
-  position: sticky;
-  z-index: 19;
-  top: var(--head-h, 0px);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
   height: 28px;
-  margin-bottom: -28px;
   pointer-events: none;
   opacity: 0;
-  background: hsl(var(--card) / 0.72);
+  background: hsl(var(--head-surface) / 0.72);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-mask: linear-gradient(#000, transparent);
@@ -984,34 +998,35 @@ html body[data-scroll-locked] {
   opacity: 1;
 }
 
-/* Низ списка под кнопкой записи: строки растворяются к низу так же, как под шапкой
-   (то же стекло и маска, без цветного градиента), на высоту зоны капсулы --dock-space.
-   Только когда список длиннее экрана: при data-fits запаса нет и прятать нечего;
-   без кнопки записи (data-dock-off, настройки) тоже нет. */
+/* Низ под кнопкой записи: контент растворяется к низу так же, как под шапкой (то же
+   стекло и маска, без цветного градиента), на высоту зоны капсулы --dock-space. Лежит
+   поверх области прокрутки в main. Только когда контент длиннее экрана: при data-fits
+   запаса нет и прятать нечего; без кнопки и капсулы (data-dock-off) тоже нет. */
 .aid-edge-fade-bottom {
-  position: sticky;
+  position: absolute;
   z-index: 19;
+  left: 0;
+  right: 0;
   bottom: 0;
   height: var(--dock-space);
-  margin-top: calc(-1 * var(--dock-space));
   pointer-events: none;
-  background: hsl(var(--card) / 0.72);
+  background: hsl(var(--head-surface) / 0.72);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-mask: linear-gradient(transparent, #000);
   mask: linear-gradient(transparent, #000);
 }
 
-.aid-scroll[data-fits] > .aid-edge-fade-bottom,
+main:has(> .aid-scroll[data-fits]) > .aid-edge-fade-bottom,
 :root[data-dock-off] .aid-edge-fade-bottom {
   display: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .aid-head-flat.aid-glass,
+  .aid-sticky-head.is-scrolled,
   .aid-edge-fade,
   .aid-edge-fade-bottom {
-    background: hsl(var(--card));
+    background: hsl(var(--head-surface));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

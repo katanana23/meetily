@@ -3,18 +3,18 @@
 // Две раскладки:
 // - tile (главная, настройки): вся страница одной нейтральной плиткой; шапка вверху
 //   плитки, под ней прокручиваемый контент;
-// - bento (встреча, запись): шапка отдельной плиткой, ниже колонка плиток.
+// - bento (встреча, запись): шапка над колонкой плиток, на фоне окна.
 //
-// В обеих шапка липкая и лежит поверх контента: в покое это обычная плитка, а при
-// прокрутке стекло (.aid-glass), и контент проходит под ним размытым. На главной шапка
-// часть самой плитки (.aid-head-flat): при прокрутке стекло без рамки и скруглений,
-// нижний край мягко растворяется (как scroll edge effect в macOS 26), без линии;
-// полоса прокрутки начинается под шапкой (--head-h). Область
-// прокрутки обрезана по радиусу плитки (на главной overflow hidden у самой плитки,
-// в бенто маска .aid-round-clip), поэтому плитки у краёв окна не обрываются
-// плоской линией, а уходят под скругление.
-// Снизу запас --dock-space: над контентом плавает капсула записи (RecordDock). На главной
-// строки под ней растворяются к низу (.aid-edge-fade-bottom), когда список длиннее экрана.
+// Шапка одна на все экраны (PageHeader): липкая, в покое без подложки (лежит на той
+// поверхности, где стоит: плитка в tile, фон окна в bento), при прокрутке стекло без
+// рамки, блика и тени, а под ней полоса 28 px (.aid-edge-fade), где размытие и тон
+// поверхности плавно сходят на нет: контент уходит под шапку мягко, без линии (scroll edge
+// effect из Liquid Glass macOS 26). Тон стекла и полосы берётся из --head-surface, своих
+// вариантов у шапки нет. Полоса прокрутки начинается под шапкой (--head-h). Область
+// прокрутки обрезана по радиусу плитки (в tile overflow hidden у самой плитки, в bento
+// маска .aid-round-clip), поэтому плитки у краёв окна уходят под скругление.
+// Снизу запас --dock-space: над контентом плавает капсула записи (RecordDock), и контент
+// под ней растворяется к низу (.aid-edge-fade-bottom), когда он длиннее экрана.
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -62,7 +62,7 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
   // Высота шапки в --head-h у области прокрутки: полоса прокрутки начинается под шапкой, а не за стеклом
   useEffect(() => {
     const el = ref.current;
-    const head = el?.querySelector<HTMLElement>(':scope > .aid-sticky-head');
+    const head = el?.querySelector<HTMLElement>(':scope > .aid-head-wrap');
     if (!el || !head) return;
     const ro = new ResizeObserver(() => el.style.setProperty('--head-h', `${head.offsetHeight}px`));
     ro.observe(head);
@@ -102,41 +102,52 @@ export function Page({ header, children, layout = 'tile', className }: PageProps
       if (frame) cancelAnimationFrame(frame);
     };
   }, [ref, layout]);
-  // Шапка: в покое плитка, при прокрутке стекло
-  const head = (extra: string, flat = false) =>
-    header && (
-      // data-tauri-drag-region: поля шапки перетаскивают окно, двойной клик разворачивает
-      <header data-tauri-drag-region className={cn('aid-sticky-head sticky top-0 z-20 shrink-0', flat ? 'aid-head-flat' : 'rounded-tile', scrolled && 'aid-glass', extra)}>
-        {header}
-      </header>
-    );
+  const head = header && <PageHeader scrolled={scrolled}>{header}</PageHeader>;
 
   if (layout === 'bento') {
     return (
-      <main className={cn('aid-page-in relative h-full min-w-0 flex-1', className)}>
+      <main data-layout="bento" className={cn('aid-page-in relative h-full min-w-0 flex-1', className)}>
         {/* -mr-2: прокрутка заходит в правое поле окна, полоса 8 px живёт там.
             .aid-round-clip обрезает контент по радиусу плитки у краёв плиток, не задевая полосу */}
         <div ref={ref} className="aid-scroll aid-scroll-edge aid-scroll-under-head aid-round-clip -mr-2 flex h-full flex-col gap-2 overflow-y-auto">
-          {head('p-5')}
+          {head}
           {/* Последняя нейтральная плитка тянется до низа окна, под капсулу записи, с запасом снизу.
               Цветную плитку (.aid-role) не тянем: большое цветное пятно хуже пустоты */}
           <div className="aid-page-column flex flex-1 flex-col gap-2 has-[>.aid-role:last-child]:pb-[var(--dock-pad)] [&>*:last-child:not(.aid-role)]:grow [&>*:last-child:not(.aid-role)]:pb-[var(--dock-pad)]">
             {children}
           </div>
         </div>
+        {/* Низ под капсулой записи: контент растворяется к низу (только если он длиннее экрана) */}
+        <div className="aid-edge-fade-bottom" aria-hidden />
       </main>
     );
   }
 
   return (
-    <main className={cn('aid-page-in relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
+    <main data-layout="tile" className={cn('aid-page-in relative h-full min-w-0 flex-1 overflow-hidden rounded-tile bg-card', className)}>
       <div ref={ref} className="aid-scroll aid-scroll-under-head h-full overflow-y-auto">
-        {head('aid-gutter px-5 pb-4 pt-5', true)}
-        {header && <div className="aid-edge-fade" data-on={scrolled ? '' : undefined} aria-hidden />}
+        {head}
         <div className={cn('aid-page-content w-full px-5 pb-[var(--dock-pad)]', header ? 'pt-1' : 'pt-5')}>{children}</div>
-        {/* Низ под кнопкой записи: строки растворяются, как под шапкой (только если список длиннее экрана) */}
-        <div className="aid-edge-fade-bottom" aria-hidden />
       </div>
+      {/* Низ под кнопкой записи: строки растворяются, как под шапкой (только если список длиннее экрана) */}
+      <div className="aid-edge-fade-bottom" aria-hidden />
     </main>
+  );
+}
+
+/**
+ * Шапка страницы, одна на все экраны: липкая, в покое без подложки, при прокрутке стекло
+ * без рамки и полоса растворения 28 px под ним. Полоса лежит рядом со стеклом, а не внутри:
+ * у потомка элемента с backdrop-filter размытие видело бы только саму шапку.
+ */
+export function PageHeader({ scrolled, children }: { scrolled: boolean; children: ReactNode }) {
+  return (
+    <div className="aid-head-wrap sticky top-0 z-20 shrink-0">
+      {/* data-tauri-drag-region: поля шапки перетаскивают окно, двойной клик разворачивает */}
+      <header data-tauri-drag-region className={cn('aid-sticky-head aid-gutter px-5 pb-4 pt-5', scrolled && 'is-scrolled')}>
+        {children}
+      </header>
+      <div className="aid-edge-fade" data-on={scrolled ? '' : undefined} aria-hidden />
+    </div>
   );
 }

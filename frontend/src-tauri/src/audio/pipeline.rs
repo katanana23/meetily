@@ -756,7 +756,7 @@ impl AudioPipeline {
         // deliberately diverge. Bounded live segments under continuous speech
         // are tracked in #756.
         let vad_processor =
-            ContinuousVadProcessor::new(sample_rate, VAD_REDEMPTION_TIME_MS)?.with_live_limits();
+            ContinuousVadProcessor::new(sample_rate, VAD_REDEMPTION_TIME_MS)?;
         info!(
             "VAD-driven pipeline: segments dispatched per speech burst (redemption_time={}ms)",
             VAD_REDEMPTION_TIME_MS

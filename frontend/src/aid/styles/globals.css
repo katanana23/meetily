@@ -794,11 +794,11 @@ html body[data-scroll-locked] {
   background: hsl(var(--record));
 }
 
-/* Уровень речи в плитке записи: полосы растут на каждый сигнал детектора речи
-   (уровня звука ядро во время записи не отдаёт). Только transform. */
+/* Уровень звука в капсуле записи: полосы по событию ядра recording-level
+   (lib/recording-level.ts), высоту ставит RecordDock напрямую. Только transform. */
 .aid-level-bar {
   transform-origin: bottom;
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.12s linear;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1036,9 +1036,21 @@ main[data-layout='bento'] {
   mask: linear-gradient(transparent, #000);
 }
 
+/* Со свечением голоса (VoiceGlow) низ только размывается, без тона поверхности:
+   тон на 72 % гасил бы свечение у капсулы, когда транскрипт длиннее экрана */
+main:has(.aid-glow) > .aid-edge-fade-bottom {
+  background: none;
+}
+
 main:has(.aid-scroll[data-fits]) > .aid-edge-fade-bottom,
 :root[data-dock-off] .aid-edge-fade-bottom {
   display: none;
+}
+
+/* Свечение «думает» на странице встречи (кнопки записи там нет): низ тоже растворяется,
+   строки транскрипта не ложатся на свечение резкими */
+:root[data-dock-off] main:has(.aid-glow):not(:has(.aid-scroll[data-fits])) > .aid-edge-fade-bottom {
+  display: block;
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -1959,5 +1971,56 @@ main:has(.aid-scroll[data-fits]) > .aid-edge-fade-bottom,
     animation: none;
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Эффекты (CLAUDE.md, «Эффекты»): свечение голоса по нижнему краю плитки транскрипта
+   (VoiceGlow). Холст высотой зоны капсулы: последняя реплика над ним. */
+.aid-glow {
+  height: var(--dock-space);
+}
+
+/* Статичная замена (prefers-reduced-motion, prefers-reduced-transparency, нет WebGL):
+   мягкая полоса по краю в цветах свечения, без движения */
+.aid-glow-static {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -6px;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6680, #ffb873 30%, #8599ff 62%, #c280fa);
+  filter: blur(12px);
+  opacity: 0.7;
+  transition: opacity 0.4s ease;
+}
+
+.aid-glow-static[data-mode='paused'] {
+  opacity: 0.3;
+}
+
+.aid-glow-static[data-mode='think'] {
+  background: linear-gradient(90deg, #c280fa, #8599ff 50%, #c280fa);
+}
+
+.aid-glow-static[data-mode='off'] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aid-glow-static {
+    transition: none;
+  }
+}
+
+/* Без прозрачности: сплошная тонкая полоса по краю, без размытия */
+@media (prefers-reduced-transparency: reduce) {
+  .aid-glow-static {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    border-radius: 0;
+    filter: none;
   }
 }

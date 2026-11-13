@@ -1143,11 +1143,132 @@ html body[data-scroll-locked] {
   pointer-events: none;
 }
 
-/* Экран обработки после «Остановить» (FinishingScreen): смена шага и действия финала
-   проявляются из размытия (0,3 с); без движения сразу на месте. */
+/* Экран обработки после «Остановить» (FinishingScreen). Сцены обложки по статусу записи.
+   Волна: полосы этой встречи сходят в ровную линию (0,8 с, ease-out, по очереди), потом
+   линия спокойно дышит. Реплики появляются по очереди (300 мс, сдвиг 150 мс), затем в них
+   по очереди проступает тон Indigo у сроков, дат и имён. Курсор мягко мигает, пока шаг идёт.
+   Свёрнутая карточка: факты проявляются. Смена шага и действия финала проявляются из
+   размытия (0,3 с). Маскот появляется из размытия и стоит неподвижно; дышит только подложка
+   обложки (opacity, 5 с). Только transform, opacity и filter; без движения стоит итоговый
+   кадр текущей сцены. */
 .aid-fin-step {
   animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+.aid-fin-mascot {
+  animation: aid-ob-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aid-fin-surface {
+  animation: aid-fin-surface 5s ease-in-out infinite;
+}
+
+@keyframes aid-fin-surface {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.aid-fin-bar {
+  transform-origin: center;
+  transform: scaleY(0.06);
+  animation: aid-fin-calm 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 6ms);
+}
+
+@keyframes aid-fin-calm {
+  from {
+    transform: scaleY(var(--h, 1));
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    transform: scaleY(0.06);
+    opacity: 0;
+  }
+}
+
+/* Полосы гаснут, на их месте сплошная линия; шаг затянулся: линия медленно дышит */
+.aid-fin-bar {
+  opacity: 0;
+}
+
+.aid-fin-flat {
+  animation:
+    aid-fin-flat 0.4s ease-out 0.7s both,
+    aid-fin-breathe 3.2s ease-in-out 1.5s infinite;
+}
+
+@keyframes aid-fin-flat {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes aid-fin-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.aid-fin-line,
+.aid-fin-folded {
+  animation: aid-ob-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Срок, дата или имя: тон Indigo (роль ИИ, намёк на будущие итоги) проступает под словом.
+   Прозрачный тон: в светлой теме светлая сирень под тёмным текстом, в тёмной тёмная под белым */
+.aid-fin-mark {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  color: inherit;
+}
+
+.aid-fin-mark::before {
+  content: '';
+  position: absolute;
+  inset: -1px -3px;
+  z-index: -1;
+  border-radius: 6px;
+  background: hsl(var(--indigo) / 0.34);
+  animation: aid-fin-mark 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes aid-fin-mark {
+  from {
+    opacity: 0;
+    transform: scaleX(0.6);
+  }
+}
+
+.aid-fin-caret {
+  animation: aid-fin-caret 1.2s ease-in-out infinite;
+}
+
+@keyframes aid-fin-caret {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* Сохраняю: карточка чуть сворачивается; сохранено: на месте */
+.aid-fin-card {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aid-fin-card[data-scene='saving'] {
+  transform: scale(0.97);
+}
+
 
 /* Переход в страницу встречи: название встречи на экране обработки перетекает в шапку
    страницы встречи (lib/in-place-router.tsx) */
@@ -1167,8 +1288,20 @@ html body[data-scroll-locked] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aid-fin-step {
+  .aid-fin-step,
+  .aid-fin-mascot,
+  .aid-fin-surface,
+  .aid-fin-bar,
+  .aid-fin-flat,
+  .aid-fin-line,
+  .aid-fin-folded,
+  .aid-fin-mark::before,
+  .aid-fin-caret {
     animation: none;
+  }
+
+  .aid-fin-card {
+    transition: none;
   }
 }
 

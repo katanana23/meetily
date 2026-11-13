@@ -69,7 +69,8 @@ function LongSilencePrompt({ onStop, onContinue }: { onStop: () => void; onConti
 
 /** Шаг экрана обработки по статусу записи оригинала (RecordingStateContext), без таймеров. */
 function finishStage(phase: FinishPhase | null, status: RecordingStatus): FinishStage {
-  if (status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
+  if (status === RecordingStatus.STOPPING) return 'stopped';
+  if (status === RecordingStatus.PROCESSING_TRANSCRIPTS) return 'transcribing';
   if (status === RecordingStatus.SAVING) return 'saving';
   if (status === RecordingStatus.COMPLETED || phase === null) return 'saved';
   return phase === 'opening' ? 'saved' : phase === 'saving' ? 'saving' : 'transcribing';
@@ -198,6 +199,7 @@ export function RecordingView({ isPaused, phase, duration, live, onBack, onStop,
           title={shownMeetingTitle ? displayTitle(shownMeetingTitle) : null}
           durationSec={Math.max(lastDuration.current, ...segments.map((x) => x.start ?? 0), ...live.speechTimes)}
           segments={segments}
+          speechTimes={live.speechTimes}
           onOpen={savedId ? () => open(false) : undefined}
           onSummarize={savedId ? () => open(true) : undefined}
         />

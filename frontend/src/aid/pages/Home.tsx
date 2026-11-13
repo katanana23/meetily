@@ -738,10 +738,10 @@ function HomeView({ onStart, blocker, onDismissBlocker, startError }: HomeViewPr
   );
 }
 
-// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved|discarded); в сборку не попадает
+// Разработка: экран обработки на заданной стадии (?finish=stopped|transcribing|saving|saved); в сборку не попадает
 const FinishingPreview =
   process.env.NODE_ENV === 'development' ? dynamic(() => import('@/aid/components/FinishingPreview').then((m) => m.FinishingPreview), { ssr: false }) : null;
-const PREVIEW_STAGES = ['transcribing', 'saving', 'saved'] as const;
+const PREVIEW_STAGES = ['stopped', 'transcribing', 'saving', 'saved'] as const;
 
 function HomeContent() {
   const rec = useRecordingControls();

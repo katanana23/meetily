@@ -1,6 +1,6 @@
 // Только для разработки: экран обработки на заданном шаге, чтобы смотреть и снимать каждое
-// состояние отдельно: ?mock=full&finish=transcribing|saving|saved, &size=short для короткой
-// записи (16 с, 2 реплики, 23 слова). Реплики вымышленные. В сборку не попадает (импорт по
+// состояние отдельно: ?mock=full&finish=stopped|transcribing|saving|saved, &size=short для короткой
+// записи (16 с, 2 реплики, 23 слова). Реплики и сигналы речи вымышленные. В сборку не попадает (импорт по
 // NODE_ENV в Home). Кнопки финала здесь ничего не открывают.
 'use client';
 
@@ -22,6 +22,10 @@ const SHORT: Segment[] = [
   { id: 's2', speaker: null, text: 'Если всё зелёное, выкатываем утром, а созвон в пятницу отменяем.', start: 9, clock: null },
 ];
 
+// Речь почти всю встречу, с паузами (волна на сцене «Запись остановлена»)
+const SPEECH_LONG = Array.from({ length: 754 }, (_, s) => s).filter((s) => Math.sin(s / 9) + Math.sin(s / 23) > -0.6);
+const SPEECH_SHORT = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15];
+
 const noop = () => console.info('[aid] Предпросмотр: встреча не открывается');
 
 export function FinishingPreview({ stage, short = false }: { stage: FinishStage; short?: boolean }) {
@@ -32,6 +36,7 @@ export function FinishingPreview({ stage, short = false }: { stage: FinishStage;
         title={short ? 'Встреча 7 ноября, 14:05' : 'Дейли команды «Северный ветер»'}
         durationSec={short ? 16 : 754}
         segments={short ? SHORT : LONG}
+        speechTimes={short ? SPEECH_SHORT : SPEECH_LONG}
         onOpen={stage === 'saved' ? noop : undefined}
         onSummarize={stage === 'saved' ? noop : undefined}
       />

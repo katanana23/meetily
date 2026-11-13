@@ -1,12 +1,13 @@
 // Оценка содержания записи: была ли распознанная речь.
-// Решение не зависит от длительности записи и секунд речи: считаем только слова
-// после чистки галлюцинаций. Есть речь — встреча сохраняется, любой длины.
+// Решение не зависит от длительности записи и секунд речи: считаем значимые слова
+// (content-rules.ts: без галлюцинаций, заполнителей, проверочных фраз и счёта).
+// Пороги в discard-policy.ts.
 
-/**
- * Речь есть, если после чистки галлюцинаций осталось столько слов: «Да, хорошо, давай»
- * уже встреча. Одно-два слова на тишине («Угу», «Алло?») чаще шум, чем разговор.
- */
-export const MIN_MEANINGFUL_WORDS = 3;
+import { assessContent, type ContentTier } from './content-rules';
+import { EMPTY_MAX_WORDS } from './discard-policy';
+
+/** Встреча сохраняется от стольких значимых слов (EMPTY_MAX_WORDS + 1, discard-policy.ts). */
+export const MIN_MEANINGFUL_WORDS = EMPTY_MAX_WORDS + 1;
 /**
  * «Подвести итоги» показывается от стольких слов: из нескольких фраз модель заполнила бы
  * разделы заглушками «Ничего не отмечено». Порог здесь один на весь Aid; сама встреча
@@ -53,7 +54,8 @@ export const HALLUCINATIONS: RegExp[] = [
   /^((um+|uh+|hm+|mm+|mhm|ah+|oh+|er+|erm|eh+|ugh|okay so|ok so|so|э+|эм+|мм+|хм+)\s?)+$/,
 ];
 
-function normalize(text: string): string {
+/** Нижний регистр, «ё» как «е», знаки препинания и дефисы как пробел («раз-раз» → «раз раз»). */
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/ё/g, 'е')
@@ -131,19 +133,19 @@ export function measureSpeech(segments: SpeechSegment[]): SpeechAmount {
 }
 
 /**
- * Пустая запись короче этого (секунды записи без пауз) — случайный старт: тихо отменяем,
- * без предупреждения и «Проверить звук».
+ * Пустая запись короче этого (секунды записи без пауз) при молчащем детекторе — случайный
+ * старт: «Проверить звук» не предлагаем. Длиннее — «Речи не было», возможно, проблема со звуком.
  */
 export const SHORT_EMPTY_SECONDS = 10;
 
 export type RecordingVerdict =
-  /** Есть распознанная речь (3+ слова после чистки): обычная встреча любой длины. */
+  /** Значимых слов больше EMPTY_MAX_WORDS: встреча сохраняется (до CHECK_MAX_WORDS с проверкой моделью). */
   | 'speech'
-  /** Короткая пустая запись (до SHORT_EMPTY_SECONDS): случайный старт, ничего не сохраняем. */
-  | 'cancelled'
-  /** Длиннее, а детектор речи не сработал: ничего не записалось, возможно, проблема со звуком. */
+  /** 0..EMPTY_MAX_WORDS значимых слов: «Пустая запись - не сохранена», тихо, 3 с. */
+  | 'empty'
+  /** Слов нет, детектор речи не сработал, запись длиннее SHORT_EMPTY_SECONDS: возможно, проблема со звуком. */
   | 'no-speech'
-  /** Детектор слышал речь, а текста нет: встреча не создаётся, карточка «Речь не распознана». */
+  /** Детектор слышал речь, а текста нет по явной причине (нет модели, сбой распознавания). */
   | 'unrecognized';
 
 /** Явная причина, почему у услышанной речи нет текста. */
@@ -167,35 +169,51 @@ export interface RecordingEvidence {
 
 export interface RecordingJudgement {
   verdict: RecordingVerdict;
+  /** Ступень по значимым словам: empty, check (проверка моделью), keep. */
+  tier: ContentTier;
   /** Почему так: одна фраза для журнала. */
   reason: string;
+  /** Слов после чистки галлюцинаций (всех, не только значимых). */
   words: number;
+  /** Уникальных значимых слов (content-rules.ts). */
+  meaningful: number;
   speechSeconds: number | null;
   segmentsBefore: number;
   segmentsAfter: number;
 }
 
 /**
- * Итог записи — по контексту, чтобы «Проверить звук» и предупреждение были только там,
- * где есть основание подозревать звук:
- * - 3+ слова после чистки галлюцинаций → 'speech', сохраняем (секунды и длина не важны);
- * - пустая и короче SHORT_EMPTY_SECONDS → 'cancelled': случайный старт, тихо отменяем;
- * - длиннее, детектор речи не сработал → 'no-speech': ничего не записалось, проверьте звук;
- * - детектор слышал речь, текста нет → 'unrecognized': встреча не создаётся, нейтральная карточка
- *   (звук был, не справилось распознавание; noTextReason уточняет причину в журнале).
+ * Итог записи по значимым словам (content-rules.ts):
+ * - больше EMPTY_MAX_WORDS → 'speech', сохраняем (tier 'check' — потом проверка моделью);
+ * - иначе запись не сохраняется, карточка по контексту:
+ *   - слов нет, детектор молчал, запись длиннее SHORT_EMPTY_SECONDS → 'no-speech' («Речи не
+ *     было» и «Проверить звук»: есть основание подозревать звук);
+ *   - детектор слышал речь, текста нет по явной причине (нет модели, сбой) → 'unrecognized';
+ *   - остальное → 'empty' («Пустая запись - не сохранена»: счёт, «алло», заполнители, шум).
  */
 export function judgeRecording(e: RecordingEvidence): RecordingJudgement {
   const { words: count, seconds } = measureSpeech(e.segments);
   const clean = cleanSegments(e.segments);
-  const base = { words: count, speechSeconds: seconds, segmentsBefore: e.segments.length, segmentsAfter: clean.length };
+  const content = assessContent(e.segments.map((s) => s.text));
+  const base = {
+    tier: content.tier,
+    words: count,
+    meaningful: content.count,
+    speechSeconds: seconds,
+    segmentsBefore: e.segments.length,
+    segmentsAfter: clean.length,
+  };
 
-  if (count >= MIN_MEANINGFUL_WORDS) return { ...base, verdict: 'speech', reason: `распознанная речь: ${count} слов` };
-  const heard = e.vadSegments === 0 ? 'детектор речи не сработал' : `детектор сработал (${e.vadSegments} сегм.)`;
-  if (typeof e.durationSec === 'number' && e.durationSec < SHORT_EMPTY_SECONDS) {
-    return { ...base, verdict: 'cancelled', reason: `пустая запись ${e.durationSec.toFixed(1)} с короче ${SHORT_EMPTY_SECONDS} с: случайный старт` };
+  if (content.tier !== 'empty') {
+    return { ...base, verdict: 'speech', reason: `значимых слов ${content.count}${content.tier === 'check' ? ', проверка моделью' : ''}` };
   }
-  if (e.vadSegments === 0) return { ...base, verdict: 'no-speech', reason: `${heard}, слов ${count}` };
-  return { ...base, verdict: 'unrecognized', reason: `${heard}, слов ${count} меньше ${MIN_MEANINGFUL_WORDS}${e.noTextReason ? `, причина: ${e.noTextReason}` : ''}` };
+  const heard = e.vadSegments === 0 ? 'детектор речи не сработал' : `детектор сработал (${e.vadSegments} сегм.)`;
+  const long = !(typeof e.durationSec === 'number' && e.durationSec < SHORT_EMPTY_SECONDS);
+  if (count === 0 && e.vadSegments === 0 && long) return { ...base, verdict: 'no-speech', reason: `${heard}, слов нет` };
+  if (e.vadSegments > 0 && e.noTextReason) {
+    return { ...base, verdict: 'unrecognized', reason: `${heard}, значимых слов ${content.count}, причина: ${e.noTextReason}` };
+  }
+  return { ...base, verdict: 'empty', reason: `${heard}, слов ${count}, значимых ${content.count} (до ${EMPTY_MAX_WORDS} не сохраняем)` };
 }
 
 export function countWords(text: string): number {

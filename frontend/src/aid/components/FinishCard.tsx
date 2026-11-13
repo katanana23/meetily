@@ -1,8 +1,9 @@
 // Карточка после «Остановить» на месте кнопки записи (RecordDock): одна и та же карточка
 // меняет состояние на месте, без мигания и без смены размера: «Дописываю реплики» →
 // «Сохраняю» → «Встреча сохранена» с «Открыть» и крестиком (уходит сама через 5 с, под
-// курсором и в фокусе ждёт). Запись отбракована: та же карточка с «Слишком коротко -
-// запись не сохранена» (или почему ещё не сохранили), строки в списке нет.
+// курсором и в фокусе ждёт). Запись отбракована: та же карточка с «Пустая запись - не
+// сохранена» (или почему ещё не сохранили), строки в списке нет. Проверка моделью убрала
+// сохранённую встречу в корзину: «Мало содержания - запись в корзине» с «Вернуть».
 // Общее уведомление Aid (ui/notice.tsx): плотное стекло, знак в круге 44 px слева.
 // В круге маленький показ процесса, а не логотип и не цифры: полосы волны записи
 // складываются в строки текста, строки становятся галочкой (FinishGlyph, .aid-fg-* в
@@ -18,8 +19,8 @@ import { displayTitle } from '@/aid/lib/format';
 import { t } from '@/aid/strings';
 
 export type FinishCardStage = 'transcribing' | 'saving' | 'saved' | 'discarded';
-/** Почему запись не сохранена (recording-outcome.tsx): коротко, без речи, речь не распознана. */
-export type DiscardReason = 'cancelled' | 'no-speech' | 'unrecognized';
+/** Почему записи нет в списке (recording-outcome.tsx, DiscardVerdict). */
+export type DiscardReason = 'empty' | 'no-speech' | 'unrecognized' | 'low-content';
 
 /** Через сколько «Встреча сохранена» уходит сама, если её не трогать. */
 export const SAVED_CARD_MS = 5000;
@@ -41,9 +42,10 @@ export function FinishGlyph({ stage }: { stage: FinishCardStage }) {
 }
 
 const DISCARD_TITLE: Record<DiscardReason, string> = {
-  cancelled: t('discardedShort'),
+  empty: t('discardedEmpty'),
   'no-speech': t('discardedSilent'),
   unrecognized: t('discardedUnrecognized'),
+  'low-content': t('lowContentTitle'),
 };
 
 interface FinishCardProps {
@@ -52,6 +54,8 @@ interface FinishCardProps {
   title?: string | null;
   reason?: DiscardReason;
   onOpen?: () => void;
+  /** «Мало содержания»: вернуть встречу из корзины в список. */
+  onUndo?: () => void;
   onClose?: () => void;
   /** Задержать уход карточки ('hover', 'focus', 'dialog'): у отбракованной время ведёт провайдер. */
   onHold?: (reason: string, on: boolean) => void;
@@ -59,7 +63,7 @@ interface FinishCardProps {
   still?: boolean;
 }
 
-export function FinishCard({ stage, title, reason = 'cancelled', onOpen, onClose, onHold, still }: FinishCardProps) {
+export function FinishCard({ stage, title, reason = 'empty', onOpen, onUndo, onClose, onHold, still }: FinishCardProps) {
   const [soundCheck, setSoundCheck] = useState(false);
   const [held, setHeld] = useState(false);
   const hold = (why: string, on: boolean) => {
@@ -111,13 +115,25 @@ export function FinishCard({ stage, title, reason = 'cancelled', onOpen, onClose
             {heading}
           </span>
         }
-        // Короткая отбракованная запись говорит всё одной строкой; длинная без речи: почему и
-        // подписью «Запись не сохранена» (рядом действие, одна строка не помещается)
-        hint={stage === 'discarded' ? (reason === 'cancelled' ? undefined : t('discardedNotSaved')) : (name ?? undefined)}
+        // Пустая запись говорит всё одной строкой; длинная без речи: почему и подписью «Запись не
+        // сохранена» (рядом действие, одна строка не помещается); «Мало содержания» и «Запись в корзине»
+        hint={
+          stage !== 'discarded'
+            ? (name ?? undefined)
+            : reason === 'empty'
+              ? undefined
+              : reason === 'low-content'
+                ? t('lowContentHint')
+                : t('discardedNotSaved')
+        }
         actions={
           stage === 'saved' && onOpen ? (
             <Button variant="secondary" className="h-10 shrink-0 px-4 text-sm font-medium" onClick={onOpen}>
               {t('finishOpen')}
+            </Button>
+          ) : stage === 'discarded' && reason === 'low-content' && onUndo ? (
+            <Button variant="secondary" className="h-10 shrink-0 px-4 text-sm font-medium" onClick={onUndo}>
+              {t('undoDelete')}
             </Button>
           ) : suspectSound ? (
             <Button variant="ghost" className="h-10 shrink-0 px-3 text-sm font-medium" onClick={() => setSoundCheck(true)}>

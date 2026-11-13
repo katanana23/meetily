@@ -19,11 +19,16 @@ import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingStop } from '@/hooks/useRecordingStop';
 import { toSegment } from './meeting';
 import { subscribe } from './tauri-events';
-import { isHallucination, judgeRecording, measureSpeech, MIN_MEANINGFUL_WORDS, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
+import { cleanSegments, isHallucination, judgeRecording, MIN_MEANINGFUL_WORDS, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
+import { assessContent } from './content-rules';
+import { checkContent, rememberDevCheck, type ContentCheck } from './content-check';
+import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
 import { markDiscarded, purgeDiscarded } from './recording-marks';
-import { purgeExpiredTrash } from './meeting-trash';
+import { purgeExpiredTrash, restoreMeeting, trashMeeting } from './meeting-trash';
+import { aidToast } from './toasts';
+import { displayTitle } from './format';
 import { t } from '@/aid/strings';
 
 /**
@@ -34,14 +39,16 @@ import { t } from '@/aid/strings';
  */
 export const NOTICE_MS = 8_000;
 export const NOTICE_MAX_MS = 30_000;
-/** «Запись отменена: она была пустой» тихая: уходит сама через 3 с, наведение её не держит. */
-export const CANCELLED_NOTICE_MS = 3_000;
+/** «Пустая запись - не сохранена» тихая: уходит сама через 3 с, наведение её не держит. */
+export const EMPTY_NOTICE_MS = 3_000;
 /**
  * Детектор слышал речь, а слов пока меньше порога: ждём, пока ядро допишет последние
  * фразы (очередь распознавания пуста), не дольше этого, и только потом решаем.
  * Иначе короткая запись, чьи реплики ещё распознаются, ушла бы как «ничего не записалось».
  */
 const LATE_TEXT_WAIT_MS = 20_000;
+/** Как часто, кроме запуска, удалять насовсем то, что пролежало в корзине свой срок. */
+const TRASH_PURGE_EVERY_MS = 6 * 60 * 60 * 1000;
 /** Ключ sessionStorage: итог последней записи для страницы встречи (только Aid). */
 export const OUTCOME_KEY = 'aid.recordingOutcome';
 
@@ -68,13 +75,25 @@ export interface StoredOutcome {
 
 type StopHandler = (save: boolean) => Promise<void>;
 
-/** Запись не сохранена: короткая карточка у кнопки записи вместо тоста, с крестиком. */
+/** Почему записи нет в списке: карточка у кнопки записи (FinishCard). */
+export type DiscardVerdict =
+  /** 0..2 значимых слова: не сохранена, тихо, 3 с. */
+  | 'empty'
+  /** Слов нет, детектор молчал, запись длинная: «Речи не было» и «Проверить звук». */
+  | 'no-speech'
+  /** Речь слышали, текста нет по явной причине (нет модели, сбой распознавания). */
+  | 'unrecognized'
+  /** Сохранена, но модель не нашла содержания: встреча в корзине, «Вернуть». */
+  | 'low-content';
+
+/** Запись не сохранена или убрана в корзину: короткая карточка у кнопки записи вместо тоста, с крестиком. */
 export interface DiscardNotice {
-  /**
-   * Встреча не создана, почему: cancelled — короткая пустая запись, тихо отменена;
-   * no-speech — длиннее, речи не слышно; unrecognized — речь слышали, текста нет.
-   */
-  verdict: 'cancelled' | 'no-speech' | 'unrecognized';
+  verdict: DiscardVerdict;
+  /** low-content: встреча в корзине и её название (подпись карточки). */
+  meetingId?: string | null;
+  title?: string | null;
+  /** low-content: «Вернуть» — встреча обратно в список. */
+  undo?: () => Promise<void>;
   /** Причина задержать карточку: 'hover', 'focus', 'dialog'. */
   hold: (reason: string, on: boolean) => void;
   dismiss: () => void;
@@ -137,6 +156,12 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   const noop = useCallback(() => undefined, []);
   // Свой экземпляр оригинального хука: сохраняет встречу при остановке из трея и по «Вернуть»
   const { handleRecordingStop } = useRecordingStop(noop, noop);
+  // id сохранённой встречи: useRecordingStop кладёт его в currentMeeting сайдбара
+  const { currentMeeting } = useSidebar();
+  const meetingRef = useRef(currentMeeting);
+  meetingRef.current = currentMeeting;
+  const recordingNow = useRef(recording.isRecording);
+  recordingNow.current = recording.isRecording;
 
   const [live, setLive] = useState<LiveSpeech>(EMPTY);
   const [finishing, setFinishing] = useState<Ctx['finishing']>(null);
@@ -192,39 +217,95 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
   );
 
   const showNotice = useCallback(
-    (verdict: DiscardNotice['verdict'], persist = false) => {
+    (verdict: DiscardVerdict, extra: Pick<DiscardNotice, 'meetingId' | 'title' | 'undo'> = {}, persist = false) => {
       closeNotice();
       // Предпросмотр в разработке: карточка стоит, пока адрес тот же
       if (persist) {
-        setNotice({ verdict, hold, dismiss: closeNotice });
+        setNotice({ verdict, ...extra, hold, dismiss: closeNotice });
         return;
       }
-      // Тихая отмена уходит сама через 3 с и не задерживается под курсором
-      const ms = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MS;
-      const max = verdict === 'cancelled' ? CANCELLED_NOTICE_MS : NOTICE_MAX_MS;
+      // Пустая запись уходит сама через 3 с и не задерживается под курсором
+      const ms = verdict === 'empty' ? EMPTY_NOTICE_MS : NOTICE_MS;
+      const max = verdict === 'empty' ? EMPTY_NOTICE_MS : NOTICE_MAX_MS;
       countdown.current = { remaining: ms, startedAt: null, hardStop: Date.now() + max };
       hardTimer.current = setTimeout(closeNotice, max);
-      setNotice({ verdict, hold, dismiss: closeNotice });
+      setNotice({ verdict, ...extra, hold, dismiss: closeNotice });
       sync();
     },
     [closeNotice, hold, sync],
   );
 
-  // Только в разработке: показать карточку отбракованной записи по ?finish=discarded
-  // («Слишком коротко») или ?notice=cancelled|no-speech|unrecognized, чтобы смотреть её без
-  // записи. В сборке не работает
+  // Только в разработке: показать карточку без записи: ?finish=discarded («Пустая запись») или
+  // ?notice=empty|no-speech|unrecognized|low-content. ?check=… задаёт исход проверки моделью
+  // (content-check.ts). В сборке не работает
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
+    rememberDevCheck();
     const params = new URLSearchParams(window.location.search);
-    const v = params.get('finish') === 'discarded' ? 'cancelled' : params.get('notice');
-    if (v === 'cancelled' || v === 'no-speech' || v === 'unrecognized') showNotice(v, true);
+    const v = params.get('finish') === 'discarded' ? 'empty' : params.get('notice');
+    if (v === 'empty' || v === 'no-speech' || v === 'unrecognized') showNotice(v, {}, true);
+    if (v === 'low-content') showNotice(v, { meetingId: 'preview', title: 'Meeting 14_11_26_10_02_00', undo: async () => undefined }, true);
   }, [showNotice]);
 
+  /**
+   * Слой 2: встреча с 3..15 значимыми словами уже сохранена и стоит в списке; модель итогов
+   * отвечает, есть ли в ней содержание. «Нет» — встреча в корзину и карточка «Мало содержания»
+   * с «Вернуть». Модель недоступна или молчит 20 с — встреча остаётся. Интерфейс не ждёт.
+   */
+  const reviewSaved = useCallback(
+    async (pending: Promise<ContentCheck>, before: string | null, folder: string | null) => {
+      let id: string | null = null;
+      for (let i = 0; i < 100 && !id; i++) {
+        const cur = meetingRef.current?.id ?? null;
+        if (cur && cur !== before) id = cur;
+        else await sleep(100);
+      }
+      const check = await pending;
+      console.info(`[aid] Проверка моделью: ${check.result} (${check.detail}), встреча ${id ?? 'не найдена'}`);
+      if (check.result !== 'empty' || !id) return;
+      // Та ли встреча: папка записи совпадает (человек мог открыть другую встречу)
+      const meta = await invoke<{ title?: string; folder_path?: string | null } | null>('api_get_meeting_metadata', { meetingId: id }).catch(() => null);
+      if (!meta || (folder && meta.folder_path && meta.folder_path !== folder)) {
+        console.info('[aid] Проверка моделью: сохранённая встреча не опознана, оставляю в списке');
+        return;
+      }
+      try {
+        await trashMeeting(id);
+      } catch (error) {
+        console.warn('[aid] Проверка моделью: встречу не удалось перенести в корзину, оставляю:', error);
+        return;
+      }
+      const meetingId = id;
+      const title = meta.title ?? null;
+      const undo = async () => {
+        try {
+          await restoreMeeting(meetingId);
+          aidToast.success(t('restored'), { description: title ? displayTitle(title) : undefined });
+        } catch (error) {
+          aidToast.error(t('restoreFailed'), { description: String(error) });
+        }
+      };
+      // Идёт новая запись: карточки у кнопки записи не видно, говорим уведомлением
+      if (recordingNow.current) {
+        aidToast.info(t('lowContentTitle'), {
+          description: `${t('lowContentHint')}${title ? `: ${displayTitle(title)}` : ''}`,
+          action: { label: t('undoDelete'), onClick: () => void undo() },
+        });
+        return;
+      }
+      showNotice('low-content', { meetingId, title, undo });
+    },
+    [showNotice],
+  );
+
   // При запуске: удалить из базы пустые записи, которые не успели удалить в прошлый
-  // раз, и очистить корзину (удалённое человеком) от записей старше 7 дней
+  // раз, и очистить корзину от встреч старше TRASH_TTL_DAYS (30 дней, discard-policy.ts)
   useEffect(() => {
     void purgeDiscarded();
     void purgeExpiredTrash();
+    // Приложение живёт в трее неделями: срок корзины проверяется и раз в 6 часов
+    const id = setInterval(() => void purgeExpiredTrash(), TRASH_PURGE_EVERY_MS);
+    return () => clearInterval(id);
   }, []);
 
   seconds.current = recording.activeDuration ?? seconds.current;
@@ -254,9 +335,10 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         // Детектор слышал речь, а слов меньше порога: последние фразы могут ещё распознаваться
         // (у короткой записи это почти весь текст). Ждём пустую очередь, потом решаем
         let waited = 0;
-        if (vadSegments() > 0 && measureSpeech(collect()).words < MIN_MEANINGFUL_WORDS) {
+        const meaningful = () => assessContent(collect().map((x) => x.text)).count;
+        if (vadSegments() > 0 && meaningful() < MIN_MEANINGFUL_WORDS) {
           const t0 = Date.now();
-          while (Date.now() - t0 < LATE_TEXT_WAIT_MS && measureSpeech(collect()).words < MIN_MEANINGFUL_WORDS) {
+          while (Date.now() - t0 < LATE_TEXT_WAIT_MS && meaningful() < MIN_MEANINGFUL_WORDS) {
             try {
               const st = await invoke<{ is_processing?: boolean; chunks_in_queue?: number }>('get_transcription_status');
               if (!st?.is_processing && !st?.chunks_in_queue) break;
@@ -305,7 +387,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         console.info(
           `[aid] Итог записи: длительность ${fmt(seconds.current)}, речь по детектору ${fmt(detectorSeconds)} ` +
             `(${vad} сегм.), реплик ${judgement.segmentsBefore} → ${judgement.segmentsAfter} после чистки, ` +
-            `слов ${judgement.words}, ожидание последних фраз ${waited} мс, ` +
+            `слов ${judgement.words}, значимых ${judgement.meaningful}, ожидание последних фраз ${waited} мс, ` +
             `модель ${model === null ? 'не проверена' : model ? 'есть' : 'нет'}, ` +
             `ошибка распознавания ${liveRef.current.recognitionFailed ? 'да' : 'нет'} → ${verdict}: ${reason}`,
         );
@@ -320,16 +402,23 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         }
 
         if (verdict === 'speech') {
+          // 3..15 значимых слов: вопрос модели идёт параллельно с сохранением, встреча в списке как обычно
+          const check =
+            judgement.tier === 'check' && liveRef.current.tracking
+              ? checkContent(cleanSegments(segments).map((x) => x.text).join(' '))
+              : null;
+          const before = meetingRef.current?.id ?? null;
           setFinishing(null);
           await handle(true);
+          if (check) void reviewSaved(check, before, folder);
           return verdict;
         }
 
-        // Текста нет: встреча не создаётся (раздела «Не распознано» нет). Строка обработки в
-        // списке гаснет (finishing 'discarding' → фаза null), карточка у кнопки записи та же,
-        // с итогом по контексту: короткая запись — «Слишком коротко - запись не сохранена»
-        // (уходит сама через 3 с); длиннее, детектор молчал — «Речи не было» с «Проверить
-        // звук»; детектор слышал речь — «Речь не распознана». Файл звука остаётся в
+        // Значимых слов 0..2: встреча не создаётся. Строка обработки в списке гаснет
+        // (finishing 'discarding' → фаза null), карточка у кнопки записи та же, с итогом по
+        // контексту: «Пустая запись - не сохранена» (уходит сама через 3 с); слов нет, детектор
+        // молчал, запись длинная — «Речи не было» с «Проверить звук»; речь слышали, текста нет
+        // по явной причине — «Речь не распознана». Файл звука остаётся в
         // папке записей, как у оригинала при «не сохранять». Пометка «не сохранять» ставится до любой записи в базу, поэтому
         // такая встреча не появится в списке и не откроется по адресу. В базу не пишем
         // (оригинальный путь handleRecordingStop(false)); то, что успело попасть в базу
@@ -352,7 +441,7 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
         setFinishing(null);
       }
     },
-    [transcriptsRef, showNotice],
+    [transcriptsRef, showNotice, reviewSaved],
   );
 
   const abandon = useCallback(async (handle: StopHandler) => {

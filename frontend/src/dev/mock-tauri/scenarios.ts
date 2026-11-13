@@ -10,6 +10,7 @@ import type { MockMeeting } from './fixtures/types';
 export type ScenarioId =
   | 'empty' | 'full' | 'long' | 'recording' | 'error' | 'onboarding'
   | 'silence-5s' | 'silence-15s' | 'silence-hallucination' | 'noise-30s' | 'words-3' | 'words-12' | 'words-20' | 'short-16s' | 'repeat-five' | 'heard-no-text'
+  | 'counting' | 'mic-check' | 'budget-9'
   | 'recognition-failed' | 'mid-silence'
   | 'long-empty' | 'sparse' | 'no-model' | 'no-permission'
   | 'mic-denied' | 'mic-missing' | 'mic-prompt' | 'mic-core-refuses' | 'mic-silent' | 'mic-lost' | 'model-downloading'
@@ -110,22 +111,22 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     meetings: () => [], onboardingCompleted: false, modelsReady: false, recordingOnLoad: false, failing: false,
   },
   'silence-5s': {
-    id: 'silence-5s', label: 'silence-5s', description: 'Короткая пустая запись: VAD молчит, остановите до 10 секунд. Тихая карточка «Запись отменена: она была пустой» на 3 с',
+    id: 'silence-5s', label: 'silence-5s', description: 'Короткая пустая запись: VAD молчит, остановите до 10 секунд. Тихая карточка «Пустая запись - не сохранена» на 3 с',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'none',
   },
   'silence-15s': {
-    id: 'silence-15s', label: 'silence-15s', description: 'Пустая запись длиннее 10 секунд, VAD молчит: «Ничего не записалось» и «Проверить звук»',
+    id: 'silence-15s', label: 'silence-15s', description: 'Пустая запись длиннее 10 секунд, VAD молчит: «Речи не было» и «Проверить звук»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'none', startOffsetSec: 15,
   },
   'silence-hallucination': {
-    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: детектор сработал, текста нет: «Речь не распознана», встреча не создаётся',
+    id: 'silence-hallucination', label: 'silence-hallucination', description: 'Три минуты тишины, на шум модель выдала «Продолжение следует...»: галлюцинация не значима, «Пустая запись - не сохранена»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'hallucination', startOffsetSec: 180,
   },
   'noise-30s': {
-    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды срабатывает, модель выдаёт мусор: «Речь не распознана», встреча не создаётся',
+    id: 'noise-30s', label: 'noise-30s', description: '30 секунд тишины с шумом: VAD трижды срабатывает, модель выдаёт мусор: «Пустая запись - не сохранена»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'noise', startOffsetSec: 25,
   },
@@ -135,17 +136,17 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     live: 'script', startOffsetSec: 20, script: ['Так, начинаем.'], scriptSeconds: 4, warnAfterScript: true,
   },
   'words-3': {
-    id: 'words-3', label: 'words-3', description: 'Три слова «Да, хорошо, давай»: порог 3 слова, встреча сохраняется',
+    id: 'words-3', label: 'words-3', description: '«Да, хорошо, давай»: «да» заполнитель, 2 значимых слова, «Пустая запись - не сохранена»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'script', startOffsetSec: 10, script: ['Да, хорошо, давай.'],
   },
   'words-12': {
-    id: 'words-12', label: 'words-12', description: '12 слов в трёх репликах: встреча сохраняется, итогов нет (они от 15 слов)',
+    id: 'words-12', label: 'words-12', description: '12 значимых слов: встреча сохраняется и уходит на проверку моделью (исход задаёт &check=content|empty|unavailable|timeout), итогов нет (они от 80 слов)',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'script', startOffsetSec: 20, script: ['Коротко: релиз переносим на четверг.', 'Тесты пока не прошли, жду отчёт.', 'Всё.'],
   },
   'words-20': {
-    id: 'words-20', label: 'words-20', description: '20 слов: встреча сохраняется, можно сделать итоги',
+    id: 'words-20', label: 'words-20', description: '20 значимых слов: обычное сохранение без проверки моделью',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'script', startOffsetSec: 30,
     script: [
@@ -165,14 +166,32 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     ],
   },
   'repeat-five': {
-    id: 'repeat-five', label: 'repeat-five', description: 'Человек повторяет: «Пять, пять, пять» и «Да. Да. Да.»: это речь, не зацикливание модели',
+    id: 'repeat-five', label: 'repeat-five', description: '«Пять, пять, пять» (счёт) и «Да. Да. Да.» (повтор заполнителя): 0 значимых слов, «Пустая запись - не сохранена»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'script', startOffsetSec: 8, scriptSeconds: 3, script: ['Пять, пять, пять.', 'Да. Да. Да.'],
   },
   'heard-no-text': {
-    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет: «Речь не распознана», встреча не создаётся',
+    id: 'heard-no-text', label: 'heard-no-text', description: 'VAD слышит речь, текста нет и причины нет: «Пустая запись - не сохранена»',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
     live: 'vad-only', startOffsetSec: 30,
+  },
+  counting: {
+    id: 'counting', label: 'counting', description: 'Счёт «Раз, два, три… десять, а?»: 0 значимых слов, «Пустая запись - не сохранена»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 12, scriptSeconds: 4,
+    script: ['Раз, два, три, четыре, пять.', 'Шесть, семь, восемь, девять, десять, а?'],
+  },
+  'mic-check': {
+    id: 'mic-check', label: 'mic-check', description: '«Алло, слышно меня? Проверка»: проверочные фразы, 0 значимых слов, «Пустая запись - не сохранена»',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 15, scriptSeconds: 4,
+    script: ['Алло, слышно меня?', 'Проверка.'],
+  },
+  'budget-9': {
+    id: 'budget-9', label: 'budget-9', description: '«Обсудили бюджет на декабрь, Маша готовит смету до пятницы»: 9 значимых слов, сохраняется и уходит на проверку моделью (&check=…)',
+    meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: true, failing: false,
+    live: 'script', startOffsetSec: 14, scriptSeconds: 5,
+    script: ['Обсудили бюджет на декабрь, Маша готовит смету до пятницы.'],
   },
   'mid-silence': {
     id: 'mid-silence', label: 'mid-silence', description: 'Пять реплик, потом две с лишним минуты тишины: подсказка «Остановить?»',

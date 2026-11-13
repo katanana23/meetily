@@ -1,7 +1,8 @@
 // Корзина записей: папка «Корзина ShadeNotes» внутри папки записей.
 //
-// Корзина только для того, что удалил человек (meeting-trash.ts): автоматически
-// (тишина, короткая запись) сюда ничего не уходит. Папка записи целиком (audio.mp4, metadata.json,
+// Корзина для того, что удалил человек, и для сохранённых встреч без содержания по проверке
+// моделью (meeting-trash.ts, content-check.ts); пустые записи (0..2 значимых слова) не
+// сохраняются и сюда не попадают. Папка записи целиком (audio.mp4, metadata.json,
 // transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
 // переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения
 // вместе со строкой базы (meeting-trash.ts, purgeExpiredTrash).
@@ -23,7 +24,8 @@ export function joinPath(folder: string, name: string): string {
 }
 
 export const TRASH_DIR_NAME = 'Корзина ShadeNotes';
-export const TRASH_TTL_DAYS = 7;
+/** Срок корзины: discard-policy.ts. */
+export { TRASH_TTL_DAYS } from './discard-policy';
 const MARKER = 'trashed.json';
 
 /**

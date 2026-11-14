@@ -1,5 +1,5 @@
 // Проверка контраста «текст на заливке» по APCA (Lc, модель восприятия контраста), обе темы.
-// Запуск: pnpm check:contrast. Значения берутся из токенов src/aid/styles/globals.css,
+// Запуск: pnpm check:contrast. Значения берутся из токенов src/shade/styles/globals.css,
 // поэтому правка цвета заливки или текста без пересчёта не пройдёт.
 //
 // Правило (docs/ui/foundations.md, «Цвет с ролью»): текст и иконка на красной заливке всегда
@@ -12,7 +12,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const CSS = readFileSync(join(ROOT, 'src/aid/styles/globals.css'), 'utf8');
+const CSS = readFileSync(join(ROOT, 'src/shade/styles/globals.css'), 'utf8');
 
 // APCA-W3 0.0.98G-4g
 function luminance([r, g, b]) {
@@ -104,7 +104,7 @@ function walk(dir, out = []) {
 // Цвет текста, который нельзя ставить рядом с сплошной красной заливкой
 const BAD_TEXT = /^(?:[\w-]+:)*text-(?:white|black|foreground|on-role|muted-foreground|primary-foreground|primary-ink|destructive|destructive-ink|record|giants-ink|indigo-ink|\[(?:#|hsl|rgb).*)$/;
 const RED_FILL = /^bg-(?:destructive|record)$/;
-for (const file of walk(join(ROOT, 'src/aid'))) {
+for (const file of walk(join(ROOT, 'src/shade'))) {
   readFileSync(file, 'utf8')
     .split('\n')
     .forEach((line, i) => {

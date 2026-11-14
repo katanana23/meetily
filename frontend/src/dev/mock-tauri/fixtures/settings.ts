@@ -1,7 +1,7 @@
 // Модели, устройства и настройки. Имена моделей совпадают с реальными
 // (их ищет код интерфейса), всё остальное вымышлено.
 
-export const MOCK_ROOT = '/mock/Meetily';
+export const MOCK_ROOT = '/mock/Shade';
 
 export const audioDevices = [
   { name: 'Встроенный микрофон (заглушка)', device_type: 'Input' as const },

@@ -1,5 +1,5 @@
 {
-    "name": "meetily",
+    "name": "shade",
     "version": "0.4.1",
     "private": true,
     "main": "electron/main.js",
@@ -27,7 +27,7 @@
         "tauri:build:hipblas": "tauri build -- --features hipblas",
         "lint": "next lint",
         "check:contrast": "node scripts/check-contrast.mjs",
-        "test": "bun test src/aid"
+        "test": "bun test src/shade"
     },
     "dependencies": {
         "@blocknote/core": "0.36.0",

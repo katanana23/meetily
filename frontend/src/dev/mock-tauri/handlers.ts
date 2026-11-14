@@ -75,7 +75,7 @@ export const handlers: Record<string, Handler> = {
   complete_onboarding: (_a, be) => {
     be.onboardingCompleted = true;
     try {
-      window.sessionStorage.setItem('meetily.mock.onboardingDone', '1');
+      window.sessionStorage.setItem('shade.mock.onboardingDone', '1');
     } catch {
       /* без sessionStorage после перезагрузки мастер покажется снова */
     }
@@ -288,7 +288,7 @@ export const handlers: Record<string, Handler> = {
   },
   trigger_system_audio_permission_command: (_a, be) => be.scenario.systemAudioPermission ?? be.scenario.micPermission !== false,
   // Только заглушки: разрешение macOS, которое в окне Tauri видит getUserMedia (mic-access.ts)
-  aid_mock_mac_mic: (_a, be) => be.macMicAnswer(),
+  shade_mock_mac_mic: (_a, be) => be.macMicAnswer(),
   open_system_settings: warnNative('Открытие системных настроек'),
 
   // ---------- настройки ----------
@@ -408,9 +408,9 @@ export const pluginHandlers: Record<string, Handler> = {
 
   // app / path
   'plugin:app|version': ok('0.4.1-mock'),
-  'plugin:app|name': ok('meetily'),
+  'plugin:app|name': ok('Shade'),
   'plugin:app|tauri_version': ok('2.x-mock'),
-  'plugin:app|identifier': ok('com.meetily.mock'),
+  'plugin:app|identifier': ok('io.github.katanana23.shade.mock'),
   'plugin:path|resolve_directory': ok(`${MOCK_ROOT}/AppData`),
   'plugin:path|join': (a) => (a?.paths ?? []).join('/'),
 

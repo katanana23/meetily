@@ -6,7 +6,7 @@
 
 import { buildTranscript, type MockMeeting } from './types';
 
-const folder = (id: string) => `/mock/Meetily/recordings/${id}`;
+const folder = (id: string) => `/mock/Shade/recordings/${id}`;
 
 export function createFullMeetings(): MockMeeting[] {
   return [

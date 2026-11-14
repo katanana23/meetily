@@ -78,7 +78,7 @@ export function createLongMeetings(): MockMeeting[] {
     title: 'Стратегическая сессия «Гранат-Софт» на 2027 год: продукт, инфраструктура, найм, бюджет и всё, что не успели обсудить летом',
     created_at: start,
     updated_at: '2026-10-03T12:10:00Z',
-    folder_path: `/mock/Meetily/recordings/${longId}`,
+    folder_path: `/mock/Shade/recordings/${longId}`,
     transcripts: buildTranscript(longId, start, longLines(2100), 0.4),
     summary: { status: 'completed', templateId: 'standard_meeting', markdown: longSummary() },
   };
@@ -94,7 +94,7 @@ export function createLongMeetings(): MockMeeting[] {
         : `${TOPICS[i % TOPICS.length][0].toUpperCase()}${TOPICS[i % TOPICS.length].slice(1)} — встреча ${i + 1}`,
       created_at: day.toISOString(),
       updated_at: day.toISOString(),
-      folder_path: `/mock/Meetily/recordings/${id}`,
+      folder_path: `/mock/Shade/recordings/${id}`,
       transcripts: buildTranscript(id, day.toISOString(), longLines(12 + (i % 10))),
       summary: { status: 'idle' },
     };

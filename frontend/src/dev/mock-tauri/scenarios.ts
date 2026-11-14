@@ -68,14 +68,14 @@ export interface Scenario {
   /** Ядро отказывается стартовать: verify_microphone_access не дождалось звука. */
   micCoreRefuses?: boolean;
   /**
-   * Уровень микрофона во время записи (событие aid-mock-mic вместо getUserMedia):
+   * Уровень микрофона во время записи (событие shade-mock-mic вместо getUserMedia):
    * ok — шум комнаты; silent — нули; lost — на 8-й секунде микрофон отключают.
    */
   micLive?: 'ok' | 'silent' | 'lost';
   /** На старте уже идёт скачивание модели распознавания (медленно, около минуты). */
   downloadOnLoad?: boolean;
   /**
-   * Разрешение macOS, которое видит окно приложения (команда aid_mock_mac_mic вместо
+   * Разрешение macOS, которое видит окно приложения (команда shade_mock_mac_mic вместо
    * getUserMedia): granted, denied, unknown (окно не ответило); prompt-granted и
    * prompt-denied — доступ не спрашивали, «вопрос macOS» отвечается через micPromptMs.
    * Без поля: не macOS, решает trigger_microphone_permission.
@@ -265,7 +265,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     macMic: 'unknown',
   },
   'mic-core-refuses': {
-    id: 'mic-core-refuses', label: 'mic-core-refuses', description: 'Проверка Aid прошла, но ядро не стартует без микрофона',
+    id: 'mic-core-refuses', label: 'mic-core-refuses', description: 'Проверка Shade прошла, но ядро не стартует без микрофона',
     meetings: () => createFullMeetings().slice(0, 3), onboardingCompleted: true, modelsReady: true, recordingOnLoad: false, failing: false,
     micCoreRefuses: true, systemAudioPermission: true,
   },
@@ -287,7 +287,7 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
 };
 
 export const DEFAULT_SCENARIO: ScenarioId = 'full';
-export const SCENARIO_STORAGE_KEY = 'meetily.mock.scenario';
+export const SCENARIO_STORAGE_KEY = 'shade.mock.scenario';
 /** Значение ?mock=off отключает заглушки до конца сессии вкладки. */
 export const MOCK_OFF = 'off';
 
@@ -327,4 +327,4 @@ export function switchScenario(id: ScenarioId) {
 }
 
 /** В сценарии onboarding после «Завершить» приложение перезагружается; помним, что мастер пройден. */
-export const ONBOARDING_DONE_KEY = 'meetily.mock.onboardingDone';
+export const ONBOARDING_DONE_KEY = 'shade.mock.onboardingDone';

@@ -27,41 +27,41 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
-import { themeScript } from '@/aid/lib/theme'
-import { AidSidebar } from '@/aid/components/AidSidebar'
-import { TooltipProvider as AidTooltipProvider } from '@/aid/components/ui/tooltip'
-import { AidToaster } from '@/aid/components/AidToaster'
-import { RecordDock } from '@/aid/components/RecordDock'
-import { WindowBar } from '@/aid/components/WindowBar'
-import { LaunchScreen } from '@/aid/components/LaunchScreen'
-import { ImportDialog as AidImportDialog } from '@/aid/components/ImportDialog'
-import { AidRecordingControls } from '@/aid/lib/recording-controls'
-import { InPlaceMeetingRouter } from '@/aid/lib/in-place-router'
-import { LegacyBridge } from '@/aid/components/LegacyBridge'
-import { AidOnboarding } from '@/aid/components/onboarding/AidOnboarding'
-import { AidRecordingProvider } from '@/aid/lib/recording-outcome'
-import { AidIcons } from '@/aid/components/AidIcons'
-import { installTauriEventGuard } from '@/aid/lib/tauri-events'
-import { markTitlebarOverlay, syncWindowTheme } from '@/aid/lib/window-theme'
-import { installNavDebug } from '@/aid/lib/nav-debug'
-import { showWindow, windowBootScript, windowShowScript } from '@/aid/lib/window-boot'
-import { applySystemLanguageDefault } from '@/aid/lib/system-language'
+import { themeScript } from '@/shade/lib/theme'
+import { ShadeSidebar } from '@/shade/components/ShadeSidebar'
+import { TooltipProvider as ShadeTooltipProvider } from '@/shade/components/ui/tooltip'
+import { ShadeToaster } from '@/shade/components/ShadeToaster'
+import { RecordDock } from '@/shade/components/RecordDock'
+import { WindowBar } from '@/shade/components/WindowBar'
+import { LaunchScreen } from '@/shade/components/LaunchScreen'
+import { ImportDialog as ShadeImportDialog } from '@/shade/components/ImportDialog'
+import { ShadeRecordingControls } from '@/shade/lib/recording-controls'
+import { InPlaceMeetingRouter } from '@/shade/lib/in-place-router'
+import { LegacyBridge } from '@/shade/components/LegacyBridge'
+import { ShadeOnboarding } from '@/shade/components/onboarding/ShadeOnboarding'
+import { ShadeRecordingProvider } from '@/shade/lib/recording-outcome'
+import { ShadeIcons } from '@/shade/components/ShadeIcons'
+import { installTauriEventGuard } from '@/shade/lib/tauri-events'
+import { markTitlebarOverlay, syncWindowTheme } from '@/shade/lib/window-theme'
+import { installNavDebug } from '@/shade/lib/nav-debug'
+import { showWindow, windowBootScript, windowShowScript } from '@/shade/lib/window-boot'
+import { applySystemLanguageDefault } from '@/shade/lib/system-language'
 
-// Интерфейс: aid (новый, по умолчанию) или original (оригинальный Meetily).
+// Интерфейс: shade (новый, по умолчанию) или original (оригинальный Meetily).
 // Условие записано прямо в if: webpack вычисляет его при сборке и не тянет
 // в бандл стили второго интерфейса.
 if (process.env.NEXT_PUBLIC_UI === 'original') {
   require('./globals.css')
 } else {
-  require('@/aid/styles/globals.css')
-  // мост: зашитые цвета оригинальных компонентов → токены Aid
-  require('@/aid/styles/legacy.css')
+  require('@/shade/styles/globals.css')
+  // мост: зашитые цвета оригинальных компонентов → токены Shade
+  require('@/shade/styles/legacy.css')
 }
-const isAidUI = process.env.NEXT_PUBLIC_UI !== 'original'
-const PostProcessing = isAidUI ? AidRecordingProvider : RecordingPostProcessingProvider
-// Aid: страховка от падения unregisterListener при ранней отписке в оригинальных хуках
+const isShadeUI = process.env.NEXT_PUBLIC_UI !== 'original'
+const PostProcessing = isShadeUI ? ShadeRecordingProvider : RecordingPostProcessingProvider
+// Shade: страховка от падения unregisterListener при ранней отписке в оригинальных хуках
 // и окно в цвет темы с самого старта
-if (isAidUI) {
+if (isShadeUI) {
   installTauriEventGuard()
   if (typeof window !== 'undefined') markTitlebarOverlay()
   // ВРЕМЕННО: журнал кликов по списку встреч для проверки на Mac (nav-debug.ts)
@@ -72,7 +72,7 @@ if (isAidUI) {
   applySystemLanguageDefault()
 }
 
-// Aid: SF Pro (системный шрифт macOS) через стек -apple-system в .aid-font
+// Shade: SF Pro (системный шрифт macOS) через стек -apple-system в .shade-font
 // (globals.css); Inter запасной для Windows и Linux, в переменной --font-inter.
 // Оригинал: Source Sans 3 в --font-ui
 const inter = Inter({
@@ -107,9 +107,9 @@ function ConditionalImportDialog({
     return null;
   }
 
-  // Aid: своё окно импорта в бенто на тех же хуках оригинала (aid/components/ImportDialog)
-  if (isAidUI) {
-    return <AidImportDialog open={showImportDialog} onOpenChange={handleImportDialogClose} preselectedFile={importFilePath} />;
+  // Shade: своё окно импорта в бенто на тех же хуках оригинала (shade/components/ImportDialog)
+  if (isShadeUI) {
+    return <ShadeImportDialog open={showImportDialog} onOpenChange={handleImportDialogClose} preselectedFile={importFilePath} />;
   }
   return (
     <ImportAudioDialog
@@ -129,10 +129,10 @@ export default function RootLayout({
 }) {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
-  // Aid: приложение рисуется, только когда известно, нужен ли первый запуск (до этого видна
+  // Shade: приложение рисуется, только когда известно, нужен ли первый запуск (до этого видна
   // заставка LaunchScreen), иначе на мгновение мелькал бы список встреч. Оригинал как был.
-  const [onboardingChecked, setOnboardingChecked] = useState(!isAidUI)
-  // Aid: после первого запуска провайдеры монтируются заново (вместо window.location.reload),
+  const [onboardingChecked, setOnboardingChecked] = useState(!isShadeUI)
+  // Shade: после первого запуска провайдеры монтируются заново (вместо window.location.reload),
   // чтобы прочитать сохранённые настройки; appKey > 0 значит «пришли из первого запуска»
   const [appKey, setAppKey] = useState(0)
 
@@ -168,8 +168,8 @@ export default function RootLayout({
         setOnboardingCompleted(false)
         setOnboardingChecked(true)
       })
-    // Aid: страховка, если ядро не ответит: через 3 с показать приложение как есть
-    const fallback = isAidUI ? setTimeout(() => setOnboardingChecked(true), 3000) : undefined
+    // Shade: страховка, если ядро не ответит: через 3 с показать приложение как есть
+    const fallback = isShadeUI ? setTimeout(() => setOnboardingChecked(true), 3000) : undefined
     return () => clearTimeout(fallback)
   }, [])
 
@@ -298,11 +298,11 @@ export default function RootLayout({
   }, []);
 
   const handleOnboardingComplete = () => {
-    if (isAidUI) {
+    if (isShadeUI) {
       // Без перезагрузки: в окне Tauri на macOS window.location.reload() зависал.
       // Новый key заново монтирует провайдеры (настройки, модели, запись), заставка
       // LaunchScreen вне этого дерева и второй раз не появляется.
-      console.info('[aid] onboarding завершён, провайдеры монтируются заново без перезагрузки')
+      console.info('[shade] onboarding завершён, провайдеры монтируются заново без перезагрузки')
       setShowOnboarding(false)
       setOnboardingCompleted(true)
       setAppKey((key) => key + 1)
@@ -316,19 +316,19 @@ export default function RootLayout({
   }
 
   return (
-    <html lang={isAidUI ? 'ru' : 'en'} suppressHydrationWarning>
+    <html lang={isShadeUI ? 'ru' : 'en'} suppressHydrationWarning>
       <head>
-        {isAidUI && <title>ShadeNotes</title>}
-        {isAidUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
+        {isShadeUI && <title>Shade</title>}
+        {isShadeUI && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
         {/* Окно Tauri стартует скрытым (tauri.conf.json): фон по теме, затем показ (window-boot.ts) */}
         <script dangerouslySetInnerHTML={{ __html: windowBootScript }} />
       </head>
-      <body className={`${isAidUI ? `${inter.variable} aid-font` : sourceSans3.variable} font-sans antialiased`}>
-        {/* Aid: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
-        {isAidUI && <LaunchScreen />}
+      <body className={`${isShadeUI ? `${inter.variable} shade-font` : sourceSans3.variable} font-sans antialiased`}>
+        {/* Shade: заставка запуска прямо в HTML, пока скрипты страницы грузятся */}
+        {isShadeUI && <LaunchScreen />}
         <script dangerouslySetInnerHTML={{ __html: windowShowScript }} />
-        {/* Aid: встреча открывается на главной, без перехода между страницами */}
-        <InPlaceMeetingRouter enabled={isAidUI}>
+        {/* Shade: встреча открывается на главной, без перехода между страницами */}
+        <InPlaceMeetingRouter enabled={isShadeUI}>
         <AnalyticsProvider>
           <RecordingStateProvider key={appKey}>
             <TranscriptProvider>
@@ -338,7 +338,7 @@ export default function RootLayout({
                     <UpdateCheckProvider>
                       <SidebarProvider>
                         <TooltipProvider>
-                          {/* Aid: свой провайдер остановки (решение по содержанию записи, тот же путь для трея) */}
+                          {/* Shade: свой провайдер остановки (решение по содержанию записи, тот же путь для трея) */}
                           <PostProcessing>
                             <ImportDialogProvider onOpen={handleOpenImportDialog}>
                               {/* Download progress toast provider - listens for background downloads */}
@@ -346,29 +346,29 @@ export default function RootLayout({
 
                               {/* Show onboarding or main app */}
                               {showOnboarding ? (
-                                isAidUI ? (
+                                isShadeUI ? (
                                   // свой первый запуск на логике оригинала (useOnboarding)
-                                  <AidOnboarding onComplete={handleOnboardingComplete} />
+                                  <ShadeOnboarding onComplete={handleOnboardingComplete} />
                                 ) : (
                                   <OnboardingFlow onComplete={handleOnboardingComplete} />
                                 )
-                              ) : isAidUI ? (
+                              ) : isShadeUI ? (
                                 !onboardingChecked ? null : (
-                                <AidIcons>
-                                  <AidTooltipProvider delayDuration={300}>
+                                <ShadeIcons>
+                                  <ShadeTooltipProvider delayDuration={300}>
                                     {/* Бенто с ролями цвета: слева колонка 72 px (на macOS сверху подложка
                                         с кнопками окна, WindowBar, ниже сайдбар), справа колонка страницы во всю
                                         высоту (её плитки рисует сама страница) с плавающей капсулой записи. 8 px
                                         между плитками и от краёв окна. data-tauri-drag-region: подложка и промежутки
                                         между плитками перетаскивают окно */}
-                                    <AidRecordingControls>
-                                      <div className={`aid-app flex h-screen flex-col overflow-hidden bg-background ${appKey > 0 ? 'aid-app-enter' : ''}`}>
+                                    <ShadeRecordingControls>
+                                      <div className={`shade-app flex h-screen flex-col overflow-hidden bg-background ${appKey > 0 ? 'shade-app-enter' : ''}`}>
                                         <div data-tauri-drag-region className="flex min-h-0 flex-1 gap-2 p-2">
                                           {/* Колонка сайдбара: на macOS сверху подложка с кнопками окна (WindowBar), ниже сайдбар */}
                                           <div data-tauri-drag-region className="flex min-h-0 shrink-0 flex-col gap-2">
                                             <WindowBar />
                                             <div className="min-h-0 flex-1">
-                                              <AidSidebar />
+                                              <ShadeSidebar />
                                             </div>
                                           </div>
                                           {/* Капсула записи плавает внизу по центру поверх контента */}
@@ -378,9 +378,9 @@ export default function RootLayout({
                                           </div>
                                         </div>
                                       </div>
-                                    </AidRecordingControls>
-                                  </AidTooltipProvider>
-                                </AidIcons>
+                                    </ShadeRecordingControls>
+                                  </ShadeTooltipProvider>
+                                </ShadeIcons>
                                 )
                               ) : (
                                 <div className="flex">
@@ -409,9 +409,9 @@ export default function RootLayout({
         </AnalyticsProvider>
         </InPlaceMeetingRouter>
 
-        {isAidUI ? (
+        {isShadeUI ? (
           <>
-            <AidToaster />
+            <ShadeToaster />
             <LegacyBridge />
           </>
         ) : (

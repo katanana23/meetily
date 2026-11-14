@@ -1,8 +1,8 @@
 # Политика веток и обновлений форка
 
-Форк: `katanana23/meetily`, продукт **ShadeNotes** (до 2026-11-03 рабочее название «Aid Meetings»).
+Форк: `katanana23/shade`, продукт **Shade** (прежние рабочие названия «Aid Meetings» до 2026-11-03 и «ShadeNotes» до 2026-11-14).
 
-При переименовании в ShadeNotes изменились только видимые имена: `productName` и `title` окна в `tauri.conf.json`, видимое имя в ядре (`fork_app_name!` в `config.rs`: подсказка трея, заголовки уведомлений) и тексты интерфейса. **Не менялись**: `identifier` `io.github.katanana23.aid-meetings` (от него папка данных, база, хранилище WebView, разрешения macOS), имя репозитория `katanana23/meetily`, ветка `aid`, `APP_DATA_DIR_NAME = "Aid Meetings"` (свои шаблоны, `notifications.json`), `RECORDINGS_DIR_NAME = "aid-meetings-recordings"`, ключи `localStorage` и `IndexedDB`. После установки сборки с новым `productName` на macOS появится `ShadeNotes.app`; старый `Aid Meetings.app` с тем же `identifier` нужно удалить вручную, иначе две копии будут спорить за один экземпляр и одни данные.
+Переименование в Shade (2026-11-14) затронуло и идентичность: `identifier` `io.github.katanana23.aid-meetings` → `io.github.katanana23.shade` (от него папка данных, база, модели, хранилище WebView, разрешения macOS), `productName` и `title` → `Shade`, `APP_DATA_DIR_NAME` `Aid Meetings` → `Shade` (свои шаблоны, `notifications.json`), `RECORDINGS_DIR_NAME` `aid-meetings-recordings` → `Shade` (`~/Movies/Shade`), корзина `Корзина ShadeNotes` → `Корзина Shade`, ключи хранилищ `aid.*` и `aid-meetings.theme` → `shade.*` и `shade.theme`. Совместимости со старыми именами в коде нет: данные переносит `scripts/migrate-from-aid.sh` (копирует, правит пути в базе, метках корзины и localStorage, проверяет, старое не удаляет; `--archive-old` переносит старые папки в `_to_delete`). Имена команд и событий Tauri из ядра оригинала не менялись. Сборка теперь `Shade.app`; старый `ShadeNotes.app` можно удалить после проверки.
 Оригинал: [`Zackriya-Solutions/meeting-minutes`](https://github.com/Zackriya-Solutions/meeting-minutes) (Meetily), лицензия MIT.
 
 ## 1. Ветки
@@ -10,14 +10,14 @@
 | Ветка | Назначение | Кто пишет |
 |---|---|---|
 | `main` | Зеркало `main` оригинала. Своих коммитов нет. Обновляется только быстрой перемоткой (`--ff-only`) из `upstream/main` | никто, кроме синхронизации |
-| `aid` | Рабочая ветка форка: патч идентичности, документация, свои изменения. Отсюда собираются сборки ShadeNotes | все изменения форка |
-| `feature/*`, `fix/*`, `claude/*` | Короткие ветки от `aid`, вливаются в `aid` через pull request | разработчик или агент |
+| `shade` | Рабочая ветка форка: патч идентичности, документация, свои изменения. Отсюда собираются сборки Shade | все изменения форка |
+| `feature/*`, `fix/*`, `claude/*` | Короткие ветки от `shade`, вливаются в `shade` через pull request | разработчик или агент |
 
 Правила:
 
 - В `main` не коммитить и не делать в неё pull request. Если в `main` попал свой коммит, синхронизация через `--ff-only` перестанет работать.
-- Все pull request форка направлены в `aid`, не в `main`.
-- Обновления оригинала попадают в `aid` только слиянием (`merge`), без `rebase`: история `aid` опубликована, переписывать её нельзя.
+- Все pull request форка направлены в `shade`, не в `main`.
+- Обновления оригинала попадают в `shade` только слиянием (`merge`), без `rebase`: история `shade` опубликована, переписывать её нельзя.
 
 ## 2. Как подтянуть обновления оригинала
 
@@ -25,7 +25,7 @@
 
 ```bash
 git remote add upstream https://github.com/Zackriya-Solutions/meeting-minutes.git
-git remote -v   # origin = katanana23/meetily, upstream = оригинал
+git remote -v   # origin = katanana23/shade, upstream = оригинал
 ```
 
 Каждое обновление:
@@ -37,18 +37,18 @@ git checkout main
 git merge --ff-only upstream/main
 git push origin main
 
-# 2. Влить main в aid через отдельную ветку
-git checkout aid
-git pull --ff-only origin aid
+# 2. Влить main в shade через отдельную ветку
+git checkout shade
+git pull --ff-only origin shade
 git checkout -b sync/upstream-$(date +%Y%m%d)
 git merge --no-ff main -m "merge: upstream $(git describe --tags --always main)"
 
 # 3. Проверить патч идентичности (раздел 3), собрать, проверить
-# 4. Отправить и открыть pull request sync/... -> aid
+# 4. Отправить и открыть pull request sync/... -> shade
 git push -u origin HEAD
 ```
 
-Если `git merge --ff-only upstream/main` в шаге 1 падает, значит в `main` форка есть свои коммиты. Их надо перенести в `aid` и вернуть `main` к `upstream/main` (это переписывание `main`, делать вручную и осознанно).
+Если `git merge --ff-only upstream/main` в шаге 1 падает, значит в `main` форка есть свои коммиты. Их надо перенести в `shade` и вернуть `main` к `upstream/main` (это переписывание `main`, делать вручную и осознанно).
 
 Слияние лучше делать по релизным тегам оригинала (`git merge v0.4.2`), а не по каждому коммиту `main`: так видно, на какой версии оригинала стоит форк.
 
@@ -67,7 +67,7 @@ git push -u origin HEAD
 ```bash
 # Идентичность в конфиге
 grep -nE '"(productName|identifier|title|createUpdaterArtifacts|pubkey|endpoints)"' frontend/src-tauri/tauri.conf.json
-# Ожидается: ShadeNotes (productName и title), io.github.katanana23.aid-meetings, false, "", []
+# Ожидается: Shade (productName и title), io.github.katanana23.shade, false, "", []
 
 # Константы на месте
 grep -n 'fork_app_name\|APP_DISPLAY_NAME\|APP_DATA_DIR_NAME\|RECORDINGS_DIR_NAME' frontend/src-tauri/src/config.rs
@@ -115,7 +115,7 @@ frontend/public/** merge=ours
 git config merge.ours.driver true
 ```
 
-Как работает: при трёхстороннем слиянии файла, который изменили обе стороны, git вызывает драйвер. Драйвер `true` ничего не делает и сообщает об успехе, поэтому в результате остаётся версия текущей ветки (`aid`).
+Как работает: при трёхстороннем слиянии файла, который изменили обе стороны, git вызывает драйвер. Драйвер `true` ничего не делает и сообщает об успехе, поэтому в результате остаётся версия текущей ветки (`shade`).
 
 Плюсы:
 

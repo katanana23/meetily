@@ -8,8 +8,10 @@
 // - после «Остановить»: на месте кнопки записи одна карточка (FinishCard), которая меняет
 //   состояние на месте: «Дописываю реплики» → «Сохраняю» → «Встреча сохранена» с «Открыть»
 //   и крестиком; запись отбракована: та же карточка «Пустая запись - не сохранена».
-// Смена состояния появляется из размытия (.aid-dock-in), только transform,
-// opacity и filter; prefers-reduced-motion их выключает.
+// Смена состояния появляется из размытия (.aid-dock-in), уходит плавно с размытием
+// (.aid-dock-out, уходящая копия), только transform, opacity и filter; prefers-reduced-motion
+// оставляет одну прозрачность. Док и тосты одна стопка (lib/notice-stack.ts): док внизу,
+// тосты над ним, друг на друга не ложатся.
 // Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
 //
 // Полосы показывают уровень звука из ядра (событие recording-level, lib/recording-level.ts):
@@ -17,7 +19,7 @@
 // точки вспыхивает на каждый сигнал детектора речи и каждую реплику.
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform } from '@phosphor-icons/react';
@@ -31,6 +33,7 @@ import { previewFinish } from '@/aid/lib/finish-preview';
 import { isMicBlocker } from '@/aid/lib/recording';
 import { MicAccessCard, MicHint, micHintKind, type MicHintKind } from '@/aid/components/MicNotices';
 import { useRecordingOutcome } from '@/aid/lib/recording-outcome';
+import { useNoticeStackAnchor } from '@/aid/lib/notice-stack';
 import { formatTimer } from '@/aid/lib/format';
 import { onRecordingLevel, voiceAmount } from '@/aid/lib/recording-level';
 import { cn } from '@/aid/lib/utils';
@@ -44,6 +47,41 @@ export const NO_SPEECH_HINT_SEC = 20;
 const LEVEL_BARS = 9;
 /** Шаг полос уровня, мс: новая полоса раз в 100 мс. */
 const LEVEL_STEP_MS = 100;
+
+/** Сколько длится уход (.aid-dock-out в globals.css). */
+const LEAVE_MS = 280;
+
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/**
+ * Карточка над капсулой (подсказки про микрофон и речь, доступ к микрофону): появляется из
+ * размытия, а когда show сменилось на false, ещё LEAVE_MS держит последний вид и уходит
+ * с размытием (.aid-dock-out). Обёртка одна и та же, содержимое не пересоздаётся.
+ */
+function DockLeave({ show, children }: { show: boolean; children: ReactNode }) {
+  const last = useRef<ReactNode>(null);
+  if (show) last.current = children;
+  const [leaving, setLeaving] = useState(false);
+  const was = useRef(show);
+  useIsoLayoutEffect(() => {
+    if (show) {
+      was.current = true;
+      setLeaving(false);
+      return;
+    }
+    if (!was.current) return;
+    was.current = false;
+    setLeaving(true);
+    const id = window.setTimeout(() => setLeaving(false), LEAVE_MS);
+    return () => window.clearTimeout(id);
+  }, [show]);
+  if (!show && !leaving) return null;
+  return (
+    <div className={cn('flex w-full flex-col items-center', !show && 'aid-dock-out pointer-events-none')} aria-hidden={!show || undefined}>
+      {show ? children : last.current}
+    </div>
+  );
+}
 
 /** Точка записи с кольцом: вспышка на каждый сигнал речи (ключ меняется, анимация начинается заново). */
 function ActivityDot({ pulse, paused }: { pulse: number; paused: boolean }) {
@@ -263,11 +301,12 @@ export function RecordDock() {
   // текста речью не считаются
   const showSpeechHint =
     state === 'recording' && !showMicHint && live.tracking && live.textSegments === 0 && !live.recognitionFailed && c.duration >= NO_SPEECH_HINT_SEC;
-  // Карточка уходит плавно: последний вид держим ещё 280 мс с анимацией ухода
+  // Карточка уходит плавно: последний вид держим ещё LEAVE_MS с анимацией ухода. До отрисовки
+  // (layout effect): иначе на кадр карточки нет, и тосты над доком дёргаются вниз и обратно
   const [leaving, setLeaving] = useState<CardView | null>(null);
   const lastCard = useRef<CardView | null>(null);
   const cardKey = card ? `${card.stage}:${card.meetingId ?? ''}:${card.reason ?? ''}:${card.title ?? ''}` : '';
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     if (state === 'finishing' && card) {
       lastCard.current = card;
       setLeaving(null);
@@ -279,39 +318,48 @@ export function RecordDock() {
     // Ушла в запись (новый старт): без уходящей копии под капсулой
     if (state === 'recording') return;
     setLeaving(gone);
-    const id = window.setTimeout(() => setLeaving(null), 280);
+    const id = window.setTimeout(() => setLeaving(null), LEAVE_MS);
     return () => window.clearTimeout(id);
     // card пересоздаётся на каждом рендере; его смысл в cardKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, cardKey]);
 
+  // Тосты встают над тем, что сейчас в доке (lib/notice-stack.ts)
+  const sectionRef = useRef<HTMLElement>(null);
+  useNoticeStackAnchor(sectionRef);
+
   return (
     <section
+      ref={sectionRef}
       aria-label={t('recordingTile')}
       className="pointer-events-none absolute inset-x-0 bottom-7 z-30 flex flex-col items-center gap-2 px-4"
     >
-      {showMicHint && micHint && (
-        <div key={`mic-${micHint}`} className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
-          <MicHint kind={micHint} onClose={() => setMicHintClosed(micHint)} />
-        </div>
-      )}
+      <DockLeave show={showMicHint && micHint !== null}>
+        {micHint && (
+          <div key={`mic-${micHint}`} className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
+            <MicHint kind={micHint} onClose={() => setMicHintClosed(micHint)} />
+          </div>
+        )}
+      </DockLeave>
 
-      {micBlocker && (
-        <div key="mic-access" className="aid-dock-in pointer-events-auto">
-          <MicAccessCard
-            blocker={micBlocker}
-            onRecheck={c.recheckMicrophone}
-            onSystemOnly={() => void c.startAnywhere({ systemOnly: true })}
-            onClose={c.dismissBlocker}
-          />
-        </div>
-      )}
+      <DockLeave show={micBlocker !== null}>
+        {micBlocker && (
+          <div key="mic-access" className="aid-dock-in pointer-events-auto">
+            <MicAccessCard
+              blocker={micBlocker}
+              onRecheck={c.recheckMicrophone}
+              onSystemOnly={() => void c.startAnywhere({ systemOnly: true })}
+              onClose={c.dismissBlocker}
+            />
+          </div>
+        )}
+      </DockLeave>
 
-      {showSpeechHint && (
+      <DockLeave show={showSpeechHint}>
         <div key="hint" className="aid-dock-in aid-glass pointer-events-auto relative w-full max-w-[560px] rounded-tile p-4">
           <SpeechHint heard={live.vadSegments > 0} />
         </div>
-      )}
+      </DockLeave>
 
       <div key={state} className="aid-dock-in pointer-events-auto flex max-w-full justify-center">
         {state === 'idle' && (

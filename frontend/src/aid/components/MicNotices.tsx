@@ -6,7 +6,7 @@
 //   напоминание «Пишу только звук компьютера». Запись не обрывается.
 'use client';
 
-import { CloseButton as CloseButtonBase } from '@/aid/components/ui/close-button';
+import { CLOSE_RESERVE, CloseButton as CloseButtonBase } from '@/aid/components/ui/close-button';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GearSix, MicrophoneSlash, SpeakerHigh } from '@phosphor-icons/react';
 import { Button } from '@/aid/components/ui/button';
@@ -61,7 +61,7 @@ function useWindowReturn(cb: () => void) {
 
 // Подложка и знак общие с остальными уведомлениями (ui/notice.tsx), чтобы карточки не расходились
 function CardShell({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <NoticeSurface className={cn('w-[min(560px,calc(100vw-8rem))]', className)}>{children}</NoticeSurface>;
+  return <NoticeSurface className={cn('w-[min(560px,calc(100vw-8rem))]', CLOSE_RESERVE, className)}>{children}</NoticeSurface>;
 }
 
 function Sign({ children }: { children: React.ReactNode }) {
@@ -70,7 +70,7 @@ function Sign({ children }: { children: React.ReactNode }) {
 
 function CloseButton({ onClick }: { onClick: () => void }) {
   return (
-    // Общий круглый крестик (ui/close-button.tsx): на том же отступе, что и содержимое
+    // Общий круглый крестик (ui/close-button.tsx): в правом верхнем углу карточки, 4 px сверху и справа
     <CloseButtonBase label={t('close')} onClick={onClick} />
   );
 }
@@ -157,8 +157,8 @@ export function MicAccessCard({
             )}
           </div>
         </div>
-        <CloseButton onClick={onClose} />
       </div>
+      <CloseButton onClick={onClose} />
     </CardShell>
   );
 }
@@ -229,7 +229,8 @@ export function micHintKind(watch: MicWatchState, systemOnly: boolean, blind: bo
 export function MicHint({ kind, onClose }: { kind: MicHintKind; onClose: () => void }) {
   const [soundCheck, setSoundCheck] = useState(false);
   return (
-    <div className="flex min-w-0 items-center gap-3" role="status" data-aid-mic-hint={kind}>
+    // Крестик в углу подложки дока (у неё relative и p-4): справа запас 40 px, кнопки и текст не заходят под него
+    <div className="flex min-w-0 items-center gap-3 pr-10" role="status" data-aid-mic-hint={kind}>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{t(HINT[kind].title)}</p>
         <p className="line-clamp-2 text-sm text-muted-foreground">{t(HINT[kind].hint)}</p>

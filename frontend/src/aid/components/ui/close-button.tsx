@@ -2,9 +2,10 @@
 // 14 px светло-серым (цвет подписи на 70 %). При наведении меняется только подложка, на тон
 // ближе к тексту (.aid-icon-btn-glass, globals.css), значок прежний;
 // bold с чуть более толстым контуром, .aid-close-glyph в globals.css;
-// залитый X в Phosphor нарисован квадратом, CLAUDE.md). Правило отступов: кнопка стоит
-// в углу карточки на том же отступе, что и всё содержимое (сверху, справа, снизу одинаково),
-// карточки с ней — с ровным отступом со всех сторон (p-3, 12 px).
+// залитый X в Phosphor нарисован квадратом, CLAUDE.md).
+// Правило места: крестик всегда в правом верхнем углу карточки, 4 px сверху и справа
+// (CLOSE_CORNER) — в уведомлениях, карточках про микрофон и диалогах. Карточка с крестиком
+// оставляет справа запас (CLOSE_RESERVE), чтобы текст и кнопки не заходили под него.
 'use client';
 
 import * as React from 'react';
@@ -20,9 +21,19 @@ export function CloseGlyph({ className }: { className?: string }) {
 export const CLOSE_BUTTON =
   'flex size-11 shrink-0 items-center justify-center aid-icon-btn-glass rounded-full text-[hsl(var(--muted-foreground)/0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
 
+/** Место крестика: правый верхний угол, 4 px сверху и справа (у родителя position: relative). */
+export const CLOSE_CORNER = 'absolute right-1 top-1 z-10';
+
+/**
+ * Запас справа у карточки с крестиком: 4 + 44 + 8 = 56 px от края, текст и действия
+ * кончаются на 8 px левее кнопки.
+ */
+export const CLOSE_RESERVE = 'pr-14';
+
+/** Круглый крестик в правом верхнем углу карточки (CLOSE_CORNER). */
 export const CloseButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }>(
   ({ className, label, ...props }, ref) => (
-    <button ref={ref} type="button" aria-label={label} className={cn(CLOSE_BUTTON, className)} {...props}>
+    <button ref={ref} type="button" aria-label={label} className={cn(CLOSE_BUTTON, CLOSE_CORNER, className)} {...props}>
       <CloseGlyph />
     </button>
   ),

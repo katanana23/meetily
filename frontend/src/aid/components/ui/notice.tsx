@@ -1,13 +1,15 @@
 // Уведомление Aid одно на всех: итог записи у капсулы (NoticeCard в RecordDock),
 // карточки про микрофон (MicNotices) и тосты (AidToaster, lib/toasts.tsx).
 // Плотное стекло, радиус плитки, внутри 20 px. Слева знак в круге 44 px на вложенной
-// поверхности (иконка 20 px), через 12 px текст, справа круглый крестик. Круг и крестик
-// выровнены по центру блока текста. Действие либо в строке перед крестиком (широкая
-// карточка у капсулы), либо под текстом по его левому краю (узкий тост).
+// поверхности (иконка 20 px), через 12 px текст; круг по центру блока текста. Круглый
+// крестик в правом верхнем углу, 4 px сверху и справа (ui/close-button.tsx), справа у
+// содержимого запас под него. Действие либо в строке справа от текста (широкая карточка
+// у капсулы), либо под текстом по его левому краю (тост).
+// Все уведомления стоят одной стопкой внизу по центру (RecordDock и AidToaster), не друг на друге.
 'use client';
 
 import * as React from 'react';
-import { CloseButton } from '@/aid/components/ui/close-button';
+import { CLOSE_RESERVE, CloseButton } from '@/aid/components/ui/close-button';
 import { cn } from '@/aid/lib/utils';
 
 export type NoticeTone = 'neutral' | 'giants' | 'success' | 'error';
@@ -58,19 +60,19 @@ export const Notice = React.forwardRef<HTMLDivElement, NoticeProps>(
   ({ icon, tone = 'neutral', title, hint, actions, actionsPlacement = 'inline', wrapHint, onClose, closeLabel, className, ...props }, ref) => {
     const below = actions && actionsPlacement === 'below';
     return (
-      <NoticeSurface ref={ref} className={className} {...props}>
+      <NoticeSurface ref={ref} className={cn(onClose && CLOSE_RESERVE, className)} {...props}>
         <div className="flex min-w-0 items-center gap-3">
           {icon && <NoticeMark tone={tone}>{icon}</NoticeMark>}
           <div className={cn('min-w-0 flex-1', !icon && 'pl-1')}>
             <p className="truncate text-[15px] font-semibold leading-5">{title}</p>
             {hint && (
-              <p className={cn('mt-1 text-sm leading-5 text-muted-foreground', wrapHint ? 'line-clamp-3 whitespace-normal' : 'truncate')}>{hint}</p>
+              <p className={cn('mt-1 text-sm leading-5 text-muted-foreground', wrapHint ? 'line-clamp-3 whitespace-normal [text-wrap:balance]' : 'truncate')}>{hint}</p>
             )}
           </div>
           {actions && !below && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
-          {onClose && <CloseButton label={closeLabel ?? ''} onClick={onClose} />}
         </div>
         {below && <div className={cn('mt-3 flex flex-wrap items-center gap-2', icon && 'pl-14')}>{actions}</div>}
+        {onClose && <CloseButton label={closeLabel ?? ''} onClick={onClose} />}
       </NoticeSurface>
     );
   },

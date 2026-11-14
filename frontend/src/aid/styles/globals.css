@@ -217,17 +217,84 @@
   padding: 0 !important;
 }
 
-/* Уведомления (sonner) в токенах Aid: фон поповера, рамка, радиус 16 px,
-   крестик внутри справа, цвет иконки по смыслу, без «богатых» заливок. */
+/* Уведомления (sonner) в токенах Aid: фон поповера, рамка, радиус плитки,
+   крестик в правом верхнем углу, цвет иконки по смыслу, без «богатых» заливок. */
 /* :root поднимает специфичность над [data-sonner-theme='dark'] из стилей sonner */
 :root [data-sonner-toaster].aid-toaster {
   --normal-bg: hsl(var(--popover));
   --normal-border: hsl(var(--border));
   --normal-text: hsl(var(--popover-foreground));
   --border-radius: var(--tile-radius);
-  /* sonner ставит --width инлайном (356 px): своё значение через !important */
-  --width: 400px !important;
+  /* sonner ставит --width инлайном (356 px): своё значение через !important. Ширина как у
+     карточки итога у капсулы (FinishCard), но не шире колонки страницы */
+  --width: min(480px, calc(var(--aid-stack-w, 100vw) - 32px)) !important;
   font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+/* Одна стопка уведомлений (lib/notice-stack.ts): тосты по центру колонки страницы, над тем,
+   что сейчас в доке записи. Подъём на высоту дока через transform, плавно: карточка у
+   капсулы появилась или ушла, тосты сдвигаются следом. Правило перебивает и узкую
+   раскладку sonner (до 600 px), где он растягивает тосты на всю ширину окна. */
+:root [data-sonner-toaster].aid-toaster[data-y-position='bottom'][data-x-position='center'] {
+  left: var(--aid-stack-x, 50%);
+  right: auto;
+  bottom: var(--aid-stack-bottom, 36px);
+  width: var(--width);
+  transform: translate(-50%, calc(-1 * var(--aid-stack-lift, 0px)));
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Пока открыт диалог, тосты ждут под его затемнением, а не ложатся поверх окна */
+:root body:has(.aid-dialog-overlay) [data-sonner-toaster].aid-toaster {
+  z-index: 40;
+}
+
+/* Тост появляется из размытия: чуть ниже, прозрачный и размытый, как .aid-dock-in у карточек
+   дока (без масштаба: sonner меряет высоту тоста в момент появления, масштаб её занизил бы,
+   и соседи встали бы теснее 8 px). Соседи сдвигаются плавно (transform у sonner).
+   Уходит на месте: гаснет, размывается и чуть уменьшается (как .aid-dock-out), а не
+   уезжает вниз за док. sonner снимает тост через 200 мс, уход укладывается в них. */
+:root .aid-toaster [data-sonner-toast] {
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: 50% 100%;
+}
+
+:root .aid-toaster [data-sonner-toast][data-mounted='false'] {
+  --y: translateY(14px);
+  filter: blur(10px);
+}
+
+:root .aid-toaster [data-sonner-toast][data-removed='true'][data-swipe-out='false'] {
+  --y: translateY(calc(var(--lift) * var(--offset))) scale(0.96);
+  opacity: 0;
+  filter: blur(8px);
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.2s cubic-bezier(0.4, 0, 1, 1),
+    filter 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Меньше движения: только прозрачность, без сдвигов, масштаба и размытия */
+@media (prefers-reduced-motion: reduce) {
+  :root [data-sonner-toaster].aid-toaster[data-y-position='bottom'][data-x-position='center'] {
+    transition: none;
+  }
+  :root .aid-toaster [data-sonner-toast],
+  :root .aid-toaster [data-sonner-toast][data-removed='true'][data-swipe-out='false'] {
+    transition: opacity 0.2s ease-out !important;
+    filter: none;
+  }
+  :root .aid-toaster [data-sonner-toast][data-mounted='false'] {
+    --y: translateY(0);
+    filter: none;
+  }
+  :root .aid-toaster [data-sonner-toast][data-removed='true'][data-swipe-out='false'] {
+    --y: translateY(calc(var(--lift) * var(--offset)));
+  }
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] {
@@ -236,8 +303,8 @@
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   backdrop-filter: blur(28px) saturate(180%);
   border-color: hsl(var(--glass-edge));
-  /* Ровные 12 px со всех сторон; справа место под круглый крестик 44 px (как у всех карточек) */
-  padding: 12px 68px 12px 12px;
+  /* 20 px внутри, как у Notice; справа запас под круглый крестик 44 px в углу (4 + 44 + 8) */
+  padding: 20px 56px 20px 20px;
   min-height: 68px;
   align-items: flex-start;
   /* Кнопка действия переносится под текст: рядом с текстом она сжимала его в узкий столбик */
@@ -279,10 +346,10 @@
 }
 
 :root .aid-toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
-  /* Тот же круглый крестик, что везде (ui/close-button.tsx): 44 px, на отступе 12 px сверху и справа */
+  /* Тот же круглый крестик, что везде (ui/close-button.tsx): 44 px, в углу, 4 px сверху и справа */
   left: auto;
-  right: 12px;
-  top: 12px;
+  right: 4px;
+  top: 4px;
   transform: none;
   width: 44px;
   height: 44px;
@@ -550,12 +617,15 @@ html body[data-scroll-locked] {
 
 @media (prefers-reduced-motion: reduce) {
   .aid-dock-speech,
-  .aid-dock-dot,
-  .aid-dock-in {
+  .aid-dock-dot {
     animation: none;
   }
   .aid-dock-speech {
     opacity: 0;
+  }
+  /* Меньше движения: появление одной прозрачностью, без сдвига, масштаба и размытия */
+  .aid-dock-in {
+    animation: aid-fade-in 0.2s ease-out;
   }
 }
 
@@ -1426,23 +1496,29 @@ main:has(.aid-scroll[data-fits]) > .aid-edge-fade-bottom,
   background: hsl(var(--popover) / 0.97);
 }
 
-/* Уход итога записи (RecordDock): плавно гаснет, чуть опускается и размывается */
+/* Уход карточек дока (RecordDock: итог записи, подсказки и карточки про микрофон): плавно
+   гаснет, чуть опускается, уменьшается и размывается. Тосты уходят так же (.aid-toaster). */
 .aid-dock-out {
   animation: aid-dock-out 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
 @keyframes aid-dock-out {
   to {
-    transform: translateY(10px) scale(0.97);
+    transform: translateY(10px) scale(0.96);
     opacity: 0;
-    filter: blur(6px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes aid-fade-out {
+  to {
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .aid-dock-out {
-    animation: none;
-    opacity: 0;
+    animation: aid-fade-out 0.2s ease-out forwards;
   }
 }
 

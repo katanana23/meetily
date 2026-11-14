@@ -1,6 +1,10 @@
-// Уведомления Aid: sonner в наших токенах и теме, справа снизу. Сами тосты рисует
-// общий компонент Notice (ui/notice.tsx, через installAidToasts в lib/toasts.tsx), как
-// итог записи у капсулы. ICONS и крестик sonner остаются для toast.promise, если появится.
+// Уведомления Aid: sonner в наших токенах и теме. Сами тосты рисует общий компонент Notice
+// (ui/notice.tsx, через installAidToasts в lib/toasts.tsx), как итог записи у капсулы.
+// Место одно на все уведомления: стопка внизу по центру колонки страницы, над тем, что
+// сейчас в доке записи (кнопка, капсула, карточка итога; lib/notice-stack.ts, .aid-toaster в
+// globals.css). Тосты раскрыты списком через 8 px (expand, gap), а не сложены колодой друг
+// под другом: непрозрачно друг на друга не ложатся. Появление и уход размытием там же.
+// ICONS и крестик sonner остаются для toast.promise, если появится.
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -9,6 +13,7 @@ import { Bell, Check, Warning } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { getStoredTheme, onThemeChange, type ThemeMode } from '@/aid/lib/theme';
 import { installAidToasts } from '@/aid/lib/toasts';
+import { STACK_GAP } from '@/aid/lib/notice-stack';
 
 installAidToasts();
 
@@ -35,7 +40,9 @@ export function AidToaster() {
   return (
     <Toaster
       theme={theme}
-      position="bottom-right"
+      position="bottom-center"
+      expand
+      gap={STACK_GAP}
       closeButton
       icons={ICONS}
       duration={5000}

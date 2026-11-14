@@ -5,7 +5,7 @@ import { describe, expect, mock, test } from 'bun:test';
 mock.module('@/services/configService', () => ({
   configService: { getModelConfig: async () => ({ provider: 'ollama', model: 'test-model', whisperModel: '', ollamaEndpoint: null }) },
 }));
-const { checkContent, contentPrompt, parseAnswer } = await import('./content-check');
+const { checkContent, contentPrompt, folderMismatch, parseAnswer } = await import('./content-check');
 
 describe('ответ модели', () => {
   test('да и нет в разных видах', () => {
@@ -49,5 +49,22 @@ describe('проверка через Ollama', () => {
     const check = await checkContent('текст', 50);
     expect(check.result).toBe('unavailable');
     expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
+
+describe('та ли встреча уходит в корзину', () => {
+  const rec = '/Users/test/Records/Meeting 14_11_26_10_02_00';
+  test('папка неизвестна → не переносить', () => {
+    expect(folderMismatch(null, rec)).not.toBeNull();
+    expect(folderMismatch('', rec)).not.toBeNull();
+    expect(folderMismatch(rec, null)).not.toBeNull();
+    expect(folderMismatch(rec, undefined)).not.toBeNull();
+    expect(folderMismatch(rec, '')).not.toBeNull();
+  });
+  test('папка другая → не переносить', () => {
+    expect(folderMismatch(rec, '/Users/test/Records/Meeting 13_11_26_09_00_00')).not.toBeNull();
+  });
+  test('оба пути известны и равны → переносить', () => {
+    expect(folderMismatch(rec, rec)).toBeNull();
   });
 });

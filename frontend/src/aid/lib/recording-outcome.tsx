@@ -21,7 +21,7 @@ import { toSegment } from './meeting';
 import { subscribe } from './tauri-events';
 import { cleanSegments, isHallucination, judgeRecording, MIN_MEANINGFUL_WORDS, type NoTextReason, type RecordingVerdict, type SpeechSegment } from './speech';
 import { assessContent } from './content-rules';
-import { checkContent, rememberDevCheck, type ContentCheck } from './content-check';
+import { checkContent, folderMismatch, rememberDevCheck, type ContentCheck } from './content-check';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { hasTranscriptionModel } from './model-check';
 import { invoke } from '@tauri-apps/api/core';
@@ -265,8 +265,13 @@ export function AidRecordingProvider({ children }: { children: ReactNode }) {
       if (check.result !== 'empty' || !id) return;
       // Та ли встреча: папка записи совпадает (человек мог открыть другую встречу)
       const meta = await invoke<{ title?: string; folder_path?: string | null } | null>('api_get_meeting_metadata', { meetingId: id }).catch(() => null);
-      if (!meta || (folder && meta.folder_path && meta.folder_path !== folder)) {
+      if (!meta) {
         console.info('[aid] Проверка моделью: сохранённая встреча не опознана, оставляю в списке');
+        return;
+      }
+      const mismatch = folderMismatch(folder, meta.folder_path);
+      if (mismatch) {
+        console.info(`[aid] Проверка моделью: ${mismatch}, оставляю встречу в списке`);
         return;
       }
       try {

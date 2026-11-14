@@ -46,6 +46,19 @@ export function contentPrompt(text: string): string {
   ].join('\n');
 }
 
+/**
+ * Та ли это встреча, что только что записана: в корзину по ответу модели переносим, только
+ * когда известны оба пути (папка записи и folder_path встречи) и они равны. Иначе человек мог
+ * за время ожидания открыть другую встречу, и в корзину ушла бы чужая. Возвращает причину,
+ * по которой переносить нельзя, или null, если можно.
+ */
+export function folderMismatch(recorded: string | null | undefined, saved: string | null | undefined): string | null {
+  if (!recorded) return 'папка записи неизвестна';
+  if (!saved) return 'у встречи нет папки записи';
+  if (recorded !== saved) return `папка встречи другая (${saved}, ждали ${recorded})`;
+  return null;
+}
+
 /** Ответ модели в да/нет; рассуждения <think>…</think> отбрасываются. null — ни то ни другое. */
 export function parseAnswer(raw: string): boolean | null {
   const answer = raw

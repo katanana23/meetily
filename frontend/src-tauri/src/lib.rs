@@ -586,6 +586,11 @@ pub fn run() {
             })
             .expect("Failed to initialize database");
 
+            // Recordings outside the default folder: open them to tauri-plugin-fs (UI trash)
+            tauri::async_runtime::block_on(
+                audio::recording_preferences::allow_recordings_in_fs_scope(_app.handle()),
+            );
+
             // Initialize bundled templates directory for dynamic template discovery
             log::info!("Initializing bundled templates directory...");
             if let Ok(resource_path) = _app.handle().path().resource_dir() {

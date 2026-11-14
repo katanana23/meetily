@@ -1,15 +1,18 @@
 // Корзина записей: папка «Корзина ShadeNotes» внутри папки записей.
 //
-// Корзина только для того, что удалил человек (meeting-trash.ts): автоматически
-// (тишина, короткая запись) сюда ничего не уходит. Папка записи целиком (audio.mp4, metadata.json,
+// Корзина для того, что удалил человек, и для сохранённых встреч без содержания по проверке
+// моделью (meeting-trash.ts, content-check.ts); пустые записи (0..2 значимых слова) не
+// сохраняются и сюда не попадают. Папка записи целиком (audio.mp4, metadata.json,
 // transcripts.json) переносится в корзину, рядом кладётся trashed.json с датой
 // переноса. Через TRASH_TTL_DAYS дней такая папка удаляется при запуске приложения
 // вместе со строкой базы (meeting-trash.ts, purgeExpiredTrash).
 //
 // Доступ к папке записей даёт право fs:scope в tauri.conf.json (отдельный коммит
 // по разрешению Айдына): папка записей по умолчанию ($VIDEO на macOS, $AUDIO на
-// Windows, $DOCUMENT на Linux). Если папку записей сменили на свою, плагин fs туда
-// не пустит: файл тогда остаётся на месте, ничего не удаляется. Имена без точки
+// Windows, $DOCUMENT на Linux). Выбранную в настройках папку и папки, где уже лежат
+// записи встреч, ядро добавляет в область само: при запуске и при смене папки
+// (allow_recordings_in_fs_scope в audio/recording_preferences.rs). Если доступа
+// всё же нет, файл остаётся на месте, ничего не удаляется. Имена без точки
 // в начале: шаблон области ** по умолчанию не всегда совпадает со скрытыми.
 'use client';
 
@@ -23,7 +26,8 @@ export function joinPath(folder: string, name: string): string {
 }
 
 export const TRASH_DIR_NAME = 'Корзина ShadeNotes';
-export const TRASH_TTL_DAYS = 7;
+/** Срок корзины: discard-policy.ts. */
+export { TRASH_TTL_DAYS } from './discard-policy';
 const MARKER = 'trashed.json';
 
 /**

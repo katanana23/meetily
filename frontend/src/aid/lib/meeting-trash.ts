@@ -1,4 +1,5 @@
-// Корзина встреч: то, что удалил человек, 7 дней можно вернуть.
+// Корзина встреч: то, что удалил человек или убрала проверка моделью (мало содержания,
+// content-check.ts), TRASH_TTL_DAYS дней (30, discard-policy.ts) можно вернуть.
 //
 // Источник правды — диск. Удаление встречи (список, страница встречи, очистка пустых
 // записей) переносит папку записи в «Корзину ShadeNotes» и кладёт в неё метку trashed.json
@@ -108,7 +109,7 @@ export function loadTrash(): Promise<TrashedMeeting[]> {
   return loading;
 }
 
-/** Удаление человеком: встреча и папка записи в корзину на 7 дней. */
+/** В корзину (удалил человек или проверка моделью): встреча и папка записи на TRASH_TTL_DAYS дней. */
 export async function trashMeeting(id: string): Promise<void> {
   const meta = await invoke<{ title?: string; folder_path?: string | null } | null>('api_get_meeting_metadata', { meetingId: id });
   const folder = meta?.folder_path ?? null;
@@ -184,7 +185,7 @@ export async function emptyTrash(): Promise<number> {
 
 let purging: Promise<number> | null = null;
 
-/** При запуске: что пролежало в корзине 7 дней, удаляется насовсем (база и папка вместе). */
+/** При запуске: что пролежало в корзине TRASH_TTL_DAYS дней, удаляется насовсем (база и папка вместе). */
 export function purgeExpiredTrash(now = Date.now()): Promise<number> {
   purging ??= (async () => {
     await loadTrash();

@@ -1,7 +1,7 @@
 // Только в разработке: карточка после «Остановить» и строка обрабатываемой встречи на
 // заданном шаге без записи, чтобы смотреть и снимать каждое состояние:
 // ?mock=full&finish=transcribing|saving|saved. Отбракованная запись: ?finish=discarded
-// («Слишком коротко - запись не сохранена») и ?notice=no-speech|unrecognized
+// («Пустая запись - не сохранена») и ?notice=empty|no-speech|unrecognized|low-content
 // (recording-outcome.tsx). В сборке всегда null. Таймеров у предпросмотра нет: карточка
 // стоит, пока адрес тот же.
 'use client';

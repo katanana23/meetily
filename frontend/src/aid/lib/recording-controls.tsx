@@ -15,6 +15,7 @@ import { useAidRecording } from './recording';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { aidToast } from './toasts';
+import { useRecordingOutcome } from './recording-outcome';
 import { t } from '@/aid/strings';
 
 /**
@@ -108,6 +109,16 @@ export function AidRecordingControls({ children }: { children: ReactNode }) {
     setFinished({ id: completedId, title: titleRef.current });
   }, [completedId]);
   const dismissFinish = useCallback(() => setFinished(null), []);
+
+  // Проверка моделью убрала эту встречу в корзину: «Встреча сохранена» уступает место
+  // карточке «Мало содержания» (notice из recording-outcome.tsx) на том же месте
+  const { notice } = useRecordingOutcome();
+  const lowContentId = notice?.verdict === 'low-content' ? (notice.meetingId ?? null) : null;
+  useEffect(() => {
+    if (!lowContentId) return;
+    handled.current = lowContentId;
+    setFinished((f) => (f?.id === lowContentId ? null : f));
+  }, [lowContentId]);
 
   const finish: FinishState | null = useMemo(() => {
     if (rec.phase === 'transcribing' || rec.phase === 'saving') return { stage: rec.phase, title: titleRef.current, meetingId: null };

@@ -1,6 +1,8 @@
 // Строки интерфейса ShadeNotes (бывшее рабочее название Aid Meetings). Русский по умолчанию; английский добавляется
 // вторым словарём с теми же ключами.
 
+import { TRASH_TTL_DAYS } from './lib/discard-policy';
+
 const ru = {
   appName: 'ShadeNotes',
   loading: 'Загрузка…',
@@ -28,9 +30,9 @@ const ru = {
   filtersLabel: 'Показать встречи',
   noSummaries: 'Итогов пока нет',
   noSummariesHint: 'Откройте встречу и нажмите «Сделать итоги».',
-  trashPanelHint: 'Удалённые встречи лежат здесь 7 дней вместе с файлом записи, потом удаляются насовсем.',
+  trashPanelHint: 'Удалённые встречи лежат здесь {days} вместе с файлом записи, потом удаляются насовсем.',
   trashEmpty: 'В корзине пусто',
-  trashDaysLeft: 'Удалится насовсем через',
+  trashDaysLeft: 'удалится через {n}\u00A0дн.',
   restore: 'Восстановить',
   undoDelete: 'Вернуть',
   trashFileStayed: 'Файл записи остался в папке',
@@ -98,7 +100,9 @@ const ru = {
   finishSaving: 'Сохраняю',
   finishSaved: 'Встреча сохранена',
   finishOpen: 'Открыть',
-  discardedShort: 'Слишком коротко - запись не сохранена',
+  discardedEmpty: 'Пустая запись - не сохранена',
+  lowContentTitle: 'Мало содержания',
+  lowContentHint: 'Запись в\u00A0корзине',
   discardedSilent: 'Речи не было',
   discardedUnrecognized: 'Речь не распознана',
   discardedNotSaved: 'Запись не сохранена',
@@ -177,9 +181,9 @@ const ru = {
   delete: 'Удалить',
   deleteMeeting: 'Удалить встречу',
   deleteTitle: 'Удалить встречу?',
-  deleteHint: 'Встреча и файл записи 7 дней полежат в корзине, потом удалятся насовсем. Вернуть можно из фильтра «Корзина».',
+  deleteHint: 'Встреча и файл записи {days} полежат в корзине, потом удалятся насовсем. Вернуть можно из фильтра «Корзина».',
   deleted: 'Встреча в корзине',
-  deletedHint: 'Вернуть можно из фильтра «Корзина» в течение 7 дней.',
+  deletedHint: 'Вернуть можно из фильтра «Корзина» в течение {days}.',
   deleteFailed: 'Не удалось удалить встречу',
   openRecordingFolder: 'Открыть папку с записью',
   retranscribe: 'Распознать заново',
@@ -334,4 +338,18 @@ export type StringKey = keyof typeof ru;
 
 export function t(key: StringKey): string {
   return ru[key] ?? key;
+}
+
+/** Срок корзины словами для подстановки {days}: «30 дней» (TRASH_TTL_DAYS, discard-policy.ts). */
+export function trashDays(): string {
+  const n = TRASH_TTL_DAYS;
+  const m10 = n % 10;
+  const m100 = n % 100;
+  const word = m10 === 1 && m100 !== 11 ? 'день' : m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? 'дня' : 'дней';
+  return `${n}\u00A0${word}`;
+}
+
+/** Строка со сроком корзины на месте {days}. */
+export function tDays(key: StringKey): string {
+  return t(key).replace('{days}', trashDays());
 }

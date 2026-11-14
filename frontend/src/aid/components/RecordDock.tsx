@@ -3,24 +3,23 @@
 // - покой: круглая кнопка Mikado 88 px, на 28 px от низа с микрофоном, от неё расходятся две мягкие
 //   волны; сочетание клавиш в подсказке;
 // - запись: стеклянная капсула (.aid-glass): красная точка с кольцом на речь,
-//   таймер, полосы речи, «Пауза» и красная «Остановить»; «Не слышу речи»
+//   таймер, полосы уровня звука, «Пауза» и красная «Остановить»; «Не слышу речи»
 //   стеклянной карточкой над капсулой;
 // - после «Остановить»: на месте кнопки записи одна карточка (FinishCard), которая меняет
 //   состояние на месте: «Дописываю реплики» → «Сохраняю» → «Встреча сохранена» с «Открыть»
-//   и крестиком; запись отбракована: та же карточка «Слишком коротко - запись не сохранена».
+//   и крестиком; запись отбракована: та же карточка «Пустая запись - не сохранена».
 // Смена состояния появляется из размытия (.aid-dock-in), уходит плавно с размытием
 // (.aid-dock-out, уходящая копия), только transform, opacity и filter; prefers-reduced-motion
 // оставляет одну прозрачность. Док и тосты одна стопка (lib/notice-stack.ts): док внизу,
 // тосты над ним, друг на друга не ложатся.
 // Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
 //
-// Уровня звука во время записи ядро не отдаёт (audio-levels шлёт синусоиду, только
-// для проверки звука). Поэтому «уровень» здесь честный уровень речи: полосы за
-// последние 9 секунд растут на каждый сигнал детектора речи и каждую реплику,
-// кольцо вокруг точки вспыхивает на каждый сигнал.
+// Полосы показывают уровень звука из ядра (событие recording-level, lib/recording-level.ts):
+// тот же уровень ведёт свечение голоса (VoiceGlow) у плитки транскрипта. Кольцо вокруг
+// точки вспыхивает на каждый сигнал детектора речи и каждую реплику.
 'use client';
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Microphone, MicrophoneSlash, Pause, Play, SpeakerHigh, Stop, Waveform } from '@phosphor-icons/react';
@@ -33,9 +32,10 @@ import { useRecordingControls, type FinishState } from '@/aid/lib/recording-cont
 import { previewFinish } from '@/aid/lib/finish-preview';
 import { isMicBlocker } from '@/aid/lib/recording';
 import { MicAccessCard, MicHint, micHintKind, type MicHintKind } from '@/aid/components/MicNotices';
-import { useRecordingOutcome, type LiveSpeech } from '@/aid/lib/recording-outcome';
+import { useRecordingOutcome } from '@/aid/lib/recording-outcome';
 import { useNoticeStackAnchor } from '@/aid/lib/notice-stack';
 import { formatTimer } from '@/aid/lib/format';
+import { onRecordingLevel, voiceAmount } from '@/aid/lib/recording-level';
 import { cn } from '@/aid/lib/utils';
 import { t } from '@/aid/strings';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -45,6 +45,8 @@ import { LANGUAGES } from '@/constants/languages';
 export const NO_SPEECH_HINT_SEC = 20;
 
 const LEVEL_BARS = 9;
+/** Шаг полос уровня, мс: новая полоса раз в 100 мс. */
+const LEVEL_STEP_MS = 100;
 
 /** Сколько длится уход (.aid-dock-out в globals.css). */
 const LEAVE_MS = 280;
@@ -91,25 +93,46 @@ function ActivityDot({ pulse, paused }: { pulse: number; paused: boolean }) {
   );
 }
 
-/** Уровень речи: полоса на каждую секунду за последние 9 с, высота по числу сигналов речи. */
-function SpeechLevel({ live, duration, paused }: { live: LiveSpeech; duration: number; paused: boolean }) {
-  const now = Math.floor(duration);
-  const bars = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const sec of live.speechTimes) {
-      const b = Math.floor(sec);
-      if (b > now - LEVEL_BARS) counts.set(b, (counts.get(b) ?? 0) + 1);
-    }
-    return Array.from({ length: LEVEL_BARS }, (_, i) => Math.min(counts.get(now - (LEVEL_BARS - 1) + i) ?? 0, 2) / 2);
-  }, [live.speechTimes, now]);
+/**
+ * Уровень звука: 9 полос, последние ~0,9 с по событию ядра recording-level (пик за каждые
+ * 100 мс, новая полоса справа). Высоты ставятся прямо в DOM, без перерисовки React на
+ * каждое событие; отдельного цикла кадров нет, ведёт само событие (~30 раз в секунду).
+ * На паузе ядро молчит: полосы ложатся.
+ */
+function LevelBars({ paused }: { paused: boolean }) {
+  const barsRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const root = barsRef.current;
+    if (!root) return;
+    const bars = Array.from(root.children) as HTMLElement[];
+    const history: number[] = Array(LEVEL_BARS).fill(0);
+    const paint = () =>
+      history.forEach((v, i) => {
+        const bar = bars[i];
+        if (!bar) return;
+        bar.style.transform = `scaleY(${paused ? 0.12 : 0.18 + v * 0.82})`;
+        bar.style.opacity = !paused && v > 0.05 ? '1' : '0.35';
+      });
+    paint();
+    if (paused) return;
+    let peak = 0;
+    let windowStart = performance.now();
+    const off = onRecordingLevel((level) => {
+      peak = Math.max(peak, voiceAmount(level));
+      const now = performance.now();
+      if (now - windowStart < LEVEL_STEP_MS) return;
+      windowStart = now;
+      history.shift();
+      history.push(peak);
+      peak = 0;
+      paint();
+    });
+    return off;
+  }, [paused]);
   return (
-    <span className="flex h-7 items-end gap-[3px] px-1" aria-hidden>
-      {bars.map((v, i) => (
-        <span
-          key={i}
-          className="aid-level-bar h-full w-1 rounded-full bg-foreground"
-          style={{ transform: `scaleY(${paused ? 0.12 : 0.18 + v * 0.82})`, opacity: v > 0 ? 1 : 0.35 }}
-        />
+    <span ref={barsRef} className="flex h-7 items-end gap-[3px] px-1" aria-hidden>
+      {Array.from({ length: LEVEL_BARS }, (_, i) => (
+        <span key={i} className="aid-level-bar h-full w-1 rounded-full bg-foreground" />
       ))}
     </span>
   );
@@ -256,7 +279,7 @@ export function RecordDock() {
     : c.finish
       ? fromFinish(c.finish)
       : notice
-        ? { stage: 'discarded', title: null, meetingId: null, reason: notice.verdict }
+        ? { stage: 'discarded', title: notice.title ?? null, meetingId: notice.meetingId ?? null, reason: notice.verdict }
         : null;
   const state = c.isRecording ? 'recording' : card ? 'finishing' : 'idle';
   const openSaved = (id: string) => {
@@ -363,7 +386,7 @@ export function RecordDock() {
               <TooltipContent side="top">{c.isPaused ? t('paused') : t('openRecording')}</TooltipContent>
             </Tooltip>
 
-            <SpeechLevel live={live} duration={c.duration} paused={c.isPaused} />
+            <LevelBars paused={c.isPaused} />
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -401,6 +424,14 @@ export function RecordDock() {
             reason={card.reason}
             still={preview !== null}
             onOpen={card.meetingId && !preview ? () => openSaved(card.meetingId!) : preview && card.meetingId ? () => undefined : undefined}
+            onUndo={
+              card.reason === 'low-content' && notice?.undo
+                ? () => {
+                    notice.dismiss();
+                    void notice.undo?.();
+                  }
+                : undefined
+            }
             onClose={preview ? () => undefined : closeCard}
             onHold={card.stage === 'discarded' ? notice?.hold : undefined}
           />
@@ -411,7 +442,15 @@ export function RecordDock() {
       {leaving && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4" aria-hidden>
           <div className="aid-dock-out">
-            <FinishCard stage={leaving.stage} title={leaving.title} reason={leaving.reason} still onClose={() => undefined} onOpen={leaving.meetingId ? () => undefined : undefined} />
+            <FinishCard
+              stage={leaving.stage}
+              title={leaving.title}
+              reason={leaving.reason}
+              still
+              onClose={() => undefined}
+              onOpen={leaving.meetingId ? () => undefined : undefined}
+              onUndo={leaving.reason === 'low-content' ? () => undefined : undefined}
+            />
           </div>
         </div>
       )}

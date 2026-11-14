@@ -34,7 +34,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { cn } from '@/aid/lib/utils';
 import { friendlyError, type FriendlyError } from '@/aid/lib/meeting';
 import { dateGroup, displayTitle, plural, shownTitle, type DateGroup } from '@/aid/lib/format';
-import { t } from '@/aid/strings';
+import { t, tDays, trashDays } from '@/aid/strings';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -186,7 +186,7 @@ function EmptyFilter({
   );
 }
 
-/** Встречи в корзине: удалённые человеком, 7 дней можно вернуть (meeting-trash.ts). */
+/** Встречи в корзине: удалённые человеком или проверкой моделью, 30 дней можно вернуть (meeting-trash.ts). */
 function useTrashed(): TrashedMeeting[] {
   const [list, setList] = useState<TrashedMeeting[]>(() => trashedMeetings());
   useEffect(() => {
@@ -258,13 +258,13 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
   };
   if (items.length === 0) {
     return (
-      <EmptyFilter title={t('trashEmpty')} hint={t('trashPanelHint')} icon={Trash} />
+      <EmptyFilter title={t('trashEmpty')} hint={tDays('trashPanelHint')} icon={Trash} />
     );
   }
   return (
     <section aria-label={t('filterTrash')}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t('trashPanelHint')}</p>
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{tDays('trashPanelHint')}</p>
         <Button variant="ghost" className="-mr-2 shrink-0 text-muted-foreground hover:text-destructive-ink" onClick={() => setErase('all')}>
           <Trash />
           {t('emptyTrash')}
@@ -272,7 +272,7 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
       </div>
       <ul className="flex flex-col gap-1">
         {items.map((m) => {
-          const days = daysLeft(m);
+          const left = t('trashDaysLeft').replace('{n}', String(daysLeft(m)));
           return (
             <li key={m.id} className="flex min-h-[64px] items-center gap-3 rounded-nested p-2">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
@@ -283,8 +283,7 @@ function TrashPanel({ items, onRestored }: { items: TrashedMeeting[]; onRestored
                   {displayTitle(m.title)}
                 </span>
                 <span className="block text-sm text-muted-foreground">
-                  {m.trashedFolder === null && `${t('trashFileStayed')} · `}
-                  {t('trashDaysLeft')} {days} {plural(days, 'день', 'дня', 'дней')}
+                  {m.trashedFolder === null ? `${t('trashFileStayed')} · ${left}` : left.charAt(0).toUpperCase() + left.slice(1)}
                 </span>
               </span>
               <Button variant="secondary" className="shrink-0" onClick={() => void restore(m)} disabled={busy !== null}>
@@ -394,8 +393,8 @@ function EmptyCleanupDialog({ meetings, onDone }: { meetings: MeetingListItem[];
         </DialogTitle>
         <DialogDescription>
           {n === 1
-            ? 'В ней нет ни одной реплики. Она 7 дней полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить».'
-            : 'В них нет ни одной реплики. Они 7 дней полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить».'}
+            ? `В ней нет ни одной реплики. Она ${trashDays()} полежит в корзине, оттуда её можно вернуть. Если там был разговор, нажмите «Оставить».`
+            : `В них нет ни одной реплики. Они ${trashDays()} полежат в корзине, оттуда их можно вернуть. Если в какой-то был разговор, нажмите «Оставить».`}
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" size="main" onClick={keep} disabled={busy}>

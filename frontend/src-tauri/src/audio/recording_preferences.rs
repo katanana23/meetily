@@ -1,6 +1,6 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
@@ -174,7 +174,64 @@ pub async fn save_recording_preferences<R: Runtime>(
     // Ensure the directory exists
     ensure_recordings_directory(&preferences.save_folder)?;
 
+    // A folder picked in settings is not in the static fs:scope of tauri.conf.json
+    allow_folder_in_fs_scope(app, &preferences.save_folder);
+
     Ok(())
+}
+
+/// Let the UI reach a recordings folder (recursively) through tauri-plugin-fs.
+/// The UI moves recordings into a trash folder next to them
+/// (frontend/src/aid/lib/recording-trash.ts), restores and erases them.
+/// tauri.conf.json only covers the default folder.
+pub fn allow_folder_in_fs_scope<R: Runtime>(app: &AppHandle<R>, folder: &Path) {
+    use tauri_plugin_fs::FsExt;
+
+    if folder.as_os_str().is_empty() || !folder.is_absolute() {
+        return;
+    }
+    match app.fs_scope().allow_directory(folder, true) {
+        Ok(()) => info!("fs scope: allowed recordings folder {:?}", folder),
+        Err(e) => warn!("fs scope: failed to allow recordings folder {:?}: {}", folder, e),
+    }
+}
+
+/// On startup: the recordings folder from preferences and every folder that already
+/// holds meeting recordings (the folder may have been changed since; the trash of an
+/// older meeting lives next to its recording, so the parent folder is allowed).
+pub async fn allow_recordings_in_fs_scope<R: Runtime>(app: &AppHandle<R>) {
+    use std::collections::BTreeSet;
+    use tauri::Manager;
+
+    let mut folders: BTreeSet<PathBuf> = BTreeSet::new();
+    match load_recording_preferences(app).await {
+        Ok(prefs) => {
+            folders.insert(prefs.save_folder);
+        }
+        Err(e) => warn!("fs scope: failed to load recording preferences: {}", e),
+    }
+
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        let rows: std::result::Result<Vec<String>, sqlx::Error> = sqlx::query_scalar(
+            "SELECT DISTINCT folder_path FROM meetings WHERE folder_path IS NOT NULL AND folder_path != ''",
+        )
+        .fetch_all(state.db_manager.pool())
+        .await;
+        match rows {
+            Ok(paths) => {
+                for path in paths {
+                    if let Some(parent) = Path::new(&path).parent() {
+                        folders.insert(parent.to_path_buf());
+                    }
+                }
+            }
+            Err(e) => warn!("fs scope: failed to read meeting folders: {}", e),
+        }
+    }
+
+    for folder in &folders {
+        allow_folder_in_fs_scope(app, folder);
+    }
 }
 
 /// Tauri commands for recording preferences

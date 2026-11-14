@@ -32,6 +32,7 @@ import { Skeleton } from '@/aid/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/aid/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/aid/components/ui/tooltip';
 import { Page, TILE } from '@/aid/components/Page';
+import { VoiceGlow, useGlowPresence } from '@/aid/components/VoiceGlow';
 import { DeleteMeetingDialog } from '@/aid/components/DeleteMeetingDialog';
 import { copyToClipboard } from '@/aid/lib/clipboard';
 import { ErrorDetails } from '@/aid/components/ErrorDetails';
@@ -248,7 +249,8 @@ function SummaryBlock({
 
   // Итоги и всё, что делает ИИ: полоса Indigo, текст #111 в обеих темах.
   // Пока итоги готовятся: та же полоса, что у готовых (та же высота, без прыжка), в круге
-  // Spinner, а на месте текста итогов Skeleton на нейтральной плитке. Ни свечений, ни мигания
+  // Spinner, а на месте текста итогов Skeleton на нейтральной плитке, без мигания. Единственный
+  // эффект экрана: свечение «думает» у нижнего края транскрипта (VoiceGlow, CLAUDE.md «Эффекты»)
   if (summary.kind === 'processing') {
     return (
       <section className="flex flex-col gap-2" role="status" aria-live="polite" aria-busy="true">
@@ -519,6 +521,9 @@ function MeetingDetailsContent() {
     };
   }, [shownTitle]);
 
+  // Пока ИИ готовит итоги: свечение «думает»; готово или ошибка: уходит за 0,4 с
+  const glow = useGlowPresence(m.summary.kind === 'processing' ? 'think' : null);
+
   if (m.meeting.kind === 'loading') return <LoadingState />;
 
   if (m.meeting.kind === 'not-found') {
@@ -552,7 +557,7 @@ function MeetingDetailsContent() {
     );
   }
 
-  // Удалена человеком: лежит в корзине 7 дней, по адресу открывается только с «Восстановить»
+  // Удалена человеком: лежит в корзине 30 дней, по адресу открывается только с «Восстановить»
   if (trashed) return <InTrash id={meta.id} title={shownTitle} />;
 
   // Пусто и тогда, когда все реплики оказались галлюцинациями на тишине
@@ -657,7 +662,14 @@ function MeetingDetailsContent() {
         <>
           {showSummary && <SummaryBlock summary={m.summary} title={shownTitle} onRetry={canSummarize ? () => void m.generateSummary() : undefined} />}
           {/* Транскрипт отдельной плиткой одним текстовым потоком, колонка до 760 px */}
-          <section aria-label={t('transcript')} className={TILE}>
+          {/* Пока ИИ готовит итоги, по нижнему краю транскрипта свечение «думает» (VoiceGlow);
+              запас снизу на высоту свечения, чтобы последняя реплика была над ним */}
+          <section
+            aria-label={t('transcript')}
+            className={cn(TILE, glow && 'relative isolate')}
+            style={glow ? { paddingBottom: 'var(--glow-h)' } : undefined}
+          >
+            {glow && <VoiceGlow mode={glow} />}
             <div className={MEASURE}>
               <TranscriptList segments={visible} />
             </div>

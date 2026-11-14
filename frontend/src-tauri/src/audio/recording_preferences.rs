@@ -184,15 +184,124 @@ pub async fn save_recording_preferences<R: Runtime>(
 /// The UI moves recordings into a trash folder next to them
 /// (frontend/src/aid/lib/recording-trash.ts), restores and erases them.
 /// tauri.conf.json only covers the default folder.
+/// Never opens the disk root, the home folder or anything above it (see `fs_scope_refusal`).
 pub fn allow_folder_in_fs_scope<R: Runtime>(app: &AppHandle<R>, folder: &Path) {
     use tauri_plugin_fs::FsExt;
 
-    if folder.as_os_str().is_empty() || !folder.is_absolute() {
+    let home = dirs::home_dir();
+    if home.is_none() {
+        warn!("fs scope: home folder is unknown, only the root check applies");
+    }
+    if let Some(reason) = fs_scope_refusal_resolved(folder, home.as_deref()) {
+        warn!("fs scope: skipped recordings folder {:?}: {}", folder, reason);
         return;
     }
     match app.fs_scope().allow_directory(folder, true) {
         Ok(()) => info!("fs scope: allowed recordings folder {:?}", folder),
         Err(e) => warn!("fs scope: failed to allow recordings folder {:?}: {}", folder, e),
+    }
+}
+
+/// Why `folder` must not be opened recursively to the UI, or `None` if it may be.
+/// A recursive scope on the disk root, the home folder or a folder above home
+/// (`/Users`, `C:\Users`) would expose every file of the user, so these are refused,
+/// as are relative paths and paths with `..` (they could climb to such a folder).
+pub(crate) fn fs_scope_refusal(folder: &Path, home: Option<&Path>) -> Option<&'static str> {
+    use std::path::Component;
+
+    if folder.as_os_str().is_empty() || !folder.is_absolute() {
+        return Some("not an absolute path");
+    }
+    if folder.components().any(|c| matches!(c, Component::ParentDir)) {
+        return Some("path contains '..'");
+    }
+    if folder.parent().is_none() {
+        return Some("disk root");
+    }
+    if let Some(home) = home {
+        if folder == home {
+            return Some("home folder");
+        }
+        if home.starts_with(folder) {
+            return Some("folder above the home folder");
+        }
+    }
+    None
+}
+
+/// `fs_scope_refusal` for the path as written and, when it exists, for its real path
+/// (a symlink to the home folder is refused like the home folder itself).
+fn fs_scope_refusal_resolved(folder: &Path, home: Option<&Path>) -> Option<&'static str> {
+    if let Some(reason) = fs_scope_refusal(folder, home) {
+        return Some(reason);
+    }
+    let real_home = home.map(|h| h.canonicalize().unwrap_or_else(|_| h.to_path_buf()));
+    match folder.canonicalize() {
+        Ok(real) => fs_scope_refusal(&real, real_home.as_deref().or(home)),
+        Err(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod fs_scope_tests {
+    use super::{fs_scope_refusal, fs_scope_refusal_resolved};
+    use std::path::Path;
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_root_home_and_above_home() {
+        let home = Some(Path::new("/Users/someone"));
+        assert_eq!(fs_scope_refusal(Path::new("/"), home), Some("disk root"));
+        assert_eq!(fs_scope_refusal(Path::new("/Users/someone"), home), Some("home folder"));
+        assert_eq!(fs_scope_refusal(Path::new("/Users/someone/"), home), Some("home folder"));
+        assert_eq!(fs_scope_refusal(Path::new("/Users"), home), Some("folder above the home folder"));
+        assert_eq!(fs_scope_refusal(Path::new("/Users/"), home), Some("folder above the home folder"));
+        assert_eq!(
+            fs_scope_refusal(Path::new("/Users/someone/Movies/.."), home),
+            Some("path contains '..'")
+        );
+        assert_eq!(fs_scope_refusal(Path::new("recordings"), home), Some("not an absolute path"));
+        assert_eq!(fs_scope_refusal(Path::new(""), home), Some("not an absolute path"));
+        // Without a known home only the root and path checks apply
+        assert_eq!(fs_scope_refusal(Path::new("/"), None), Some("disk root"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn allows_recordings_folders() {
+        let home = Some(Path::new("/Users/someone"));
+        for ok in [
+            "/Users/someone/Movies/aid-meetings-recordings",
+            "/Users/someone/Movies",
+            "/Users/someone/sn-test",
+            "/Users/someoneelse/recordings",
+            "/Volumes/Disk/recordings",
+        ] {
+            assert_eq!(fs_scope_refusal(Path::new(ok), home), None, "{ok}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn refuses_windows_root_home_and_above_home() {
+        let home = Some(Path::new(r"C:\Users\someone"));
+        assert_eq!(fs_scope_refusal(Path::new(r"C:\"), home), Some("disk root"));
+        assert_eq!(fs_scope_refusal(Path::new(r"C:\Users\someone"), home), Some("home folder"));
+        assert_eq!(fs_scope_refusal(Path::new(r"C:\Users"), home), Some("folder above the home folder"));
+        assert_eq!(fs_scope_refusal(Path::new(r"C:\Users\someone\Videos\rec"), home), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_symlink_to_home() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::create_dir(&home).unwrap();
+        std::fs::create_dir(home.join("rec")).unwrap();
+        let link = dir.path().join("link-to-home");
+        std::os::unix::fs::symlink(&home, &link).unwrap();
+        assert_eq!(fs_scope_refusal_resolved(&link, Some(&home)), Some("home folder"));
+        assert_eq!(fs_scope_refusal_resolved(&home.join("rec"), Some(&home)), None);
     }
 }
 

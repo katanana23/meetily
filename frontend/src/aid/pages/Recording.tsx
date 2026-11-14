@@ -22,6 +22,8 @@ import { Page, TILE } from '@/aid/components/Page';
 import type { LiveSpeech } from '@/aid/lib/recording-outcome';
 import { TranscriptList } from '@/aid/components/TranscriptList';
 import { LivePulse } from '@/aid/components/LivePulse';
+import { VoiceGlow } from '@/aid/components/VoiceGlow';
+import { useRecordingControls } from '@/aid/lib/recording-controls';
 import { toSegment } from '@/aid/lib/meeting';
 import { displayTitle } from '@/aid/lib/format';
 import { isShownText } from '@/aid/lib/speech';
@@ -151,6 +153,9 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
   // лентой, в полосе остаётся короткое. Состояние записи, таймер, уровень речи, пауза и
   // «Остановить» только в капсуле записи (RecordDock).
   const title = meetingTitle ? displayTitle(meetingTitle) : t('recording');
+  // Свечение голоса за капсулой: живое на записи, тонкая линия на паузе, уходит после «Остановить»
+  const { busy } = useRecordingControls();
+  const glow = busy === 'stop' ? 'off' : isPaused ? 'paused' : 'listen';
 
   return (
     <Page
@@ -184,13 +189,16 @@ export function RecordingView({ isPaused, duration, live, onBack, onStop }: Reco
 
       <LivePulse live={live} duration={duration} isPaused={isPaused} segments={segments} />
 
-      <section className={`${TILE} flex flex-col`} aria-label={t('liveTranscript')}>
+      {/* Снизу запас на высоту свечения: последняя реплика над ним */}
+      <section className={`${TILE} relative isolate flex flex-col`} style={{ paddingBottom: 'var(--glow-h)' }} aria-label={t('liveTranscript')}>
+        {/* Первым ребёнком: замер «доходит ли контент до капсулы» (Page) смотрит на последний */}
+        <VoiceGlow mode={glow} />
         <h2 className="mb-4 text-[22px] font-bold leading-7 tracking-tight">{t('transcript')}</h2>
         {segments.length === 0 ? (
           // Ждём речь: по центру плитки мягкая иллюстрация (та же волна записи, что в карточке
           // после «Остановить», крупнее, на вложенной поверхности) и одна строка. Логотип не
-          // повторяем. Снизу запас под капсулу записи: строка не уходит под неё
-          <div className="flex min-h-[228px] flex-1 flex-col items-center justify-center gap-3 pb-[var(--dock-space)]" role="status">
+          // повторяем. Запас под капсулу и свечение даёт сама плитка (--glow-h)
+          <div className="flex min-h-[228px] flex-1 flex-col items-center justify-center gap-3" role="status">
             <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
               <span className="scale-[1.6]">
                 <FinishGlyph stage="transcribing" />

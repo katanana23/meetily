@@ -402,6 +402,16 @@ impl AudioCapture {
             return;
         }
 
+        // Live level for the UI meter: RMS of the buffer as delivered by the
+        // device, before resampling and enhancement (the normalizer would
+        // flatten it). Read-only over the existing buffer; paused audio is
+        // dropped downstream, so it does not count either.
+        if !data.is_empty() && !self.state.is_paused() {
+            let sum_sq = data.iter().fold(0.0f32, |acc, &x| acc + x * x);
+            self.state
+                .record_input_level(&self.device_type, (sum_sq / data.len() as f32).sqrt());
+        }
+
         // Convert to mono if needed
         let mut mono_data = if self.channels > 1 {
             audio_to_mono(data, self.channels)

@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { CLOSE_BUTTON, CloseGlyph } from '@/aid/components/ui/close-button';
+import { CLOSE_BUTTON, CLOSE_CORNER, CloseGlyph } from '@/aid/components/ui/close-button';
 import { cn } from '@/aid/lib/utils';
 
 const Dialog = DialogPrimitive.Root;
@@ -28,8 +28,8 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      {/* Общий круглый крестик (ui/close-button.tsx): в углу на равном отступе сверху и справа */}
-      <DialogPrimitive.Close className={cn(CLOSE_BUTTON, 'absolute right-3 top-3')}>
+      {/* Общий круглый крестик (ui/close-button.tsx): в правом верхнем углу, 4 px сверху и справа */}
+      <DialogPrimitive.Close className={cn(CLOSE_BUTTON, CLOSE_CORNER)}>
         <CloseGlyph />
         <span className="sr-only">Закрыть</span>
       </DialogPrimitive.Close>

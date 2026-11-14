@@ -6,7 +6,7 @@ const resolveFromTiptapPm = (pkg) =>
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false, // Disabled for BlockNote compatibility
-  // Aid: @phosphor-icons/react экспортирует ~1500 иконок одним индексом. Без
+  // Shade: @phosphor-icons/react экспортирует ~1500 иконок одним индексом. Без
   // оптимизации dev компилирует их все (холодный старт ~40 с, ChunkLoadError
   // в окне Tauri), с ней берутся только используемые модули.
   experimental: {
@@ -27,7 +27,7 @@ const nextConfig = {
     NEXT_PUBLIC_DEMO: process.env.NEXT_PUBLIC_DEMO === '1' ? '1' : '0',
     // Переключатель интерфейса тоже всегда строкой: условия в переходниках
     // становятся постоянными, и webpack не компилирует второй интерфейс.
-    NEXT_PUBLIC_UI: process.env.NEXT_PUBLIC_UI === 'original' ? 'original' : 'aid',
+    NEXT_PUBLIC_UI: process.env.NEXT_PUBLIC_UI === 'original' ? 'original' : 'shade',
   },
 
   // Add webpack configuration for Tauri

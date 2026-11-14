@@ -1,0 +1,68 @@
+name: "Shade check"
+
+# Проверки интерфейса Shade на каждый PR в рабочую ветку.
+# aid: прежнее имя ветки; убрать после переименования aid → shade на GitHub.
+# Что и почему: CLAUDE.md, раздел «Готово значит».
+
+on:
+  pull_request:
+    branches: [shade, aid]
+
+concurrency:
+  group: shade-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: tsc, contrast, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # pnpm test = bun test src/shade
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Types (npx tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Contrast (pnpm check:contrast)
+        run: pnpm check:contrast
+
+      - name: Tests (pnpm test)
+        run: pnpm test
+
+      - name: Build (pnpm build)
+        run: pnpm build
+
+  migrate:
+    name: migrate-from-aid
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Перенос данных со старых имён: случаи из таблицы PR на подставном HOME.
+      - name: Migration script (bash scripts/test-migrate-from-aid.sh)
+        run: bash scripts/test-migrate-from-aid.sh

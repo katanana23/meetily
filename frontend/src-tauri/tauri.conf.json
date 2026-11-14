@@ -1,9 +1,9 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "ShadeNotes",
-    "mainBinaryName": "ShadeNotes",
+    "productName": "Shade",
+    "mainBinaryName": "Shade",
     "version": "0.4.1",
-    "identifier": "io.github.katanana23.aid-meetings",
+    "identifier": "io.github.katanana23.shade",
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
@@ -13,7 +13,7 @@
     "app": {
         "windows": [
             {
-                "title": "ShadeNotes",
+                "title": "Shade",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
@@ -83,22 +83,22 @@
                                     "path": "$APPDATA/*"
                                 },
                                 {
-                                    "path": "$VIDEO/aid-meetings-recordings"
+                                    "path": "$VIDEO/Shade"
                                 },
                                 {
-                                    "path": "$VIDEO/aid-meetings-recordings/**"
+                                    "path": "$VIDEO/Shade/**"
                                 },
                                 {
-                                    "path": "$AUDIO/aid-meetings-recordings"
+                                    "path": "$AUDIO/Shade"
                                 },
                                 {
-                                    "path": "$AUDIO/aid-meetings-recordings/**"
+                                    "path": "$AUDIO/Shade/**"
                                 },
                                 {
-                                    "path": "$DOCUMENT/aid-meetings-recordings"
+                                    "path": "$DOCUMENT/Shade"
                                 },
                                 {
-                                    "path": "$DOCUMENT/aid-meetings-recordings/**"
+                                    "path": "$DOCUMENT/Shade/**"
                                 }
                             ]
                         }

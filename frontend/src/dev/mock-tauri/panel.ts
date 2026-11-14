@@ -3,8 +3,8 @@
 
 import { SCENARIOS, type ScenarioId, switchScenario } from './scenarios';
 
-const PANEL_ID = 'meetily-mock-panel';
-const COLLAPSED_KEY = 'meetily.mock.panelCollapsed';
+const PANEL_ID = 'shade-mock-panel';
+const COLLAPSED_KEY = 'shade.mock.panelCollapsed';
 
 function readCollapsed() {
   try {

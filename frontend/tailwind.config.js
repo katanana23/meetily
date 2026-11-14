@@ -5,7 +5,7 @@ module.exports = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/aid/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/shade/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
   	extend: {
@@ -25,13 +25,13 @@ module.exports = {
   			primary: {
   				DEFAULT: 'hsl(var(--primary))',
   				foreground: 'hsl(var(--primary-foreground))',
-  				// Aid: текст и иконки акцента (в тёмной теме светлее заливки ради контраста AA)
+  				// Shade: текст и иконки акцента (в тёмной теме светлее заливки ради контраста AA)
   				ink: 'hsl(var(--primary-ink, var(--primary)))'
   			},
-  			// Aid: роли цвета (globals.css). Заливки: bg-risd, bg-mikado, bg-indigo, bg-giants;
+  			// Shade: роли цвета (globals.css). Заливки: bg-risd, bg-mikado, bg-indigo, bg-giants;
   			// текст и иконки роли на нейтральной плитке: text-*-ink; текст на заливке: text-on-role
   			risd: 'hsl(var(--risd, var(--primary)))',
-  			// Aid: выбранный раздел сайдбара, тёмно-серая таблетка
+  			// Shade: выбранный раздел сайдбара, тёмно-серая таблетка
   			'nav-active': {
   				DEFAULT: 'hsl(var(--nav-active, 0 0% 20%))',
   				foreground: 'hsl(var(--nav-active-foreground, 0 0% 100%))'
@@ -88,7 +88,7 @@ module.exports = {
   			}
   		},
   		borderRadius: {
-  			// Aid: концентричные радиусы (globals.css): окно → плитка → вложенный элемент
+  			// Shade: концентричные радиусы (globals.css): окно → плитка → вложенный элемент
   			window: 'var(--window-radius, 17px)',
   			tile: 'var(--tile-radius, 24px)',
   			nested: 'var(--nested-radius, 16px)',

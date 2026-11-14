@@ -152,7 +152,7 @@ export class MockBackend {
     this.startMicLevel();
   }
 
-  // ---------------- разрешение macOS для Aid (mic-access.ts) ----------------
+  // ---------------- разрешение macOS для Shade (mic-access.ts) ----------------
 
   /** Решение человека на «вопрос macOS»: после первого ответа больше не спрашиваем. */
   private macMicDecided: 'granted' | 'denied' | null = null;
@@ -173,11 +173,11 @@ export class MockBackend {
     return m;
   }
 
-  // ---------------- уровень микрофона для Aid (mic-watch.ts) ----------------
+  // ---------------- уровень микрофона для Shade (mic-watch.ts) ----------------
 
   private micTimer: ReturnType<typeof setInterval> | null = null;
 
-  /** Вместо getUserMedia: уровень микрофона раз в 500 мс событием aid-mock-mic. */
+  /** Вместо getUserMedia: уровень микрофона раз в 500 мс событием shade-mock-mic. */
   private startMicLevel() {
     this.stopMicLevel();
     const mode = this.scenario.micLive;
@@ -186,12 +186,12 @@ export class MockBackend {
     this.micTimer = setInterval(() => {
       if (!this.recording || this.paused) return;
       if (mode === 'lost' && Date.now() - started >= 8000) {
-        this.emit('aid-mock-mic', { lost: true });
+        this.emit('shade-mock-mic', { lost: true });
         this.stopMicLevel();
         return;
       }
       // шум тихой комнаты около −55 dBFS; silent — цифровые нули
-      this.emit('aid-mock-mic', { rms: mode === 'silent' ? 0 : 0.002 + Math.random() * 0.002 });
+      this.emit('shade-mock-mic', { rms: mode === 'silent' ? 0 : 0.002 + Math.random() * 0.002 });
     }, 500);
   }
 

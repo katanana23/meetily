@@ -8,7 +8,7 @@ import { MOCK_OFF, SCENARIOS, resolveScenarioId } from './scenarios';
 
 declare global {
   interface Window {
-    __MEETILY_MOCK__?: {
+    __SHADE_MOCK__?: {
       scenario: string;
       backend: MockBackend;
       calledCommands: Set<string>;
@@ -120,7 +120,7 @@ export function installMockTauri() {
     return originalInvoke(cmd, args, options);
   };
 
-  window.__MEETILY_MOCK__ = {
+  window.__SHADE_MOCK__ = {
     scenario: scenario.id,
     backend: be,
     calledCommands,
@@ -168,7 +168,7 @@ export function installMockTauri() {
   console.info(
     `%c[mock-tauri]%c Режим заглушек: сценарий "${scenario.id}" — ${scenario.description}. ` +
       `Переключить: ?mock=${Object.keys(SCENARIOS).join('|')}, отключить: ?mock=off. ` +
-      'Состояние: window.__MEETILY_MOCK__',
+      'Состояние: window.__SHADE_MOCK__',
     'background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px',
     'color:inherit',
   );

@@ -3,10 +3,10 @@
 Перенесено из CLAUDE.md: полные тексты разделов «Проект», «Границы», «Данные», «Стиль», «Как работать» и «Вольт». Краткая версия там.
 
 ## Проект
-- Форк открытого Meetily (MIT, Zackriya Solutions), продукт **ShadeNotes** (одно слово, S и N заглавные; прежнее рабочее название «Aid Meetings»): приватный ИИ-ассистент встреч, запись, транскрипция и итоги на компьютере пользователя.
-- Десктоп на Tauri 2: ядро на Rust (`frontend/src-tauri`, чужое), интерфейс на Next.js 14 + React 18. Свой слой интерфейса в `frontend/src/aid/` (имя папки, ветка `aid`, префиксы `aid-` и `[aid]` остаются).
-- Прежними остаются `identifier` `io.github.katanana23.aid-meetings` (от него папка данных), папки данных ядра (`APP_DATA_DIR_NAME`, `RECORDINGS_DIR_NAME` в `src-tauri/src/config.rs`) и ключи `localStorage` (`aid-meetings.theme` и др.): переименование потеряло бы данные пользователя. Репозиторий на GitHub `katanana23/shade` (прежнее имя `katanana23/meetily`).
-- Ветка `main` зеркалит оригинал, рабочая ветка `aid`. Подробнее: `docs/FORK.md`, `docs/isolation.md`, `docs/recon.md`.
+- Продукт **Shade**, основан на открытом Meetily (MIT, Zackriya Solutions): приватный ИИ-ассистент встреч, запись, транскрипция и итоги на компьютере пользователя. Прежние рабочие названия «Aid Meetings» и «ShadeNotes» больше нигде не используются.
+- Десктоп на Tauri 2: ядро на Rust (`frontend/src-tauri`, чужое), интерфейс на Next.js 14 + React 18. Свой слой интерфейса в `frontend/src/shade/` (ветка `shade`, префиксы `shade-` в классах, `[shade]` в журнале, `shade.` в ключах хранилищ).
+- Идентичность: `identifier` `io.github.katanana23.shade` (от него папка данных), папки данных ядра `APP_DATA_DIR_NAME = "Shade"` и `RECORDINGS_DIR_NAME = "Shade"` (`src-tauri/src/config.rs`), ключи `localStorage` с префиксом `shade.` (`shade.theme` и др.). Любая смена этих имён отрывает данные пользователя от приложения: делать её только вместе со скриптом переноса, как `scripts/migrate-from-aid.sh` (2026-11-14, переход с `io.github.katanana23.aid-meetings`). Репозиторий на GitHub `katanana23/shade`.
+- Ветка `main` зеркалит оригинал, рабочая ветка `shade`. Подробнее: `docs/FORK.md`, `docs/isolation.md`, `docs/recon.md`.
 
 ## Границы
 - `frontend/src-tauri` не менять. Исключение: строки идентичности в `config.rs` и `tauri.conf.json`, отдельным коммитом и по явной просьбе.
@@ -38,7 +38,8 @@
 - Кеш сборки общий у рабочих деревьев через `CARGO_TARGET_DIR` основной папки.
 
 ## Проверки
-- После правок во `frontend`: `npx tsc --noEmit`, `pnpm check:contrast`, `pnpm test`, `pnpm build`. Те же шаги на каждый PR в `aid` запускает `.github/workflows/aid-check.yml`.
+- После правок во `frontend`: `npx tsc --noEmit`, `pnpm check:contrast`, `pnpm test`, `pnpm build`. Те же шаги на каждый PR в `shade` запускает `.github/workflows/shade-check.yml`.
+- Скрипт переноса данных `scripts/migrate-from-aid.sh`: тест `bash scripts/test-migrate-from-aid.sh` (подставной `HOME`, вымышленные данные), в CI отдельной задачей той же проверки.
 
 ## Git и отчёты
 - Не коммитить и не пушить без просьбы. Не пушить в `main`. PR не сливать самому.

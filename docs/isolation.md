@@ -2,9 +2,9 @@
 
 Дата: 2026-10-06. Основа: `docs/recon.md`, код на коммите `a2cb62e` (Release v0.4.1) плюс патч идентичности (коммит «chore(fork): isolate app identity»).
 
-> 2026-11-03: продукт переименован в ShadeNotes. Изменились только `productName`, `title` окна и видимое имя в ядре (`fork_app_name!`). `identifier`, `APP_DATA_DIR_NAME = "Aid Meetings"` и `RECORDINGS_DIR_NAME` прежние, поэтому все пути ниже остались как были. Подробно: [`FORK.md`](FORK.md).
+> 2026-11-14: продукт переименован в Shade вместе с идентичностью: `identifier` `io.github.katanana23.shade`, `productName` и `title` `Shade`, `APP_DATA_DIR_NAME` и `RECORDINGS_DIR_NAME` `Shade`. Значения ниже обновлены; прежние (`io.github.katanana23.aid-meetings`, `Aid Meetings`, `aid-meetings-recordings`) переносит `scripts/migrate-from-aid.sh`. Подробно: [`FORK.md`](FORK.md).
 
-Цель: форк «Aid Meetings» и оригинальный Meetily стоят на одном Mac, работают одновременно и не читают и не пишут данные друг друга.
+Цель: Shade и оригинальный Meetily стоят на одном Mac, работают одновременно и не читают и не пишут данные друг друга.
 
 Почти все пути в Tauri 2 строятся от `identifier` из `tauri.conf.json`. На macOS `app_data_dir()` равен `~/Library/Application Support/<identifier>/`, на Windows `%APPDATA%\<identifier>\`, на Linux `~/.local/share/<identifier>/`. Поэтому главная правка одна: свой `identifier`. Остальные правки закрывают места, где ядро собирает путь по зашитому имени «Meetily», без учёта `identifier`.
 
@@ -12,11 +12,11 @@
 
 | Что | Оригинал | Форк |
 |---|---|---|
-| `identifier` | `com.meetily.ai` | `io.github.katanana23.aid-meetings` |
-| `productName` | `meetily` | `Aid Meetings` |
-| Папка данных на macOS | `~/Library/Application Support/com.meetily.ai/` | `~/Library/Application Support/io.github.katanana23.aid-meetings/` |
-| Папка записей на macOS | `~/Movies/meetily-recordings` | `~/Movies/aid-meetings-recordings` |
-| Свои шаблоны и `notifications.json` на macOS | `~/Library/Application Support/Meetily/` | `~/Library/Application Support/Aid Meetings/` |
+| `identifier` | `com.meetily.ai` | `io.github.katanana23.shade` |
+| `productName` | `meetily` | `Shade` |
+| Папка данных на macOS | `~/Library/Application Support/com.meetily.ai/` | `~/Library/Application Support/io.github.katanana23.shade/` |
+| Папка записей на macOS | `~/Movies/meetily-recordings` | `~/Movies/Shade` |
+| Свои шаблоны и `notifications.json` на macOS | `~/Library/Application Support/Meetily/` | `~/Library/Application Support/Shade/` |
 
 Колонка «Общий?» ниже отвечает на вопрос: будет ли ресурс общим с оригиналом, если `identifier` оставить прежним (`com.meetily.ai`).
 
@@ -28,10 +28,10 @@
 |---|---|---|---|---|---|
 | **База SQLite** `meeting_minutes.sqlite` (+ `-wal`, `-shm`) и старая `meeting_minutes.db` | `app_data_dir()` → `identifier` | да | `frontend/src-tauri/src/database/manager.rs:46-67` (пути), `:35` (миграции), `:122-127`; `database/commands.rs:88-93`, `:228-250` | Сменить `identifier` (сделано) | Высокий. Встречи, транскрипты, резюме, API-ключи провайдеров лежат в базе. При общем пути база одна на двоих (см. раздел 3) |
 | **plugin-store**: `preferences.json`, `analytics.json`, `store.json`, `recording_preferences.json`, `onboarding-status.json` | Относительные имена; plugin-store кладёт их в `app_data_dir()` → `identifier` | да | Интерфейс: `src/components/RecordingSettings.tsx:65,120`, `src/lib/recordingNotification.tsx:16,42`, `src/components/AnalyticsProvider.tsx:34,77`, `src/lib/analytics.ts:172`. Ядро: `src-tauri/src/audio/recording_preferences.rs:100,148`, `src-tauri/src/api/api.rs:209`, `src-tauri/src/onboarding.rs:50,88,116,141` | Сменить `identifier` (сделано). Имена файлов не трогать | Средний. Общие настройки, общий флаг онбординга, общий путь к папке записей |
-| **Папка записей** (аудио, `transcripts.json`, метаданные встречи) | Зашитое имя `meetily-recordings` внутри `~/Movies` (macOS), `~/Music` (Windows), `~/Documents` (Linux). От `identifier` **не зависит** | да, даже при новом `identifier` | `src-tauri/src/audio/recording_preferences.rs:43-77`; имя теперь в `src-tauri/src/config.rs:61` | Вынесено в константу `RECORDINGS_DIR_NAME = "aid-meetings-recordings"` (сделано) | Средний. Две программы пишут встречи в одну папку, ссылки из базы одной программы указывают на файлы, которые может удалить другая. Если пользователь уже выбрал свою папку в настройках, путь берётся из `recording_preferences.json` |
+| **Папка записей** (аудио, `transcripts.json`, метаданные встречи) | Зашитое имя `meetily-recordings` внутри `~/Movies` (macOS), `~/Music` (Windows), `~/Documents` (Linux). От `identifier` **не зависит** | да, даже при новом `identifier` | `src-tauri/src/audio/recording_preferences.rs:43-77`; имя теперь в `src-tauri/src/config.rs:61` | Вынесено в константу `RECORDINGS_DIR_NAME = "Shade"` (сделано) | Средний. Две программы пишут встречи в одну папку, ссылки из базы одной программы указывают на файлы, которые может удалить другая. Если пользователь уже выбрал свою папку в настройках, путь берётся из `recording_preferences.json` |
 | **Временный WAV при остановке из трея** | `app_data_dir()` → `identifier` | да | `src-tauri/src/tray.rs:66,162` | Ничего, следует за `identifier` | Низкий |
 | **Папка своих шаблонов** | `dirs::data_dir()` + зашитое `Meetily` + `templates`. От `identifier` **не зависит** | да, даже при новом `identifier` | `src-tauri/src/summary/templates/loader.rs:25-30`, комментарии `loader.rs:22-24`, `templates/mod.rs:34-36`; имя в `src-tauri/src/config.rs:58` | Вынесено в константу `APP_DATA_DIR_NAME` (сделано) | Низкий. Шаблоны только читаются, но правка шаблона в одной программе меняет резюме в другой |
-| **Настройки уведомлений** `notifications.json` | `dirs::config_dir()` + зашитое `meetily`. От `identifier` **не зависит** | да, даже при новом `identifier` | `src-tauri/src/notifications/settings.rs:114-127` | Вынесено в константу `APP_DATA_DIR_NAME` (сделано) | Низкий. На macOS `config_dir` и `data_dir` совпадают, а APFS по умолчанию не различает регистр, поэтому у оригинала `meetily/` и `Meetily/` это одна папка. У форка это `Aid Meetings/` |
+| **Настройки уведомлений** `notifications.json` | `dirs::config_dir()` + зашитое `meetily`. От `identifier` **не зависит** | да, даже при новом `identifier` | `src-tauri/src/notifications/settings.rs:114-127` | Вынесено в константу `APP_DATA_DIR_NAME` (сделано) | Низкий. На macOS `config_dir` и `data_dir` совпадают, а APFS по умолчанию не различает регистр, поэтому у оригинала `meetily/` и `Meetily/` это одна папка. У форка это `Shade/` |
 | **Модели Whisper** | `app_data_dir()/models` → `identifier`. Запасной путь `dirs::data_dir()/Meetily/models` | да | `src-tauri/src/whisper_engine/commands.rs:15-32`; запасной путь `whisper_engine/whisper_engine.rs:150-155` | **Не менялось** по решению задачи | См. раздел 2. После смены `identifier` форк ищет модели в своей папке и скачает их заново |
 | **Модели Parakeet** | `app_data_dir()/models/parakeet` → `identifier`. Запасной путь `dirs::data_dir()/Meetily/models/parakeet` | да | `src-tauri/src/parakeet_engine/commands.rs:15-19`; запасной путь `parakeet_engine/parakeet_engine.rs:291-296`; адрес скачивания `parakeet_engine.rs:127` (сервер оригинала) | **Не менялось** | То же, что для Whisper |
 | **Встроенная LLM** (сайдкар `llama-helper`, GGUF) | `app_data_dir()/models/summary` → `identifier`. Запасной путь `dirs::data_dir()/Meetily/models/summary` | да | `src-tauri/src/summary/summary_engine/commands.rs:53`, `:363`; запасной путь `summary_engine/model_manager.rs:145-150` | **Не менялось** | То же. Модели большие (гигабайты) |
@@ -47,7 +47,7 @@
 | **Разрешения macOS** (микрофон, запись экрана, захват системного звука) | TCC хранит разрешения по bundle id и подписи. Подпись ad-hoc (`signingIdentity: "-"`) | да | `src-tauri/Info.plist`, `src-tauri/entitlements.plist`, `tauri.conf.json:104-108` | Сменить `identifier` (сделано) | Средний. При общем bundle id сброс разрешения для одной программы сбрасывает его для другой. С новым id форк спросит разрешения сам. Ad-hoc подпись меняется при каждой сборке, macOS может спрашивать повторно после пересборки (так же и у оригинала) |
 | **Автообновление** | `plugins.updater` в `tauri.conf.json`: адрес `latest.json` на GitHub оригинала и публичный ключ оригинала | да | Конфиг: `src-tauri/tauri.conf.json:113-118`, `bundle.createUpdaterArtifacts` `:91`. Плагин: `src-tauri/src/lib.rs:469`. Интерфейс: `src/services/updateService.ts:64`, `src/components/UpdateDialog.tsx:37,61`, `src/hooks/useUpdateCheck.ts:20-46` | Адрес и ключ убраны (`endpoints: []`, `pubkey: ""`), `createUpdaterArtifacts: false` (сделано) | Высокий без правки: форк скачал бы сборку оригинала, подписанную ключом оригинала, и **заменил бы себя оригиналом** |
 | **Аналитика** (PostHog, идентификатор пользователя) | `user_id` хранится в `analytics.json` (plugin-store → `identifier`); запасной вариант `sessionStorage['meetily_user_id']`. Отправка на `us.i.posthog.com` с ключом проекта оригинала | да | `src/lib/analytics.ts:168-196`; согласие `src/components/AnalyticsProvider.tsx:34,77`; клиент `src-tauri/src/analytics/commands.rs:10-21`, `src-tauri/src/analytics/analytics.rs:48` | `identifier` разделяет `user_id` и согласие (сделано). Ключ PostHog и хост не трогали | Средний. По умолчанию аналитика выключена (`analyticsOptedIn: false`). Если её включить в форке, события уйдут в проект PostHog оригинала. Ключ лучше убрать отдельной правкой ядра, если аналитика в форке не нужна |
-| **Установка на диск** | Имя `.app` и установщика берётся из `productName` | да (`meetily.app` затёр бы `meetily.app`) | `src-tauri/tauri.conf.json:3` | `productName: "Aid Meetings"` (сделано) | Средний: без правки установка форка заменила бы программу оригинала в `/Applications` |
+| **Установка на диск** | Имя `.app` и установщика берётся из `productName` | да (`meetily.app` затёр бы `meetily.app`) | `src-tauri/tauri.conf.json:3` | `productName: "Shade"` (сделано) | Средний: без правки установка форка заменила бы программу оригинала в `/Applications` |
 
 ## 2. Модели оставлены как есть: решение и риск
 
@@ -55,9 +55,9 @@
 
 Важная деталь: в рабочей сборке путь моделей берётся не из зашитого `Meetily`, а из `app_data_dir()/models`, то есть **зависит от `identifier`**. Зашитый `dirs::data_dir()/Meetily/models` используется только как запасной путь, когда ядро не передало папку (в обычной работе не срабатывает). Отсюда:
 
-- После смены `identifier` модели форка лежат в `~/Library/Application Support/io.github.katanana23.aid-meetings/models/`, отдельно от оригинала. Форк скачает модели заново (это гигабайты диска и трафика).
+- После смены `identifier` модели форка лежат в `~/Library/Application Support/io.github.katanana23.shade/models/`, отдельно от оригинала. Форк скачает модели заново (это гигабайты диска и трафика).
 - Если нужна действительно общая папка, её можно сделать без правок кода: закрыть обе программы и заменить папку `models` форка символической ссылкой на папку оригинала:
-  `ln -s "$HOME/Library/Application Support/com.meetily.ai/models" "$HOME/Library/Application Support/io.github.katanana23.aid-meetings/models"` (папка `models` форка перед этим должна отсутствовать).
+  `ln -s "$HOME/Library/Application Support/com.meetily.ai/models" "$HOME/Library/Application Support/io.github.katanana23.shade/models"` (папка `models` форка перед этим должна отсутствовать).
 - Риск общей папки: обе программы могут одновременно качать или удалять одну и ту же модель. Удаление модели в настройках форка удалит её и у оригинала. Частично скачанный файл одной программы другая может принять за готовую модель. Форматы моделей у обеих программ одинаковые, пока оригинал не сменит каталог моделей.
 - Запасные пути `.../Meetily/models` (`whisper_engine.rs:154`, `parakeet_engine.rs:294`, `model_manager.rs:148`) остались с именем оригинала намеренно.
 
@@ -87,13 +87,13 @@
 
 | Файл | Строка | Было | Стало |
 |---|---|---|---|
-| `frontend/src-tauri/tauri.conf.json` | 3 | `"productName": "meetily"` | `"productName": "Aid Meetings"` |
-| `frontend/src-tauri/tauri.conf.json` | 5 | `"identifier": "com.meetily.ai"` | `"identifier": "io.github.katanana23.aid-meetings"` |
-| `frontend/src-tauri/tauri.conf.json` | 15 | `"title": "meetily"` | `"title": "Aid Meetings"` |
+| `frontend/src-tauri/tauri.conf.json` | 3 | `"productName": "meetily"` | `"productName": "Shade"` |
+| `frontend/src-tauri/tauri.conf.json` | 5 | `"identifier": "com.meetily.ai"` | `"identifier": "io.github.katanana23.shade"` |
+| `frontend/src-tauri/tauri.conf.json` | 15 | `"title": "meetily"` | `"title": "Shade"` |
 | `frontend/src-tauri/tauri.conf.json` | 91 | `"createUpdaterArtifacts": true` | `"createUpdaterArtifacts": false` |
 | `frontend/src-tauri/tauri.conf.json` | 115 | `"pubkey": "<ключ оригинала>"` | `"pubkey": ""` |
 | `frontend/src-tauri/tauri.conf.json` | 116 | `"endpoints": ["https://github.com/Zackriya-Solutions/meeting-minutes/releases/latest/download/latest.json"]` | `"endpoints": []` |
-| `frontend/src-tauri/src/config.rs` | 38-61 (новый блок в конце файла) | — | макрос `fork_app_name!()` = `"Aid Meetings"`; константы `APP_DISPLAY_NAME`, `APP_ERROR_TITLE`, `APP_DATA_DIR_NAME`, `RECORDINGS_DIR_NAME = "aid-meetings-recordings"` |
+| `frontend/src-tauri/src/config.rs` | 38-61 (новый блок в конце файла) | — | макрос `fork_app_name!()` = `"Shade"`; константы `APP_DISPLAY_NAME`, `APP_ERROR_TITLE`, `APP_DATA_DIR_NAME`, `RECORDINGS_DIR_NAME = "Shade"` |
 | `frontend/src-tauri/src/tray.rs` | 26 | `.tooltip("Meetily")` | `.tooltip(crate::config::APP_DISPLAY_NAME)` |
 | `frontend/src-tauri/src/notifications/types.rs` | 122, 129, 139, 149, 163, 174, 192 | `"Meetily"` | `crate::config::APP_DISPLAY_NAME` |
 | `frontend/src-tauri/src/notifications/types.rs` | 182 | `"Meetily Error"` | `crate::config::APP_ERROR_TITLE` |
@@ -129,7 +129,7 @@
 ### Как проверить изоляцию на Mac
 
 1. Собрать форк, запустить его при открытом оригинале. Должны быть две иконки в трее, два окна.
-2. `ls ~/Library/Application\ Support/` → появилась `io.github.katanana23.aid-meetings/` и, после первого сохранения шаблона или настроек уведомлений, `Aid Meetings/`.
-3. Сделать запись в форке → файл в `~/Movies/aid-meetings-recordings/`.
+2. `ls ~/Library/Application\ Support/` → появилась `io.github.katanana23.shade/` и, после первого сохранения шаблона или настроек уведомлений, `Shade/`.
+3. Сделать запись в форке → файл в `~/Movies/Shade/`.
 4. Встреча форка не видна в оригинале и наоборот.
 5. `ls -la ~/Library/Application\ Support/com.meetily.ai/` до и после работы форка: даты изменения файлов оригинала не меняются.

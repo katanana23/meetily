@@ -1,4 +1,4 @@
-# Режим заглушек: интерфейс Meetily в обычном браузере
+# Режим заглушек: интерфейс Shade в обычном браузере
 
 Интерфейс можно открыть через `pnpm dev`, без сборки Tauri и Rust. Все вызовы ядра (`invoke`) и события (`listen`) перехватывает слой заглушек на встроенном модуле `@tauri-apps/api/mocks`. Компоненты и места вызова не менялись.
 
@@ -34,7 +34,7 @@ pnpm dev            # http://localhost:3118
 
 ### Почему заглушки не попадают в production
 
-`bootstrap.ts` подключает установку через `require('./install')` внутри условия. При `next build` webpack подставляет `NODE_ENV` строкой `"production"`, ветка становится мёртвой, и ни `install.ts`, ни фикстуры в бандл не попадают. Проверено после `pnpm build`: в `frontend/out` и `frontend/.next/static` нет ни одной строки из заглушек (`mock-tauri`, `__MEETILY_MOCK__`, `mockIPC`, названий вымышленных встреч).
+`bootstrap.ts` подключает установку через `require('./install')` внутри условия. При `next build` webpack подставляет `NODE_ENV` строкой `"production"`, ветка становится мёртвой, и ни `install.ts`, ни фикстуры в бандл не попадают. Проверено после `pnpm build`: в `frontend/out` и `frontend/.next/static` нет ни одной строки из заглушек (`mock-tauri`, `__SHADE_MOCK__`, `mockIPC`, названий вымышленных встреч).
 
 В `app/layout.tsx` добавлена одна строка, первым импортом: `import '@/dev/mock-tauri/bootstrap'`. Первым — чтобы заглушки встали до первого `invoke`.
 
@@ -47,7 +47,7 @@ pnpm dev            # http://localhost:3118
 | `long` | Встреча на 3 часа: 2100 реплик, длинное название, резюме с таблицей на 40 строк. Ещё 45 встреч в сайдбаре, часть с очень длинными названиями |
 | `recording` | Идёт запись. На главной запись стартует сама через событие трея `request-recording-toggle`, то есть по настоящему пути приложения. Реплики приходят событием `transcript-update` раз в 1,8 с вместе с `speech-detected`. Пауза, возобновление и стоп работают; после стопа встреча сохраняется и открываются её детали. На других страницах ядро «уже пишет» с момента загрузки |
 | `error` | Команды ядра падают с текстами, похожими на настоящие (`database is locked`, `Parakeet model not loaded…`). Старт записи сначала шлёт `transcription-error`, потом отклоняется, как в `recording_commands.rs`. Список команд, которые падают: `FAILING_COMMANDS` в `handlers.ts` |
-| `onboarding` | Первый запуск: `get_onboarding_status` возвращает `null`, модели не скачаны. Шаги (`aid/components/onboarding`): живой показ и «Начать», «Доступ к звуку» с показом запроса macOS (заглушки отвечают как macOS, доступ выдаётся по «Разрешить»), «Почти готово». Загрузка модели начинается уже на первом шаге и идёт около 6 секунд, поэтому если задержаться на шаге доступа, «Почти готово» пропускается. Приложение открывается без перезагрузки страницы. Журнал шагов и вызовов ядра в консоли строками `[aid] onboarding` |
+| `onboarding` | Первый запуск: `get_onboarding_status` возвращает `null`, модели не скачаны. Шаги (`shade/components/onboarding`): живой показ и «Начать», «Доступ к звуку» с показом запроса macOS (заглушки отвечают как macOS, доступ выдаётся по «Разрешить»), «Почти готово». Загрузка модели начинается уже на первом шаге и идёт около 6 секунд, поэтому если задержаться на шаге доступа, «Почти готово» пропускается. Приложение открывается без перезагрузки страницы. Журнал шагов и вызовов ядра в консоли строками `[shade] onboarding` |
 | `silence-5s` | Запись стартует сама, VAD молчит, реплик нет. Остановите до 10 секунд: строки в списке нет, карточка «Пустая запись - не сохранена» уходит сама через 3 с |
 | `silence-15s` | Пустая запись длиннее 10 секунд (`startOffsetSec: 15`), VAD молчит: карточка «Речи не было», «Запись не сохранена» и «Проверить звук», строки в списке нет |
 | `silence-hallucination` | Три минуты тишины (`startOffsetSec: 180`); на один шумовой сегмент модель выдаёт «Продолжение следует...». Галлюцинация отбрасывается, значимых слов 0: «Пустая запись - не сохранена», встреча не создаётся |
@@ -67,14 +67,14 @@ pnpm dev            # http://localhost:3118
 | `sparse` | Запись, в которой распознаны только три реплики, и сохранённая встреча `mock-sparse` с двумя репликами |
 | `no-model` | Мастер пройден, но модель распознавания не скачана: «Начать запись» ведёт к загрузке модели. Уведомления как в ядре по умолчанию: согласие есть, показ выключен |
 | `no-permission` | Нет доступа ни к микрофону, ни к звуку компьютера: `trigger_*_permission` возвращают `false`. «Записать» показывает карточку «Нет доступа к микрофону» без «Записать только звук компьютера» |
-| `mic-denied` | Отказ в микрофоне, звук компьютера есть: карточка с «Открыть настройки» и «Записать только звук компьютера». Для перепроверки после настроек: `window.__MEETILY_MOCK__.backend.scenario.micPermission = true`, затем вернуть фокус окну |
+| `mic-denied` | Отказ в микрофоне, звук компьютера есть: карточка с «Открыть настройки» и «Записать только звук компьютера». Для перепроверки после настроек: `window.__SHADE_MOCK__.backend.scenario.micPermission = true`, затем вернуть фокус окну |
 | `mic-missing` | Микрофона нет в `get_audio_devices`: карточка «Микрофон не найден» |
 | `mic-prompt` | Доступ ещё не спрашивали: `trigger_microphone_permission` отвечает через 2,5 с (как вопрос macOS), потом запись идёт |
-| `mic-core-refuses` | Проверка Aid прошла, но ядро отклоняет старт текстом `Microphone access required` (как `verify_microphone_access`) |
-| `mic-silent` | Идёт запись, уровень микрофона (событие `aid-mock-mic` вместо `getUserMedia`) нулевой: через 15 с «Не слышу микрофон» |
+| `mic-core-refuses` | Проверка Shade прошла, но ядро отклоняет старт текстом `Microphone access required` (как `verify_microphone_access`) |
+| `mic-silent` | Идёт запись, уровень микрофона (событие `shade-mock-mic` вместо `getUserMedia`) нулевой: через 15 с «Не слышу микрофон» |
 | `mic-lost` | Идёт запись, на 8-й секунде микрофон отключают, ядро не переключается: «Микрофон отключился» |
 | `model-downloading` | Модель распознавания качается около минуты: «Записать» показывает «Модель распознавания ещё скачивается» |
-| `mic-prompt-deny` | Доступ не спрашивали: «Записать» → «вопрос macOS» 2 с → отказ: карточка «ShadeNotes нужен микрофон», кнопка записи «нужен доступ» |
+| `mic-prompt-deny` | Доступ не спрашивали: «Записать» → «вопрос macOS» 2 с → отказ: карточка «Shade нужен микрофон», кнопка записи «нужен доступ» |
 | `mic-unknown-zeros` | Окно приложения не ответило про разрешение, с микрофона нули: запись стартует, через 3 с останавливается без сохранения, карточка |
 | `mic-unknown-ok` | Окно не ответило, но микрофон шумит: запись идёт, доступ подтверждён звуком |
 | `mic-unknown-blind` | Окно не ответило и слушать микрофон нечем: «Не удалось проверить микрофон», без речи после стопа карточка |
@@ -98,20 +98,20 @@ pnpm dev            # http://localhost:3118
 
 ### Консоль
 
-Состояние заглушек лежит в `window.__MEETILY_MOCK__`:
+Состояние заглушек лежит в `window.__SHADE_MOCK__`:
 
 ```js
-__MEETILY_MOCK__.calledCommands      // какие команды вызывались
-__MEETILY_MOCK__.unknownCommands     // вызовы без заглушки
-__MEETILY_MOCK__.listenedEvents      // на что подписан интерфейс
-__MEETILY_MOCK__.doubleUnlistens     // отписки, которые настоящий Tauri не пережил бы
-__MEETILY_MOCK__.backend.meetings    // «база» встреч (можно править на лету)
-__MEETILY_MOCK__.emit('chunk-drop-warning', 'текст')   // любое событие ядра
-__MEETILY_MOCK__.presets.micUnavailable()              // готовые события
-__MEETILY_MOCK__.presets.stopFromTray()                // стоп «из трея»
+__SHADE_MOCK__.calledCommands      // какие команды вызывались
+__SHADE_MOCK__.unknownCommands     // вызовы без заглушки
+__SHADE_MOCK__.listenedEvents      // на что подписан интерфейс
+__SHADE_MOCK__.doubleUnlistens     // отписки, которые настоящий Tauri не пережил бы
+__SHADE_MOCK__.backend.meetings    // «база» встреч (можно править на лету)
+__SHADE_MOCK__.emit('chunk-drop-warning', 'текст')   // любое событие ядра
+__SHADE_MOCK__.presets.micUnavailable()              // готовые события
+__SHADE_MOCK__.presets.stopFromTray()                // стоп «из трея»
 ```
 
-Ловушка отписок: как и настоящий Tauri, заглушка бросает `TypeError: undefined is not an object (evaluating 'listeners[eventId].handlerId')` из `unregisterListener`, если отписка пришла дважды или раньше, чем слушатель записан (в тот же такт, что разрешился `listen`). Каждый такой случай попадает в `doubleUnlistens`. Подписки Aid идут через `src/aid/lib/tauri-events.ts` и в ловушку не попадают; оригинальный `useRecordingStop` попадает, его страхует `installTauriEventGuard`.
+Ловушка отписок: как и настоящий Tauri, заглушка бросает `TypeError: undefined is not an object (evaluating 'listeners[eventId].handlerId')` из `unregisterListener`, если отписка пришла дважды или раньше, чем слушатель записан (в тот же такт, что разрешился `listen`). Каждый такой случай попадает в `doubleUnlistens`. Подписки Shade идут через `src/shade/lib/tauri-events.ts` и в ловушку не попадают; оригинальный `useRecordingStop` попадает, его страхует `installTauriEventGuard`.
 
 Готовые пресеты: `micUnavailable`, `micSwitched`, `micSwapFailed`, `micRecoveryExhausted`, `chunkDrop`, `transcriptError`, `transcriptionError`, `parakeetDownloadError`, `whisperDownloadError`, `ollamaDownloadError`, `importError`, `retranscriptionError`, `stopFromTray`, `trayToggle`, `dragEnter`, `dragDrop`, `dragLeave`.
 
@@ -123,8 +123,8 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
 |---|---|
 | Захват звука, Whisper/Parakeet | Звука нет. Транскрипт — заранее написанные реплики по таймеру. `whisper_transcribe_audio`, `parakeet_transcribe_audio` ничего не делают |
 | Уровень звука (`audio-levels`) | Синусоида вместо реального сигнала |
-| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценариях `no-permission` и `mic-*` по полям сценария (`micPermission`, `systemAudioPermission`, `micDeviceMissing`, `micPromptMs`). Проверка через `getUserMedia` в заглушках не запускается: разрешение macOS задаёт поле сценария `macMic` (команда `aid_mock_mac_mic`), уровень микрофона поле `micLive` (событие `aid-mock-mic`). `open_system_settings` пишет предупреждение |
-| Файловая система | Пути вымышленные (`/mock/Meetily/...`). «Открыть папку» (`open_*_folder`, `open_meeting_folder`) пишет предупреждение. `read_audio_file` отдаёт пустой массив |
+| Системные разрешения macOS | `trigger_*_permission` возвращает `true`, в сценариях `no-permission` и `mic-*` по полям сценария (`micPermission`, `systemAudioPermission`, `micDeviceMissing`, `micPromptMs`). Проверка через `getUserMedia` в заглушках не запускается: разрешение macOS задаёт поле сценария `macMic` (команда `shade_mock_mac_mic`), уровень микрофона поле `micLive` (событие `shade-mock-mic`). `open_system_settings` пишет предупреждение |
+| Файловая система | Пути вымышленные (`/mock/Shade/...`). «Открыть папку» (`open_*_folder`, `open_meeting_folder`) пишет предупреждение. `read_audio_file` отдаёт пустой массив |
 | Диалоги выбора файлов | `select_and_validate_audio_command`, `select_legacy_database_path` возвращают `null`, как при отмене |
 | Перетаскивание файлов из Finder | Работает только через пресеты `dragEnter` / `dragDrop` |
 | Трей | Есть только события: `presets.trayToggle()` и `presets.stopFromTray()` |
@@ -163,7 +163,7 @@ __MEETILY_MOCK__.presets.stopFromTray()                // стоп «из тре
 ```
 frontend/src/dev/mock-tauri/
 ├── bootstrap.ts      точка входа, условие включения (импортируется в app/layout.tsx)
-├── install.ts        mockIPC + mockWindows + plugin-os, отладочный window.__MEETILY_MOCK__
+├── install.ts        mockIPC + mockWindows + plugin-os, отладочный window.__SHADE_MOCK__
 ├── handlers.ts       команда → ответ, ошибки error-сценария, плагины
 ├── backend.ts        состояние «ядра»: встречи, резюме, запись, загрузки, уровни звука
 ├── scenarios.ts      сценарии и выбор через ?mock= / sessionStorage
@@ -183,4 +183,4 @@ frontend/src/dev/mock-tauri/
 - `recording-stop-complete` ядро шлёт только при остановке из трея (`tray.rs`). Если слать его и при остановке из интерфейса, встреча сохранится дважды. Заглушка повторяет поведение ядра.
 - В сценарии `error` список встреч не загружается, но интерфейс никак это не показывает: сайдбар просто пустой. Это поведение приложения, а не заглушки; при редизайне его стоит учесть.
 
-После «Остановить» на нужном шаге без записи: `/?mock=full&finish=transcribing|saving|saved` (строка встречи со спиннером в «Сегодня» и карточка у кнопки записи), `&finish=discarded` («Пустая запись - не сохранена»); только в разработке, `lib/finish-preview.ts`, таймеров у предпросмотра нет. «Ждём речь» на экране записи: `/?mock=silence-5s`. Отбракованная запись с другими причинами: `/?mock=full&notice=no-speech|unrecognized`; карточка проверки моделью: `&notice=low-content`. Исход проверки моделью (записи с 3..15 значимыми словами, `lib/content-check.ts`) без Ollama: `&check=content|empty|unavailable|timeout` (ответ через 1,5 с; `timeout` ждёт 20 с и оставляет встречу), выбор держится на вкладку в `sessionStorage` (`aid.devContentCheck`); без параметра спрашивается настоящая модель итогов, на заглушках это `builtin-ai`, то есть «недоступна». Корзина в браузере: у заглушек нет файловой системы (`plugin:fs`), папки не переносятся; проверка переноса и восстановления из меток — с файловой системой в памяти в скрипте Playwright. Весь путь по-настоящему: `/?mock=short-16s`, `words-20`, `silence-5s`, `recognition-failed`, подождать реплики и нажать «Остановить».
+После «Остановить» на нужном шаге без записи: `/?mock=full&finish=transcribing|saving|saved` (строка встречи со спиннером в «Сегодня» и карточка у кнопки записи), `&finish=discarded` («Пустая запись - не сохранена»); только в разработке, `lib/finish-preview.ts`, таймеров у предпросмотра нет. «Ждём речь» на экране записи: `/?mock=silence-5s`. Отбракованная запись с другими причинами: `/?mock=full&notice=no-speech|unrecognized`; карточка проверки моделью: `&notice=low-content`. Исход проверки моделью (записи с 3..15 значимыми словами, `lib/content-check.ts`) без Ollama: `&check=content|empty|unavailable|timeout` (ответ через 1,5 с; `timeout` ждёт 20 с и оставляет встречу), выбор держится на вкладку в `sessionStorage` (`shade.devContentCheck`); без параметра спрашивается настоящая модель итогов, на заглушках это `builtin-ai`, то есть «недоступна». Корзина в браузере: у заглушек нет файловой системы (`plugin:fs`), папки не переносятся; проверка переноса и восстановления из меток — с файловой системой в памяти в скрипте Playwright. Весь путь по-настоящему: `/?mock=short-16s`, `words-20`, `silence-5s`, `recognition-failed`, подождать реплики и нажать «Остановить».

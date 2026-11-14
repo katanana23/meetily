@@ -182,7 +182,7 @@ pub async fn save_recording_preferences<R: Runtime>(
 
 /// Let the UI reach a recordings folder (recursively) through tauri-plugin-fs.
 /// The UI moves recordings into a trash folder next to them
-/// (frontend/src/aid/lib/recording-trash.ts), restores and erases them.
+/// (frontend/src/shade/lib/recording-trash.ts), restores and erases them.
 /// tauri.conf.json only covers the default folder.
 /// Never opens the disk root, the home folder or anything above it (see `fs_scope_refusal`).
 pub fn allow_folder_in_fs_scope<R: Runtime>(app: &AppHandle<R>, folder: &Path) {
@@ -271,7 +271,7 @@ mod fs_scope_tests {
     fn allows_recordings_folders() {
         let home = Some(Path::new("/Users/someone"));
         for ok in [
-            "/Users/someone/Movies/aid-meetings-recordings",
+            "/Users/someone/Movies/Shade",
             "/Users/someone/Movies",
             "/Users/someone/sn-test",
             "/Users/someoneelse/recordings",

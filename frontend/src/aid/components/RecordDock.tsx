@@ -7,7 +7,7 @@
 //   стеклянной карточкой над капсулой;
 // - после «Остановить»: на месте кнопки записи одна карточка (FinishCard), которая меняет
 //   состояние на месте: «Дописываю реплики» → «Сохраняю» → «Встреча сохранена» с «Открыть»
-//   и крестиком; запись отбракована: та же карточка «Слишком коротко - запись не сохранена».
+//   и крестиком; запись отбракована: та же карточка «Пустая запись - не сохранена».
 // Смена состояния появляется из размытия (.aid-dock-in), только transform,
 // opacity и filter; prefers-reduced-motion их выключает.
 // Страницы оставляют снизу запас --dock-space, капсула не закрывает последние строки.
@@ -241,7 +241,7 @@ export function RecordDock() {
     : c.finish
       ? fromFinish(c.finish)
       : notice
-        ? { stage: 'discarded', title: null, meetingId: null, reason: notice.verdict }
+        ? { stage: 'discarded', title: notice.title ?? null, meetingId: notice.meetingId ?? null, reason: notice.verdict }
         : null;
   const state = c.isRecording ? 'recording' : card ? 'finishing' : 'idle';
   const openSaved = (id: string) => {
@@ -376,6 +376,14 @@ export function RecordDock() {
             reason={card.reason}
             still={preview !== null}
             onOpen={card.meetingId && !preview ? () => openSaved(card.meetingId!) : preview && card.meetingId ? () => undefined : undefined}
+            onUndo={
+              card.reason === 'low-content' && notice?.undo
+                ? () => {
+                    notice.dismiss();
+                    void notice.undo?.();
+                  }
+                : undefined
+            }
             onClose={preview ? () => undefined : closeCard}
             onHold={card.stage === 'discarded' ? notice?.hold : undefined}
           />
@@ -386,7 +394,15 @@ export function RecordDock() {
       {leaving && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4" aria-hidden>
           <div className="aid-dock-out">
-            <FinishCard stage={leaving.stage} title={leaving.title} reason={leaving.reason} still onClose={() => undefined} onOpen={leaving.meetingId ? () => undefined : undefined} />
+            <FinishCard
+              stage={leaving.stage}
+              title={leaving.title}
+              reason={leaving.reason}
+              still
+              onClose={() => undefined}
+              onOpen={leaving.meetingId ? () => undefined : undefined}
+              onUndo={leaving.reason === 'low-content' ? () => undefined : undefined}
+            />
           </div>
         </div>
       )}

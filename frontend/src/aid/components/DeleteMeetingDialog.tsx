@@ -6,7 +6,7 @@ import { Trash } from '@phosphor-icons/react';
 import { Spinner } from '@/aid/components/ui/spinner';
 import { Button } from '@/aid/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/aid/components/ui/dialog';
-import { t } from '@/aid/strings';
+import { t, tDays } from '@/aid/strings';
 
 interface DeleteMeetingDialogProps {
   open: boolean;
@@ -24,7 +24,7 @@ export function DeleteMeetingDialog({ open, onOpenChange, title, onConfirm }: De
         <DialogTitle>{t('deleteTitle')}</DialogTitle>
         <DialogDescription>
           {title ? `«${title}». ` : ''}
-          {t('deleteHint')}
+          {tDays('deleteHint')}
         </DialogDescription>
         <DialogFooter>
           <DialogClose asChild>

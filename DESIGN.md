@@ -126,7 +126,7 @@ components:
 
 # Design System: ShadeNotes
 
-Источник токенов: `frontend/src/aid/styles/globals.css` (CSS-переменные в HSL) и `frontend/tailwind.config.js`. Значения ниже в hex для переносимости; при расхождении прав `globals.css`. Правила для агентов дублируются в `CLAUDE.md`, раздел «Стек интерфейса».
+Источник токенов: `frontend/src/aid/styles/globals.css` (CSS-переменные в HSL) и `frontend/tailwind.config.js`. Значения ниже в hex для переносимости; при расхождении прав `globals.css`. Правила для агентов: `docs/ui/foundations.md` (оглавление по задачам в `CLAUDE.md`, «Что читать»).
 
 ## Overview
 

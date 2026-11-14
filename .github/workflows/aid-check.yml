@@ -1,0 +1,56 @@
+name: "Aid check"
+
+# Проверки интерфейса ShadeNotes на каждый PR в ветку aid.
+# Что и почему: CLAUDE.md, раздел «Готово значит».
+
+on:
+  pull_request:
+    branches: [aid]
+
+concurrency:
+  group: aid-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: tsc, contrast, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # pnpm test = bun test src/aid
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Types (npx tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Contrast (pnpm check:contrast)
+        run: pnpm check:contrast
+
+      - name: Tests (pnpm test)
+        run: pnpm test
+
+      - name: Build (pnpm build)
+        run: pnpm build

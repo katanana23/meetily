@@ -212,7 +212,7 @@ export function MeetingRow({ meeting, onRename, onDelete, onOpenFolder, timeOnly
               <Trash />
             </IconAction>
           </div>
-          {/* Шеврон: исключение из правила fill (CLAUDE.md) */}
+          {/* Шеврон: исключение из правила fill (docs/ui/foundations.md) */}
           <CaretRight weight="bold" className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </li>
       </ContextMenuTrigger>

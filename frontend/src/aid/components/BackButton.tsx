@@ -1,6 +1,6 @@
 // Кнопка «Назад»: круглая таблетка 56 px на вложенной поверхности плитки, с шевроном 16 px, подпись только во всплывающей
 // подсказке (и в aria-label). Одна и та же на встрече, в настройках и на экране записи.
-// CaretLeft weight="bold": исключение из правила fill для шевронов (CLAUDE.md).
+// CaretLeft weight="bold": исключение из правила fill для шевронов (docs/ui/foundations.md).
 'use client';
 
 import Link from 'next/link';

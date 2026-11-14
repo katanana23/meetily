@@ -1,36 +1,34 @@
-## Description
-[Provide a detailed description of your changes]
+## Что сделано
+<!-- Итог в двух-трёх предложениях: что изменилось для человека и в коде. -->
 
-## Related Issue
-[Link to the issue this PR addresses (e.g., "Fixes #123")]
+## Разбор до начала
+<!-- Для задач с логикой, данными или правилами. Заполнить до первой правки. -->
+- Что сломается первым:
+- Что скажет владелец:
+- Что придётся переделывать через неделю:
 
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Performance improvement
-- [ ] Code refactoring
-- [ ] Other (please describe)
+## Таблица случаев
+<!-- Для задач с логикой, данными или правилами. Каждый случай закрыт тестом. -->
+| Вход | Ожидаемое | Что при отказе (модель, ядро, файл) | Тест |
+|---|---|---|---|
+|  |  |  |  |
 
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Manual testing performed
-- [ ] All tests pass
+## Что решил сам и почему
+<!-- Решения без владельца; обходы, если прямой путь был закрыт. -->
 
-## Documentation
-- [ ] Documentation updated
-- [ ] No documentation needed
+## Проверки (вывод)
+<!-- npx tsc --noEmit, pnpm check:contrast, pnpm test, pnpm build: хвост вывода. -->
+```
+```
 
-## Checklist
-- [ ] Code follows project style
-- [ ] Self-reviewed the code
-- [ ] Added comments for complex code
-- [ ] Updated README if needed
-- [ ] Branch is up to date with devtest
-- [ ] No merge conflicts
+## Снимки и видео
+<!-- Для вида: окно приложения, светлая и тёмная тема. -->
 
-## Screenshots (if applicable)
-[Add screenshots here if your changes affect the UI]
+## Проверка владельца
+<!-- До пяти шагов на две минуты на Mac. -->
+1.
 
-## Additional Notes
-[Add any additional information that might be helpful for reviewers] 
+## На потом
+
+## Вопросы
+<!-- Не больше одного, с вариантом по умолчанию. -->

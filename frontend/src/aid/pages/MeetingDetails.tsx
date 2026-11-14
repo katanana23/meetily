@@ -250,7 +250,7 @@ function SummaryBlock({
   // Итоги и всё, что делает ИИ: полоса Indigo, текст #111 в обеих темах.
   // Пока итоги готовятся: та же полоса, что у готовых (та же высота, без прыжка), в круге
   // Spinner, а на месте текста итогов Skeleton на нейтральной плитке, без мигания. Единственный
-  // эффект экрана: свечение «думает» у нижнего края транскрипта (VoiceGlow, CLAUDE.md «Эффекты»)
+  // эффект экрана: свечение «думает» у нижнего края транскрипта (VoiceGlow, docs/ui/foundations.md «Эффекты»)
   if (summary.kind === 'processing') {
     return (
       <section className="flex flex-col gap-2" role="status" aria-live="polite" aria-busy="true">

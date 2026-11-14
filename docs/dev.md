@@ -39,6 +39,7 @@
 
 ## Проверки
 - После правок во `frontend`: `npx tsc --noEmit`, `pnpm check:contrast`, `pnpm test`, `pnpm build`. Те же шаги на каждый PR в `shade` запускает `.github/workflows/shade-check.yml`.
+- Скрипт переноса данных `scripts/migrate-from-aid.sh`: тест `bash scripts/test-migrate-from-aid.sh` (подставной `HOME`, вымышленные данные), в CI отдельной задачей той же проверки.
 
 ## Git и отчёты
 - Не коммитить и не пушить без просьбы. Не пушить в `main`. PR не сливать самому.

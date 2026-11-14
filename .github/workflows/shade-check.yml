@@ -55,3 +55,14 @@ jobs:
 
       - name: Build (pnpm build)
         run: pnpm build
+
+  migrate:
+    name: migrate-from-aid
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Перенос данных со старых имён: случаи из таблицы PR на подставном HOME.
+      - name: Migration script (bash scripts/test-migrate-from-aid.sh)
+        run: bash scripts/test-migrate-from-aid.sh
